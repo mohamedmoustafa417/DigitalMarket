@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en" dir="ltr" id="html-root">
 <head>
 <meta charset="UTF-8">
@@ -684,13 +684,8 @@ function initData(){
     users.push({id:'admin-1',name:'Admin',email:'admin@digitalmarket.com',password:'Admin@2024',role:'admin',createdAt:Date.now()});
     setUsers(users);
   }
-  if(!getProducts().length){
-    setProducts([
-      {id:'p1',title:'Professional Resume Template',titleAr:'قالب سيرة ذاتية احترافي',description:'A clean, modern resume template in Word and PDF format. ATS-friendly with beautiful design.',descriptionAr:'قالب سيرة ذاتية نظيف وعصري بصيغة Word و PDF. متوافق مع أنظمة التوظيف.',price:99,category:'Templates',image:'',emoji:'📄',downloadUrl:'https://example.com/download/resume',sellerId:'admin-1',sellerName:'Admin',approved:true,createdAt:Date.now()-86400000*5},
-      {id:'p2',title:'Python Full Course 2024',titleAr:'دورة بايثون الكاملة 2024',description:'Complete Python programming course with 50+ hours of content. From beginner to advanced.',descriptionAr:'دورة برمجة بايثون الكاملة مع أكثر من 50 ساعة محتوى. من المبتدئ إلى المتقدم.',price:499,category:'Courses',image:'',emoji:'🐍',downloadUrl:'https://example.com/download/python',sellerId:'admin-1',sellerName:'Admin',approved:true,createdAt:Date.now()-86400000*3},
-      {id:'p3',title:'Social Media Graphics Pack',titleAr:'حزمة جرافيك وسائل التواصل',description:'200+ ready-to-use social media templates for Instagram, Facebook and Twitter.',descriptionAr:'أكثر من 200 قالب جاهز للاستخدام لإنستجرام وفيسبوك وتويتر.',price:149,category:'Graphics',image:'',emoji:'🎨',downloadUrl:'https://example.com/download/graphics',sellerId:'admin-1',sellerName:'Admin',approved:true,createdAt:Date.now()-86400000*2},
-      {id:'p4',title:'E-Commerce Starter Kit',titleAr:'حزمة بداية التجارة الإلكترونية',description:'Complete e-commerce website template with shopping cart, checkout, and admin panel.',descriptionAr:'قالب موقع تجارة إلكترونية كامل مع سلة تسوق وصفحة دفع ولوحة تحكم.',price:799,category:'Software',image:'',emoji:'🛒',downloadUrl:'https://example.com/download/ecommerce',sellerId:'admin-1',sellerName:'Admin',approved:true,createdAt:Date.now()-86400000},
-    ]);
+  if(!localStorage.getItem('dm_seeded')){
+    localStorage.setItem('dm_seeded','1');
   }
 }
 
