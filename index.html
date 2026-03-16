@@ -19,7 +19,7 @@ a{text-decoration:none;color:inherit}button{cursor:pointer;font-family:inherit}i
 
 /* App Loading */
 .app-loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:99999;flex-direction:column;gap:16px;transition:opacity .4s}
-.app-loading.hidden{opacity:0;pointer-events:none}
+.app-loading.hidden{opacity:0;pointer-events:none;display:none!important}
 .big-spin{width:52px;height:52px;border:3px solid rgba(99,102,241,.3);border-top-color:var(--primary);border-radius:50%;animation:rot .8s linear infinite}
 
 /* Header */
@@ -239,7 +239,7 @@ footer p{color:var(--text-muted);font-size:13px}
 <script>
   window._loaderTimer = setTimeout(function(){
     var el = document.getElementById('app-loading');
-    if(el) el.classList.add('hidden');
+    if(el){ el.classList.add('hidden'); el.style.display='none'; }
   }, 4000);
 </script>
 
@@ -654,9 +654,13 @@ async function renderProductGrid(){
   const noP=document.getElementById('no-products');
   if(!grid) return;
   renderCatBtns();
-  grid.innerHTML='<div class="loading-row" style="grid-column:1/-1"><div class="spin" style="border-top-color:var(--primary);border-color:rgba(99,102,241,.3);width:32px;height:32px;margin:0 auto 12px"></div><p>Loading...</p></div>';
+  grid.innerHTML='<div class="loading-row" style="grid-column:1/-1"><div class="spin" style="border-top-color:var(--primary);border-color:rgba(99,102,241,.3);width:32px;height:32px;margin:0 auto 12px"></div><p style="color:var(--text-muted)">Loading products...</p></div>';
   try{
-    const snap=await db.collection('products').where('approved','==',true).get();
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000));
+    const snap=await Promise.race([
+      db.collection('products').where('approved','==',true).get(),
+      timeout
+    ]);
     let list=snap.docs.map(d=>({id:d.id,...d.data()}));
     const sort=document.getElementById('sort-select')?.value||'newest';
     if(activeCat!=='All') list=list.filter(p=>p.category===activeCat);
@@ -683,7 +687,10 @@ async function renderProductGrid(){
       </div>`;
     }).join('');
   }catch(err){
-    grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><i class="fas fa-exclamation-triangle"></i><p>Error: ${err.message}</p></div>`;
+    const msg = err.message==='timeout'
+      ? 'Connection timed out. Check Firestore rules — go to Firebase Console → Firestore → Rules and make sure reads are allowed.'
+      : err.message;
+    grid.innerHTML=`<div class="empty" style="grid-column:1/-1;padding:40px;text-align:center"><i class="fas fa-exclamation-triangle" style="font-size:32px;color:var(--warning);margin-bottom:12px;display:block"></i><p style="color:var(--text-muted);font-size:14px">${msg}</p><button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="renderProductGrid()"><i class="fas fa-redo"></i> Retry</button></div>`;
   }
 }
 
