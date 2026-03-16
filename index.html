@@ -436,6 +436,15 @@ footer p{color:var(--text-muted);font-size:13px}
 
 <!-- ═══════════════════════ JAVASCRIPT ═══════════════════════ -->
 <script>
+// Global error catcher — shows any crash visually on the page
+window.onerror = function(msg, src, line, col, err){
+  var box = document.getElementById('js-error-box');
+  if(!box){ box=document.createElement('div'); box.id='js-error-box';
+    box.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#ef4444;color:#fff;padding:12px 16px;font-size:13px;z-index:999999;font-family:monospace;white-space:pre-wrap';
+    document.body.appendChild(box); }
+  box.textContent = '⚠ JS Error: ' + msg + '\nLine: ' + line + '\nSource: ' + src;
+  return false;
+};
 // ── Firebase Init ──────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyBlz4mh7Aw0juMQPemqRUysxVVDhGaU8Rw",
