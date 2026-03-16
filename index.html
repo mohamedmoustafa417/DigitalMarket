@@ -868,8 +868,8 @@ async function loadOrders(){
   const el=document.getElementById('orders-content');
   el.innerHTML='<div class="loading-row"><div class="spin" style="border-top-color:var(--primary);border-color:rgba(99,102,241,.3);width:32px;height:32px;margin:0 auto 12px"></div><p>Loading orders...</p></div>';
   try{
-    const snap=await db.collection('orders').where('buyerId','==',curUser.uid).orderBy('createdAt','desc').get();
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const snap=await db.collection('orders').where('buyerId','==',curUser.uid).get();
+    const orders=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     if(!orders.length){ el.innerHTML=`<div class="empty"><i class="fas fa-box"></i><p>${t('noOrders')}</p></div>`; return; }
     el.innerHTML=orders.map(o=>`
       <div class="card" style="margin-bottom:14px">
@@ -1041,8 +1041,8 @@ async function delProduct(id){
 }
 
 async function buildSellerSales(){
-  const snap=await db.collection('orders').where('sellerId','==',curUser.uid).orderBy('createdAt','desc').get();
-  const list=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const snap=await db.collection('orders').where('sellerId','==',curUser.uid).get();
+  const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
   return `<h2 style="font-size:22px;font-weight:800;margin-bottom:22px">Sales</h2>
   ${list.length?`<div class="table-wrap"><table>
     <thead><tr><th>Product</th><th>Buyer</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
@@ -1099,8 +1099,8 @@ async function buildAdminOverview(){
 }
 
 async function buildAdminOrders(){
-  const snap=await db.collection('orders').orderBy('createdAt','desc').get();
-  const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const snap=await db.collection('orders').get();
+  const all=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
   const byStatus=(s)=>s==='all'?all:all.filter(o=>o.status===s);
   return `<h2 style="font-size:22px;font-weight:800;margin-bottom:22px">All Orders</h2>
   <div class="card">
@@ -1116,8 +1116,8 @@ async function buildAdminOrders(){
 
 function filterOTab(btn,status){
   document.querySelectorAll('#otabs .tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  db.collection('orders').orderBy('createdAt','desc').get().then(snap=>{
-    let list=snap.docs.map(d=>({id:d.id,...d.data()}));
+  db.collection('orders').get().then(snap=>{
+    let list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     if(status!=='all') list=list.filter(o=>o.status===status);
     document.getElementById('otable').innerHTML=ordersTableHTML(list);
   });
