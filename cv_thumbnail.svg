@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="card1grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#f8f9fa"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <filter id="shadow2" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="600" fill="url(#bg)"/>
+
+  <!-- Decorative circles -->
+  <circle cx="700" cy="80" r="120" fill="#1f4e79" opacity="0.15"/>
+  <circle cx="100" cy="520" r="90" fill="#2e86c1" opacity="0.1"/>
+
+  <!-- Badge -->
+  <rect x="290" y="22" width="220" height="32" rx="16" fill="#2e86c1"/>
+  <text x="400" y="43" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="white" text-anchor="middle" letter-spacing="1">ATS FRIENDLY</text>
+
+  <!-- CV Card 1 (back) -->
+  <rect x="310" y="80" width="230" height="300" rx="8" fill="url(#card1grad)" filter="url(#shadow)"/>
+  <!-- Card 1 header -->
+  <rect x="310" y="80" width="230" height="52" rx="8" fill="#1f4e79"/>
+  <rect x="310" y="116" width="230" height="16" fill="#1f4e79"/>
+  <text x="425" y="101" font-family="Arial, sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="middle">الاسم الكامل</text>
+  <text x="425" y="113" font-family="Arial, sans-serif" font-size="6" fill="#aed6f1" text-anchor="middle">المسمى الوظيفي | مجال العمل</text>
+  <!-- Card 1 content lines -->
+  <rect x="326" y="148" width="80" height="5" rx="2" fill="#1f4e79" opacity="0.8"/>
+  <rect x="326" y="160" width="180" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="167" width="160" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="174" width="170" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="192" width="80" height="5" rx="2" fill="#1f4e79" opacity="0.8"/>
+  <rect x="326" y="204" width="180" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="211" width="150" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="218" width="165" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="236" width="80" height="5" rx="2" fill="#1f4e79" opacity="0.8"/>
+  <rect x="326" y="248" width="100" height="3" rx="2" fill="#cccccc"/>
+  <rect x="326" y="255" width="140" height="3" rx="2" fill="#cccccc"/>
+  <!-- Skill chips -->
+  <rect x="326" y="272" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="384" y="272" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="442" y="272" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="326" y="292" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="384" y="292" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="326" y="340" width="60" height="4" rx="2" fill="#1f4e79" opacity="0.5"/>
+  <rect x="326" y="352" width="180" height="3" rx="2" fill="#dddddd"/>
+
+  <!-- CV Card 2 (front, slightly offset) -->
+  <rect x="258" y="100" width="230" height="300" rx="8" fill="url(#card1grad)" filter="url(#shadow2)"/>
+  <!-- Card 2 header -->
+  <rect x="258" y="100" width="230" height="52" rx="8" fill="#1f4e79"/>
+  <rect x="258" y="136" width="230" height="16" fill="#1f4e79"/>
+  <text x="373" y="121" font-family="Arial, sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="middle">YOUR FULL NAME</text>
+  <text x="373" y="133" font-family="Arial, sans-serif" font-size="6" fill="#aed6f1" text-anchor="middle">Job Title  |  Your Industry</text>
+  <!-- Card 2 content lines -->
+  <rect x="274" y="168" width="80" height="5" rx="2" fill="#1f4e79" opacity="0.8"/>
+  <rect x="274" y="180" width="180" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="187" width="160" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="194" width="170" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="212" width="80" height="5" rx="2" fill="#1f4e79" opacity="0.8"/>
+  <rect x="274" y="224" width="180" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="231" width="150" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="238" width="165" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="256" width="80" height="5" rx="2" fill="#1f4e79" opacity="0.8"/>
+  <rect x="274" y="268" width="100" height="3" rx="2" fill="#cccccc"/>
+  <rect x="274" y="275" width="140" height="3" rx="2" fill="#cccccc"/>
+  <!-- Skill chips -->
+  <rect x="274" y="292" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="332" y="292" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="390" y="292" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="274" y="312" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <rect x="332" y="312" width="52" height="14" rx="7" fill="#ebf5fb"/>
+  <!-- Bottom line -->
+  <rect x="274" y="360" width="60" height="4" rx="2" fill="#1f4e79" opacity="0.5"/>
+  <rect x="274" y="372" width="180" height="3" rx="2" fill="#dddddd"/>
+
+  <!-- Count badge -->
+  <circle cx="230" cy="170" r="28" fill="#2e86c1"/>
+  <text x="230" y="167" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="white" text-anchor="middle">4</text>
+  <text x="230" y="179" font-family="Arial, sans-serif" font-size="7" fill="white" text-anchor="middle">FILES</text>
+
+  <!-- Title text -->
+  <text x="400" y="440" font-family="Arial, sans-serif" font-size="28" font-weight="900" fill="white" text-anchor="middle">CV Template Pack</text>
+  <text x="400" y="468" font-family="Arial, sans-serif" font-size="14" fill="#aed6f1" text-anchor="middle">Arabic &amp; English  •  ATS + Design Versions</text>
+
+  <!-- Feature pills -->
+  <rect x="150" y="490" width="120" height="28" rx="14" fill="#1f4e79" opacity="0.8"/>
+  <text x="210" y="509" font-family="Arial, sans-serif" font-size="11" fill="white" text-anchor="middle">ATS Optimized</text>
+
+  <rect x="285" y="490" width="110" height="28" rx="14" fill="#1f4e79" opacity="0.8"/>
+  <text x="340" y="509" font-family="Arial, sans-serif" font-size="11" fill="white" text-anchor="middle">Word Editable</text>
+
+  <rect x="410" y="490" width="120" height="28" rx="14" fill="#1f4e79" opacity="0.8"/>
+  <text x="470" y="509" font-family="Arial, sans-serif" font-size="11" fill="white" text-anchor="middle">Bilingual EN/AR</text>
+
+  <rect x="545" y="490" width="110" height="28" rx="14" fill="#1f4e79" opacity="0.8"/>
+  <text x="600" y="509" font-family="Arial, sans-serif" font-size="11" fill="white" text-anchor="middle">4 Templates</text>
+
+  <!-- Price tag -->
+  <rect x="330" y="535" width="140" height="40" rx="20" fill="#2e86c1"/>
+  <text x="400" y="561" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="white" text-anchor="middle">129 EGP</text>
+</svg>
