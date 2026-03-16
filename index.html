@@ -965,7 +965,7 @@ function buildProductForm(p){
   <div class="card"><form onsubmit="saveProduct(event,'${p?p.id:''}')">
     <div class="form-row">
       <div class="form-group"><label class="form-label">Product Name (EN) <span class="req">*</span></label><input class="form-control" id="p-title" required value="${p?escH(p.title):''}" placeholder="Product Name"></div>
-      <div class="form-group"><label class="form-label">اسم المنتج (AR)</label><input class="form-control" id="p-titleAr" value="${p?escH(p.titleAr||'):''}" placeholder="اسم المنتج"></div>
+      <div class="form-group"><label class="form-label">اسم المنتج (AR)</label><input class="form-control" id="p-titleAr" value="${p?escH(p.titleAr||''):''}" placeholder="اسم المنتج"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">Description (EN)</label><textarea class="form-control" id="p-desc" rows="3" placeholder="Describe your product...">${p?escH(p.description||''):''}</textarea></div>
