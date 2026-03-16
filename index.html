@@ -6,9 +6,9 @@
 <title>DigitalMarket | سوق رقمي</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js" crossorigin="anonymous"></script>
 <style>
 :root{--primary:#6366f1;--primary-dark:#4f46e5;--secondary:#10b981;--bg:#0f0f13;--bg2:#1a1a24;--bg3:#242435;--card:#1e1e2e;--border:#2d2d45;--text:#e2e8f0;--text-muted:#8892a4;--danger:#ef4444;--warning:#f59e0b;--success:#10b981;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,.4)}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -235,6 +235,13 @@ footer p{color:var(--text-muted);font-size:13px}
   <div class="big-spin"></div>
   <p style="color:var(--text-muted);font-size:15px;margin-top:8px">Loading DigitalMarket...</p>
 </div>
+<!-- Emergency timeout: runs immediately, hides loader after 4s no matter what -->
+<script>
+  window._loaderTimer = setTimeout(function(){
+    var el = document.getElementById('app-loading');
+    if(el) el.classList.add('hidden');
+  }, 4000);
+</script>
 
 <!-- HEADER -->
 <header class="header">
@@ -515,11 +522,9 @@ let loaderHidden = false;
 function hideLoader(){
   if(loaderHidden) return;
   loaderHidden = true;
+  if(window._loaderTimer) clearTimeout(window._loaderTimer);
   document.getElementById('app-loading').classList.add('hidden');
 }
-// Safety timeout — if Firebase takes too long or isn't set up, unblock the UI
-setTimeout(hideLoader, 5000);
-
 // ── Auth State ─────────────────────────────────────────────────────────────
 auth.onAuthStateChanged(async fbUser => {
   if(fbUser){
