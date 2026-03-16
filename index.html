@@ -511,7 +511,14 @@ let checkoutItems = [];
 let proofB64 = '';
 
 // ── App Loading ────────────────────────────────────────────────────────────
-function hideLoader(){ document.getElementById('app-loading').classList.add('hidden'); }
+let loaderHidden = false;
+function hideLoader(){
+  if(loaderHidden) return;
+  loaderHidden = true;
+  document.getElementById('app-loading').classList.add('hidden');
+}
+// Safety timeout — if Firebase takes too long or isn't set up, unblock the UI
+setTimeout(hideLoader, 5000);
 
 // ── Auth State ─────────────────────────────────────────────────────────────
 auth.onAuthStateChanged(async fbUser => {
