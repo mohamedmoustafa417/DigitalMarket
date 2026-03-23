@@ -1102,7 +1102,10 @@ async function buildAdminOrders(){
   const snap=await db.collection('orders').get();
   const all=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
   const byStatus=(s)=>s==='all'?all:all.filter(o=>o.status===s);
-  return `<h2 style="font-size:22px;font-weight:800;margin-bottom:22px">All Orders</h2>
+  return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:22px">
+    <h2 style="font-size:22px;font-weight:800">All Orders</h2>
+    <button class="btn btn-success btn-sm" onclick="exportSalesCSV()"><i class="fas fa-file-csv"></i> Export Sales CSV</button>
+  </div>
   <div class="card">
     <div class="tabs" id="otabs">
       <button class="tab-btn active" onclick="filterOTab(this,'all')">All (${all.length})</button>
@@ -1165,9 +1168,12 @@ async function buildAdminProducts(){
 async function buildAdminUsers(){
   const snap=await db.collection('users').get();
   const list=snap.docs.map(d=>({id:d.id,...d.data()}));
-  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px">
+  return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:22px">
     <h2 style="font-size:22px;font-weight:800">Users (${list.length})</h2>
-    <button class="btn btn-ghost btn-sm" onclick="adminTab('users')"><i class="fas fa-sync-alt"></i> Refresh</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-success btn-sm" onclick="exportUsersCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="adminTab('users')"><i class="fas fa-sync-alt"></i> Refresh</button>
+    </div>
   </div>
   ${!list.length?`<div class="empty"><i class="fas fa-users"></i><p>No users yet.</p></div>`:`
   <div class="table-wrap"><table>
@@ -1244,6 +1250,63 @@ function copyText(text){
   navigator.clipboard.writeText(text).then(()=>toast(t('copyOk'),'success')).catch(()=>{
     const el=document.createElement('textarea'); el.value=text; document.body.appendChild(el); el.select(); document.execCommand('copy'); el.remove(); toast(t('copyOk'),'success');
   });
+}
+
+// ── CSV Export ─────────────────────────────────────────────────────────────
+function downloadCSV(filename, rows){
+  const csv = rows.map(r => r.map(cell => {
+    const s = String(cell==null?'':cell).replace(/"/g,'""');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+  }).join(',')).join('\n');
+  const BOM = '\uFEFF'; // UTF-8 BOM for Arabic support in Excel
+  const blob = new Blob([BOM+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  toast('CSV downloaded!','success');
+}
+
+async function exportSalesCSV(){
+  try{
+    const snap = await db.collection('orders').get();
+    const orders = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const rows = [
+      ['Order ID','Product','Buyer Name','Buyer Email','Seller','Amount (EGP)','Payment Method','Status','Date'],
+      ...orders.map(o=>[
+        o.id,
+        o.productTitle||'',
+        o.buyerName||'',
+        o.buyerEmail||'',
+        o.sellerName||'',
+        o.price||0,
+        o.paymentMethod||'',
+        o.status||'',
+        o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-GB') : ''
+      ])
+    ];
+    downloadCSV(`Sales_${new Date().toISOString().slice(0,10)}.csv`, rows);
+  }catch(err){ toast('Export failed: '+err.message,'error'); }
+}
+
+async function exportUsersCSV(){
+  try{
+    const snap = await db.collection('users').get();
+    const users = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const rows = [
+      ['Name','Email','Role','Shop Name','Shop Description','Joined'],
+      ...users.map(u=>[
+        u.name||'',
+        u.email||'',
+        u.role||'buyer',
+        u.shopName||'',
+        u.shopDesc||'',
+        u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString('en-GB') : ''
+      ])
+    ];
+    downloadCSV(`Customers_${new Date().toISOString().slice(0,10)}.csv`, rows);
+  }catch(err){ toast('Export failed: '+err.message,'error'); }
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
