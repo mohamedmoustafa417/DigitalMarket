@@ -677,12 +677,12 @@ async function renderProductGrid(){
       timeout
     ]);
     let list=snap.docs.map(d=>({id:d.id,...d.data()}));
-    const sort=document.getElementById('sort-select')?.value||'newest';
+    const sortEl=document.getElementById('sort-select'); const sort=(sortEl&&sortEl.value)||'newest';
     if(activeCat!=='All') list=list.filter(p=>p.category===activeCat);
     if(searchQ) list=list.filter(p=>p.title.toLowerCase().includes(searchQ)||(p.titleAr||'').includes(searchQ)||(p.description||'').toLowerCase().includes(searchQ));
     if(sort==='price-asc')  list.sort((a,b)=>a.price-b.price);
     else if(sort==='price-desc') list.sort((a,b)=>b.price-a.price);
-    else list.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    else list.sort((a,b)=>(b.createdAt && b.createdAt.seconds || 0)-(a.createdAt && a.createdAt.seconds || 0));
     if(!list.length){ grid.innerHTML=''; noP.style.display='block'; return; }
     noP.style.display='none';
     grid.innerHTML=list.map(p=>{
@@ -869,7 +869,7 @@ async function loadOrders(){
   el.innerHTML='<div class="loading-row"><div class="spin" style="border-top-color:var(--primary);border-color:rgba(99,102,241,.3);width:32px;height:32px;margin:0 auto 12px"></div><p>Loading orders...</p></div>';
   try{
     const snap=await db.collection('orders').where('buyerId','==',curUser.uid).get();
-    const orders=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    const orders=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt && b.createdAt.seconds || 0)-(a.createdAt && a.createdAt.seconds || 0));
     if(!orders.length){ el.innerHTML=`<div class="empty"><i class="fas fa-box"></i><p>${t('noOrders')}</p></div>`; return; }
     el.innerHTML=orders.map(o=>`
       <div class="card" style="margin-bottom:14px">
@@ -879,7 +879,7 @@ async function loadOrders(){
             <div style="font-size:13px;color:var(--text-muted);margin-bottom:7px">
               <i class="fas fa-tag" style="font-size:11px"></i> ${o.price} EGP &nbsp;
               <i class="fas fa-credit-card" style="font-size:11px"></i> ${o.paymentMethod||'—'} &nbsp;
-              <i class="fas fa-calendar" style="font-size:11px"></i> ${o.createdAt?.toDate?o.createdAt.toDate().toLocaleDateString():'—'}
+              <i class="fas fa-calendar" style="font-size:11px"></i> ${(o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleDateString() : '—')}
             </div>
             <span class="status s-${o.status}">${sLabel(o.status)}</span>
           </div>
@@ -911,7 +911,7 @@ function sellerTab(tab){ curSellerTab=tab; renderSeller(); }
 async function renderSeller(){
   const map={overview:'sl-overview',products:'sl-products',add:'sl-add',sales:'sl-sales'};
   document.querySelectorAll('[id^=sl-]').forEach(e=>e.classList.remove('active'));
-  if(map[curSellerTab]) document.getElementById(map[curSellerTab])?.classList.add('active');
+  if(map[curSellerTab]){var _sel=document.getElementById(map[curSellerTab]);if(_sel)_sel.classList.add('active');}
   const el=document.getElementById('seller-main');
   el.innerHTML='<div class="loading-row"><div class="spin" style="border-top-color:var(--primary);border-color:rgba(99,102,241,.3);width:32px;height:32px;margin:0 auto 12px"></div><p>Loading...</p></div>';
   if(curSellerTab==='overview') el.innerHTML=await buildSellerOverview();
@@ -1042,7 +1042,7 @@ async function delProduct(id){
 
 async function buildSellerSales(){
   const snap=await db.collection('orders').where('sellerId','==',curUser.uid).get();
-  const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  const list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt && b.createdAt.seconds || 0)-(a.createdAt && a.createdAt.seconds || 0));
   return `<h2 style="font-size:22px;font-weight:800;margin-bottom:22px">Sales</h2>
   ${list.length?`<div class="table-wrap"><table>
     <thead><tr><th>Product</th><th>Buyer</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
@@ -1051,7 +1051,7 @@ async function buildSellerSales(){
       <td style="font-weight:600;color:var(--secondary)">${o.price} EGP</td>
       <td>${o.paymentMethod||'—'}</td>
       <td><span class="status s-${o.status}">${sLabel(o.status)}</span></td>
-      <td style="color:var(--text-muted)">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleDateString():'—'}</td>
+      <td style="color:var(--text-muted)">${(o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleDateString() : '—')}</td>
     </tr>`).join('')}</tbody></table></div>`:`<div class="empty"><i class="fas fa-shopping-bag"></i><p>${t('noSales')}</p></div>`}`;
 }
 
@@ -1062,7 +1062,7 @@ function adminTab(tab){ curAdminTab=tab; renderAdmin(); }
 async function renderAdmin(){
   const map={overview:'al-overview',orders:'al-orders',products:'al-products',users:'al-users',settings:'al-settings'};
   document.querySelectorAll('[id^=al-]').forEach(e=>e.classList.remove('active'));
-  if(map[curAdminTab]) document.getElementById(map[curAdminTab])?.classList.add('active');
+  if(map[curAdminTab]){var _adm=document.getElementById(map[curAdminTab]);if(_adm)_adm.classList.add('active');}
   const el=document.getElementById('admin-main');
   el.innerHTML='<div class="loading-row"><div class="spin" style="border-top-color:var(--primary);border-color:rgba(99,102,241,.3);width:32px;height:32px;margin:0 auto 12px"></div><p>Loading...</p></div>';
   if(curAdminTab==='overview') el.innerHTML=await buildAdminOverview();
@@ -1100,7 +1100,7 @@ async function buildAdminOverview(){
 
 async function buildAdminOrders(){
   const snap=await db.collection('orders').get();
-  const all=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  const all=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt && b.createdAt.seconds || 0)-(a.createdAt && a.createdAt.seconds || 0));
   const byStatus=(s)=>s==='all'?all:all.filter(o=>o.status===s);
   return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:22px">
     <h2 style="font-size:22px;font-weight:800">All Orders</h2>
@@ -1120,7 +1120,7 @@ async function buildAdminOrders(){
 function filterOTab(btn,status){
   document.querySelectorAll('#otabs .tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
   db.collection('orders').get().then(snap=>{
-    let list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+    let list=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt && b.createdAt.seconds || 0)-(a.createdAt && a.createdAt.seconds || 0));
     if(status!=='all') list=list.filter(o=>o.status===status);
     document.getElementById('otable').innerHTML=ordersTableHTML(list);
   });
@@ -1138,7 +1138,7 @@ function ordersTableHTML(orders){
       <td>${o.paymentProof?`<button class="btn btn-ghost btn-sm" onclick="showProof('${o.id}')"><i class="fas fa-image"></i></button>`:'-'}</td>
       <td><span class="status s-${o.status}">${sLabel(o.status)}</span></td>
       <td style="white-space:nowrap">${o.status==='paid'?`<button class="btn btn-success btn-sm" onclick="approveOrder('${o.id}')"><i class="fas fa-check"></i></button> <button class="btn btn-danger btn-sm" onclick="rejectOrder('${o.id}')"><i class="fas fa-times"></i></button>`:'-'}</td>
-      <td style="color:var(--text-muted);white-space:nowrap">${o.createdAt?.toDate?o.createdAt.toDate().toLocaleDateString():'—'}</td>
+      <td style="color:var(--text-muted);white-space:nowrap">${(o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleDateString() : '—')}</td>
     </tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -1183,7 +1183,7 @@ async function buildAdminUsers(){
       <td style="color:var(--text-muted)">${u.email}</td>
       <td><span class="role-badge r-${u.role}">${u.role}</span></td>
       <td>${u.shopName||'—'}</td>
-      <td style="color:var(--text-muted)">${u.createdAt?.toDate?u.createdAt.toDate().toLocaleDateString():'—'}</td>
+      <td style="color:var(--text-muted)">${(u.createdAt && u.createdAt.toDate ? u.createdAt.toDate().toLocaleDateString() : '—')}</td>
     </tr>`).join('')}</tbody></table></div>`}`;
 }
 
@@ -1271,7 +1271,7 @@ async function exportSalesCSV(){
   try{
     const snap = await db.collection('orders').get();
     const orders = snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+      .sort((a,b)=>(b.createdAt && b.createdAt.seconds || 0)-(a.createdAt && a.createdAt.seconds || 0));
     const rows = [
       ['Order ID','Product','Buyer Name','Buyer Email','Seller','Amount (EGP)','Payment Method','Status','Date'],
       ...orders.map(o=>[
@@ -1283,7 +1283,7 @@ async function exportSalesCSV(){
         o.price||0,
         o.paymentMethod||'',
         o.status||'',
-        o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-GB') : ''
+        (o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleDateString('en-GB') : '')
       ])
     ];
     downloadCSV(`Sales_${new Date().toISOString().slice(0,10)}.csv`, rows);
@@ -1302,7 +1302,7 @@ async function exportUsersCSV(){
         u.role||'buyer',
         u.shopName||'',
         u.shopDesc||'',
-        u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString('en-GB') : ''
+        (u.createdAt && u.createdAt.toDate ? u.createdAt.toDate().toLocaleDateString('en-GB') : '')
       ])
     ];
     downloadCSV(`Customers_${new Date().toISOString().slice(0,10)}.csv`, rows);
