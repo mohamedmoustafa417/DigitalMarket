@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="mainBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#080808"/>
+      <stop offset="100%" style="stop-color:#141414"/>
+    </linearGradient>
+    <linearGradient id="limeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#a3e635"/>
+      <stop offset="100%" style="stop-color:#65a30d"/>
+    </linearGradient>
+    <linearGradient id="limeV" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#a3e635"/>
+      <stop offset="100%" style="stop-color:#4d7c0f"/>
+    </linearGradient>
+    <linearGradient id="accentBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#06b6d4"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="4" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.7"/>
+    </filter>
+    <filter id="shadow2" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="2" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Main background -->
+  <rect width="1200" height="630" fill="url(#mainBg)"/>
+
+  <!-- Top lime accent stripe -->
+  <rect x="0" y="0" width="1200" height="5" fill="url(#limeGrad)"/>
+
+  <!-- Subtle glow effects -->
+  <circle cx="0" cy="315" r="400" fill="#a3e635" opacity="0.03"/>
+  <circle cx="1200" cy="100" r="300" fill="#3b82f6" opacity="0.04"/>
+  <circle cx="1100" cy="580" r="220" fill="#a3e635" opacity="0.03"/>
+
+  <!-- ===================== LEFT CONTENT ===================== -->
+
+  <!-- Category badge -->
+  <rect x="60" y="58" width="152" height="30" rx="15" fill="#a3e635" opacity="0.15"/>
+  <rect x="60" y="58" width="152" height="30" rx="15" fill="none" stroke="#a3e635" stroke-width="1.5" opacity="0.5"/>
+  <text x="136" y="78" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#a3e635" text-anchor="middle" letter-spacing="1.5">TEMPLATES</text>
+
+  <!-- Main title -->
+  <text x="60" y="148" font-family="Arial Black, Arial, sans-serif" font-size="46" font-weight="900" fill="#ffffff">Viral Social Media</text>
+  <text x="60" y="200" font-family="Arial Black, Arial, sans-serif" font-size="46" font-weight="900" fill="#a3e635">Templates Pack</text>
+
+  <!-- Arabic subtitle -->
+  <text x="60" y="238" font-family="Arial, sans-serif" font-size="18" fill="#555555">باقة قوالب سوشيال ميديا جاهزة للنشر</text>
+
+  <!-- Divider -->
+  <rect x="60" y="260" width="400" height="2" rx="1" fill="url(#limeGrad)" opacity="0.5"/>
+
+  <!-- Feature list -->
+  <circle cx="76" cy="295" r="7" fill="#a3e635"/>
+  <text x="96" y="301" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">9 Post Templates  (1:1 Square)</text>
+
+  <circle cx="76" cy="328" r="7" fill="#a3e635"/>
+  <text x="96" y="334" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">6 Story Templates  (9:16 Vertical)</text>
+
+  <circle cx="76" cy="361" r="7" fill="#a3e635"/>
+  <text x="96" y="367" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">Arabic &amp; English Bilingual</text>
+
+  <circle cx="76" cy="394" r="7" fill="#a3e635"/>
+  <text x="96" y="400" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">Fully Editable SVG Files</text>
+
+  <circle cx="76" cy="427" r="7" fill="#a3e635"/>
+  <text x="96" y="433" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#ffffff">Business, Tips, Quotes &amp; More</text>
+
+  <!-- Stats badges row -->
+  <rect x="60" y="468" width="118" height="48" rx="10" fill="#a3e635" opacity="0.1"/>
+  <rect x="60" y="468" width="118" height="48" rx="10" fill="none" stroke="#a3e635" stroke-width="1.5" opacity="0.35"/>
+  <text x="119" y="490" font-family="Arial Black, sans-serif" font-size="19" font-weight="900" fill="#a3e635" text-anchor="middle">15</text>
+  <text x="119" y="507" font-family="Arial, sans-serif" font-size="11" fill="#777777" text-anchor="middle">Templates</text>
+
+  <rect x="190" y="468" width="118" height="48" rx="10" fill="#a3e635" opacity="0.1"/>
+  <rect x="190" y="468" width="118" height="48" rx="10" fill="none" stroke="#a3e635" stroke-width="1.5" opacity="0.35"/>
+  <text x="249" y="490" font-family="Arial Black, sans-serif" font-size="19" font-weight="900" fill="#a3e635" text-anchor="middle">SVG</text>
+  <text x="249" y="507" font-family="Arial, sans-serif" font-size="11" fill="#777777" text-anchor="middle">Format</text>
+
+  <rect x="320" y="468" width="138" height="48" rx="10" fill="#a3e635" opacity="0.1"/>
+  <rect x="320" y="468" width="138" height="48" rx="10" fill="none" stroke="#a3e635" stroke-width="1.5" opacity="0.35"/>
+  <text x="389" y="490" font-family="Arial Black, sans-serif" font-size="14" font-weight="900" fill="#a3e635" text-anchor="middle">Ready to Post</text>
+  <text x="389" y="507" font-family="Arial, sans-serif" font-size="11" fill="#777777" text-anchor="middle">No design skills needed</text>
+
+  <!-- Price -->
+  <rect x="60" y="540" width="168" height="48" rx="24" fill="url(#limeGrad)"/>
+  <text x="144" y="572" font-family="Arial Black, sans-serif" font-size="26" font-weight="900" fill="#000000" text-anchor="middle">149 EGP</text>
+
+  <!-- Vertical separator -->
+  <rect x="508" y="50" width="1.5" height="530" fill="#a3e635" opacity="0.1"/>
+
+  <!-- ===================== RIGHT MOCKUPS ===================== -->
+
+  <!-- MOCKUP 1: Viral Tips Post (lime/dark) — back left, tilted -->
+  <g transform="translate(530, 40) rotate(-7)" filter="url(#shadow)">
+    <rect width="268" height="268" rx="12" fill="#0a0a0a" stroke="#333333" stroke-width="1"/>
+    <rect x="0" y="0" width="6" height="268" rx="3" fill="url(#limeV)"/>
+    <rect x="0" y="0" width="268" height="58" fill="#a3e635" opacity="0.06"/>
+    <!-- Save badge -->
+    <rect x="170" y="10" width="86" height="18" rx="4" fill="#a3e635"/>
+    <text x="213" y="23" font-family="Arial Black, sans-serif" font-size="8" font-weight="900" fill="#000000" text-anchor="middle">💾 SAVE THIS</text>
+    <!-- Title -->
+    <text x="16" y="82" font-family="Arial Black, sans-serif" font-size="26" font-weight="900" fill="#ffffff">5 أسرار</text>
+    <text x="16" y="107" font-family="Arial Black, sans-serif" font-size="20" font-weight="900" fill="#a3e635">لنجاح البيزنس</text>
+    <text x="16" y="124" font-family="Arial, sans-serif" font-size="9" fill="#555555">5 Business Secrets Nobody Tells You</text>
+    <rect x="16" y="132" width="236" height="1" fill="#a3e635" opacity="0.3"/>
+    <!-- Tips -->
+    <rect x="16" y="138" width="236" height="27" rx="4" fill="#ffffff" opacity="0.03"/>
+    <rect x="16" y="138" width="3" height="27" fill="#a3e635"/>
+    <text x="26" y="156" font-family="Arial Black, sans-serif" font-size="14" font-weight="900" fill="#a3e635">01</text>
+    <text x="54" y="156" font-family="Arial, sans-serif" font-size="10.5" fill="#ffffff">ابدأ قبل ما تكون جاهز</text>
+    <rect x="16" y="169" width="236" height="27" rx="4" fill="#ffffff" opacity="0.03"/>
+    <rect x="16" y="169" width="3" height="27" fill="#a3e635"/>
+    <text x="26" y="187" font-family="Arial Black, sans-serif" font-size="14" font-weight="900" fill="#a3e635">02</text>
+    <text x="54" y="187" font-family="Arial, sans-serif" font-size="10.5" fill="#ffffff">المحتوى هو أقوى إعلان</text>
+    <rect x="16" y="200" width="236" height="27" rx="4" fill="#a3e635" opacity="0.04"/>
+    <rect x="16" y="200" width="3" height="27" fill="#a3e635"/>
+    <text x="26" y="218" font-family="Arial Black, sans-serif" font-size="14" font-weight="900" fill="#a3e635">03</text>
+    <text x="54" y="218" font-family="Arial, sans-serif" font-size="10.5" fill="#ffffff">بع الحل مش المنتج</text>
+    <!-- Bottom CTA -->
+    <rect x="16" y="238" width="236" height="22" rx="11" fill="#a3e635"/>
+    <text x="134" y="253" font-family="Arial Black, sans-serif" font-size="9" font-weight="900" fill="#000000" text-anchor="middle">↗ شاركها مع صديق  |  Tag a friend below 👇</text>
+  </g>
+
+  <!-- MOCKUP 2: Business Quote Post (dark blue) — back right, tilted -->
+  <g transform="translate(848, 30) rotate(7)" filter="url(#shadow)">
+    <rect width="268" height="268" rx="12" fill="#0f172a" stroke="#1e3a5f" stroke-width="1"/>
+    <rect x="0" y="0" width="10" height="268" rx="4" fill="url(#accentBlue)"/>
+    <circle cx="238" cy="38" r="60" fill="#3b82f6" opacity="0.07"/>
+    <circle cx="238" cy="38" r="42" fill="#3b82f6" opacity="0.06"/>
+    <text x="20" y="135" font-family="Georgia, serif" font-size="90" fill="#3b82f6" opacity="0.22">"</text>
+    <text x="134" y="115" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#ffffff" text-anchor="middle">Your Motivational</text>
+    <text x="134" y="138" font-family="Arial, sans-serif" font-size="17" font-weight="bold" fill="#ffffff" text-anchor="middle">Quote Goes Here</text>
+    <rect x="84" y="152" width="100" height="3" rx="1" fill="url(#accentBlue)"/>
+    <text x="134" y="180" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#94a3b8" text-anchor="middle">اكتب اقتباسك هنا</text>
+    <text x="134" y="200" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#94a3b8" text-anchor="middle">أو فكرتك المميزة</text>
+    <text x="134" y="222" font-family="Arial, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">— Author Name / المصدر</text>
+    <rect x="0" y="236" width="268" height="32" fill="#ffffff" opacity="0.03"/>
+    <circle cx="38" cy="252" r="10" fill="#3b82f6" opacity="0.2"/>
+    <text x="38" y="256" font-family="Arial, sans-serif" font-size="7" fill="#3b82f6" text-anchor="middle">LOGO</text>
+    <text x="56" y="248" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#ffffff">Brand Name</text>
+    <text x="56" y="262" font-family="Arial, sans-serif" font-size="9" fill="#64748b">@username  |  www.yourwebsite.com</text>
+  </g>
+
+  <!-- MOCKUP 3: Story (lime/dark) — center front, tall -->
+  <g transform="translate(700, 26) rotate(-2)" filter="url(#shadow)">
+    <rect width="152" height="272" rx="12" fill="#09090b" stroke="#a3e635" stroke-width="2" opacity="0.65"/>
+    <rect x="0" y="0" width="5" height="272" rx="2" fill="url(#limeV)"/>
+    <rect x="0" y="0" width="152" height="70" fill="#a3e635" opacity="0.05"/>
+    <!-- Save stamp -->
+    <rect x="8" y="10" width="136" height="34" rx="8" fill="#a3e635" opacity="0.92"/>
+    <text x="76" y="23" font-family="Arial Black, sans-serif" font-size="9" font-weight="900" fill="#000000" text-anchor="middle">💾 احفظ هذا البوست</text>
+    <text x="76" y="37" font-family="Arial Black, sans-serif" font-size="7.5" font-weight="900" fill="#1a2e00" text-anchor="middle">SAVE THIS — You'll need it later</text>
+    <!-- Headline -->
+    <text x="14" y="76" font-family="Arial Black, sans-serif" font-size="20" font-weight="900" fill="#ffffff">7 حاجات</text>
+    <text x="14" y="98" font-family="Arial Black, sans-serif" font-size="20" font-weight="900" fill="#a3e635">تخلي صفحتك</text>
+    <text x="14" y="120" font-family="Arial Black, sans-serif" font-size="20" font-weight="900" fill="#ffffff">تطلع فيها</text>
+    <text x="14" y="135" font-family="Arial, sans-serif" font-size="8" fill="#444444">7 things that make your page blow up</text>
+    <rect x="14" y="142" width="124" height="1" fill="#a3e635" opacity="0.25"/>
+    <!-- Tips -->
+    <rect x="14" y="146" width="124" height="22" rx="3" fill="#ffffff" opacity="0.025"/>
+    <rect x="14" y="146" width="3" height="22" fill="#a3e635"/>
+    <text x="22" y="161" font-family="Arial Black, sans-serif" font-size="12" font-weight="900" fill="#a3e635">1.</text>
+    <text x="36" y="161" font-family="Arial, sans-serif" font-size="9" fill="#ffffff">هوك قوي في أول جملة</text>
+    <rect x="14" y="172" width="124" height="22" rx="3" fill="#ffffff" opacity="0.025"/>
+    <rect x="14" y="172" width="3" height="22" fill="#a3e635"/>
+    <text x="22" y="187" font-family="Arial Black, sans-serif" font-size="12" font-weight="900" fill="#a3e635">2.</text>
+    <text x="36" y="187" font-family="Arial, sans-serif" font-size="9" fill="#ffffff">بوست كل يوم</text>
+    <rect x="14" y="198" width="124" height="22" rx="3" fill="#a3e635" opacity="0.04"/>
+    <rect x="14" y="198" width="3" height="22" fill="#a3e635"/>
+    <text x="22" y="213" font-family="Arial Black, sans-serif" font-size="12" font-weight="900" fill="#a3e635">3.</text>
+    <text x="36" y="213" font-family="Arial, sans-serif" font-size="9" fill="#ffffff">استخدم الريلز يومياً</text>
+    <rect x="14" y="224" width="124" height="22" rx="3" fill="#ffffff" opacity="0.025"/>
+    <rect x="14" y="224" width="3" height="22" fill="#a3e635"/>
+    <text x="22" y="239" font-family="Arial Black, sans-serif" font-size="12" font-weight="900" fill="#a3e635">4.</text>
+    <text x="36" y="239" font-family="Arial, sans-serif" font-size="9" fill="#ffffff">رد على كل كومنت</text>
+    <!-- CTA -->
+    <rect x="14" y="252" width="124" height="14" rx="4" fill="#a3e635" opacity="0.1"/>
+    <text x="76" y="262" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="#a3e635" text-anchor="middle">💾 احفظ وشارك مع صاحبك 👇</text>
+  </g>
+
+  <!-- "15 Templates" floating pill -->
+  <g transform="translate(858, 326)">
+    <rect x="0" y="0" width="138" height="36" rx="18" fill="#a3e635"/>
+    <text x="69" y="23" font-family="Arial Black, sans-serif" font-size="15" font-weight="900" fill="#000000" text-anchor="middle">15 Templates</text>
+  </g>
+
+</svg>
