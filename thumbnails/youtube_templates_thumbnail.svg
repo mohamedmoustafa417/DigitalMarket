@@ -1,0 +1,54 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="8" dy="8" stdDeviation="6" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgGrad)"/>
+  <rect x="0" y="0" width="800" height="6" fill="#f97316"/>
+  <rect x="40" y="30" width="720" height="120" fill="#f97316" rx="15"/>
+  <text x="400" y="85" font-family="Arial, sans-serif" font-size="52" font-weight="900" text-anchor="middle" fill="#1a1a2e">YouTube and Reels</text>
+  <text x="400" y="135" font-family="Arial, sans-serif" font-size="48" font-weight="900" text-anchor="middle" fill="#1a1a2e">Thumbnail Pack</text>
+  <text x="400" y="175" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#f97316">&#x642;&#x648;&#x627;&#x644;&#x628; &#x62B;&#x645;&#x628;&#x646;&#x64A;&#x644; &#x64A;&#x648;&#x62A;&#x64A;&#x648;&#x628;</text>
+  <rect x="280" y="190" width="240" height="45" fill="#f97316" rx="8"/>
+  <text x="400" y="224" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#1a1a2e">GRAPHICS</text>
+  <g filter="url(#shadow)" transform="translate(60, 280) rotate(-8)">
+    <rect width="180" height="102" fill="#0f0f0f" stroke="#f97316" stroke-width="2" rx="6"/>
+    <rect width="180" height="6" fill="#fbbf24"/>
+    <text x="90" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#fbbf24">HOW TO</text>
+    <text x="90" y="65" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#ffffff">Master Skills</text>
+    <circle cx="30" cy="85" r="8" fill="#fbbf24"/>
+    <circle cx="70" cy="85" r="8" fill="#fbbf24"/>
+    <circle cx="110" cy="85" r="8" fill="#fbbf24"/>
+  </g>
+  <g filter="url(#shadow)" transform="translate(310, 260)">
+    <rect width="180" height="102" fill="#0f172a" stroke="#f97316" stroke-width="2" rx="6"/>
+    <rect width="180" height="6" fill="#f97316"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="24" font-weight="900" text-anchor="middle" fill="#f97316">TOP 5</text>
+    <text x="90" y="65" font-family="Arial, sans-serif" font-size="11" font-weight="bold" text-anchor="middle" fill="#ffffff">Best Things</text>
+    <rect x="20" y="75" width="140" height="16" fill="#1a2847" stroke="#f97316" stroke-width="1" rx="3"/>
+  </g>
+  <g filter="url(#shadow)" transform="translate(560, 280) rotate(8)">
+    <rect width="180" height="102" fill="#0f0f0f" stroke="#ef4444" stroke-width="2" rx="6"/>
+    <rect width="180" height="6" fill="#ef4444"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#ef4444">REACTING TO</text>
+    <text x="90" y="85" font-family="Arial, sans-serif" font-size="32" text-anchor="middle" fill="#ef4444">!</text>
+  </g>
+  <text x="60" y="430" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#f97316">Features:</text>
+  <circle cx="75" cy="465" r="4" fill="#f97316"/>
+  <text x="95" y="471" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#ffffff">4 Designs</text>
+  <circle cx="75" cy="505" r="4" fill="#f97316"/>
+  <text x="95" y="511" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#ffffff">1280x720 Resolution</text>
+  <circle cx="75" cy="545" r="4" fill="#f97316"/>
+  <text x="95" y="551" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#ffffff">Editable SVG Files</text>
+  <rect x="480" y="440" width="280" height="140" fill="#f97316" rx="12"/>
+  <text x="620" y="475" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Arabic and English</text>
+  <text x="620" y="510" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#1a1a2e">&#x639;&#x631;&#x628;&#x64A; &#x648;&#x625;&#x646;&#x62C;&#x644;&#x64A;&#x632;&#x64A;</text>
+  <rect x="500" y="530" width="240" height="60" fill="#1a1a2e" stroke="#f97316" stroke-width="2" rx="8"/>
+  <text x="620" y="568" font-family="Arial, sans-serif" font-size="32" font-weight="900" text-anchor="middle" fill="#f97316">149 EGP</text>
+  <rect x="0" y="594" width="800" height="6" fill="#f97316"/>
+</svg>
