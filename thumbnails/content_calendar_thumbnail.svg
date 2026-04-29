@@ -1,0 +1,82 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgGradient)"/>
+  <circle cx="100" cy="100" r="60" fill="#8b5cf6" opacity="0.05"/>
+  <circle cx="700" cy="500" r="80" fill="#ec4899" opacity="0.05"/>
+  <g id="content">
+    <rect x="30" y="30" width="740" height="140" fill="#0f0f13" rx="8" opacity="0.6"/>
+    <rect x="50" y="45" width="120" height="35" fill="#8b5cf6" rx="4"/>
+    <text x="110" y="67" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#fff" text-anchor="middle">OTHER</text>
+    <text x="50" y="110" font-family="Inter, sans-serif" font-size="32" font-weight="700" fill="#e2e8f0">Social Media Content Calendar</text>
+    <text x="50" y="135" font-family="Inter, sans-serif" font-size="14" font-weight="500" fill="#94a3b8">&#x645;&#x62E;&#x637;&#x637; &#x645;&#x62D;&#x62A;&#x648;&#x649; &#x627;&#x644;&#x633;&#x648;&#x634;&#x64A;&#x627;&#x644; &#x645;&#x64A;&#x62F;&#x64A;&#x627;</text>
+    <g id="calendar-mockup">
+      <rect x="50" y="185" width="700" height="220" fill="#1e1e2e" rx="8" stroke="#2d2d45" stroke-width="1"/>
+      <rect x="50" y="185" width="700" height="35" fill="#2d2d45" rx="8"/>
+      <text x="70" y="210" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">April 2026</text>
+      <text x="65" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Sun</text>
+      <text x="140" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Mon</text>
+      <text x="215" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Tue</text>
+      <text x="290" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Wed</text>
+      <text x="365" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Thu</text>
+      <text x="440" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Fri</text>
+      <text x="515" y="240" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">Sat</text>
+      <rect x="60" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="95" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">1</text>
+      <circle cx="75" cy="280" r="3" fill="#ec4899"/>
+      <rect x="135" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="172" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">2</text>
+      <rect x="210" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="247" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">3</text>
+      <circle cx="227" cy="280" r="3" fill="#ef4444"/>
+      <rect x="285" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="322" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">4</text>
+      <rect x="360" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="397" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">5</text>
+      <circle cx="377" cy="280" r="3" fill="#00d9ff"/>
+      <rect x="435" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="472" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">6</text>
+      <circle cx="451" cy="280" r="3" fill="#3b82f6"/>
+      <rect x="510" y="250" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="547" y="267" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">7</text>
+      <circle cx="526" cy="280" r="3" fill="#4f46e5"/>
+      <rect x="60" y="305" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="95" y="322" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">8</text>
+      <rect x="135" y="305" width="75" height="50" fill="#0f0f13" stroke="#2d2d45" stroke-width="1" rx="4"/>
+      <text x="172" y="322" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">9</text>
+      <circle cx="151" cy="335" r="3" fill="#0ea5e9"/>
+      <rect x="210" y="305" width="75" height="50" fill="#2d2538" stroke="#8b5cf6" stroke-width="1.5" rx="4"/>
+      <text x="247" y="322" font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0" text-anchor="middle">10</text>
+      <circle cx="227" cy="330" r="3" fill="#ec4899"/>
+      <circle cx="237" cy="330" r="3" fill="#ef4444"/>
+      <circle cx="247" cy="330" r="3" fill="#00d9ff"/>
+    </g>
+    <g id="features">
+      <text x="50" y="430" font-family="Inter, sans-serif" font-size="12" font-weight="600" fill="#94a3b8">Features:</text>
+      <text x="50" y="455" font-family="Inter, sans-serif" font-size="13" fill="#e2e8f0">Monthly calendar view</text>
+      <text x="50" y="478" font-family="Inter, sans-serif" font-size="13" fill="#e2e8f0">6 platforms supported</text>
+      <text x="50" y="501" font-family="Inter, sans-serif" font-size="13" fill="#e2e8f0">Track post status</text>
+      <text x="50" y="524" font-family="Inter, sans-serif" font-size="13" fill="#e2e8f0">Export to CSV</text>
+    </g>
+    <g id="price">
+      <rect x="650" y="430" width="120" height="110" fill="#8b5cf6" rx="8" opacity="0.15" stroke="#8b5cf6" stroke-width="1"/>
+      <text x="710" y="460" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#94a3b8" text-anchor="middle">Price</text>
+      <text x="710" y="490" font-family="Inter, sans-serif" font-size="36" font-weight="700" fill="#8b5cf6" text-anchor="middle">129</text>
+      <text x="710" y="515" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0" text-anchor="middle">EGP</text>
+    </g>
+  </g>
+  <line x1="0" y1="425" x2="800" y2="425" stroke="#2d2d45" stroke-width="1" opacity="0.5"/>
+  <rect x="30" y="550" width="740" height="40" fill="#2d2d45" rx="6" opacity="0.8"/>
+  <text x="400" y="576" font-family="Inter, sans-serif" font-size="12" font-weight="500" fill="#94a3b8" text-anchor="middle">Plan your content strategy with powerful scheduling tools</text>
+</svg>
