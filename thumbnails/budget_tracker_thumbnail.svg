@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f1a"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#4f46e5"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <circle cx="650" cy="80" r="150" fill="#6366f1" opacity="0.08"/>
+  <circle cx="120" cy="520" r="100" fill="#10b981" opacity="0.08"/>
+  <rect x="260" y="18" width="130" height="28" rx="14" fill="#10b981" opacity="0.25"/>
+  <rect x="260" y="18" width="130" height="28" rx="14" fill="none" stroke="#10b981" stroke-width="1.5" opacity="0.6"/>
+  <text x="325" y="37" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#10b981" text-anchor="middle" letter-spacing="1">SOFTWARE</text>
+  <g transform="translate(30, 55)" filter="url(#shadow)">
+    <rect width="460" height="490" rx="16" fill="#1e1e2e" stroke="#2d2d45" stroke-width="1"/>
+    <rect width="460" height="52" rx="16" fill="#141420"/>
+    <rect x="0" y="36" width="460" height="16" fill="#141420"/>
+    <text x="22" y="34" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="url(#blueGrad)">BudgetPro</text>
+    <text x="200" y="34" font-family="Arial, sans-serif" font-size="12" fill="#8892a4">June 2025</text>
+    <text x="380" y="34" font-family="Arial, sans-serif" font-size="11" fill="#8892a4">Export</text>
+    <rect x="16" y="62" width="100" height="60" rx="8" fill="#141420" stroke="#2d2d45" stroke-width="1"/>
+    <text x="66" y="80" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">INCOME</text>
+    <text x="66" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#10b981" text-anchor="middle">12,500</text>
+    <text x="66" y="113" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">EGP</text>
+    <rect x="126" y="62" width="100" height="60" rx="8" fill="#141420" stroke="#2d2d45" stroke-width="1"/>
+    <text x="176" y="80" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">EXPENSES</text>
+    <text x="176" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#ef4444" text-anchor="middle">7,830</text>
+    <text x="176" y="113" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">EGP</text>
+    <rect x="236" y="62" width="100" height="60" rx="8" fill="#141420" stroke="#2d2d45" stroke-width="1"/>
+    <text x="286" y="80" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">BALANCE</text>
+    <text x="286" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#6366f1" text-anchor="middle">4,670</text>
+    <text x="286" y="113" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">EGP</text>
+    <rect x="346" y="62" width="98" height="60" rx="8" fill="#141420" stroke="#2d2d45" stroke-width="1"/>
+    <text x="395" y="80" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">SAVINGS</text>
+    <text x="395" y="100" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#f59e0b" text-anchor="middle">37%</text>
+    <text x="395" y="113" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="middle">rate</text>
+    <text x="16" y="264" font-family="Arial, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">Budget vs Spend</text>
+    <text x="16" y="283" font-family="Arial, sans-serif" font-size="9" fill="#8892a4">Food</text>
+    <text x="200" y="283" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="end">1,800 / 2,000 EGP</text>
+    <rect x="16" y="287" width="228" height="6" rx="3" fill="#242435"/>
+    <rect x="16" y="287" width="205" height="6" rx="3" fill="#f59e0b" opacity=".8"/>
+    <text x="16" y="306" font-family="Arial, sans-serif" font-size="9" fill="#8892a4">Transport</text>
+    <text x="200" y="306" font-family="Arial, sans-serif" font-size="9" fill="#8892a4" text-anchor="end">900 / 1,500 EGP</text>
+    <rect x="16" y="310" width="228" height="6" rx="3" fill="#242435"/>
+    <rect x="16" y="310" width="137" height="6" rx="3" fill="#10b981" opacity=".8"/>
+    <text x="16" y="360" font-family="Arial, sans-serif" font-size="10" font-weight="700" fill="#e2e8f0">Recent Transactions</text>
+    <rect x="16" y="366" width="428" height="32" rx="6" fill="#242435"/>
+    <text x="50" y="379" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0">Freelance Payment</text>
+    <text x="432" y="386" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#10b981" text-anchor="end">+5,000 EGP</text>
+    <rect x="16" y="404" width="428" height="32" rx="6" fill="#242435"/>
+    <text x="50" y="417" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#e2e8f0">Supermarket</text>
+    <text x="432" y="424" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#ef4444" text-anchor="end">-320 EGP</text>
+  </g>
+  <g transform="translate(510, 55)">
+    <text x="0" y="40" font-family="Arial Black, sans-serif" font-size="30" font-weight="900" fill="#ffffff">Personal</text>
+    <text x="0" y="76" font-family="Arial Black, sans-serif" font-size="30" font-weight="900" fill="#10b981">Budget Tracker</text>
+    <text x="0" y="108" font-family="Arial, sans-serif" font-size="15" fill="#8892a4">&#x645;&#x62E;&#x637;&#x637; &#x627;&#x644;&#x645;&#x64A;&#x632;&#x627;&#x646;&#x64A;&#x629; &#x627;&#x644;&#x634;&#x62E;&#x635;&#x64A;&#x629;</text>
+    <rect x="0" y="124" width="260" height="2" rx="1" fill="url(#greenGrad)" opacity="0.5"/>
+    <circle cx="12" cy="158" r="6" fill="#10b981"/>
+    <text x="26" y="163" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Track income and expenses</text>
+    <circle cx="12" cy="186" r="6" fill="#10b981"/>
+    <text x="26" y="191" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Set budget limits by category</text>
+    <circle cx="12" cy="214" r="6" fill="#10b981"/>
+    <text x="26" y="219" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Visual charts and analytics</text>
+    <circle cx="12" cy="242" r="6" fill="#10b981"/>
+    <text x="26" y="247" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Monthly navigation</text>
+    <circle cx="12" cy="270" r="6" fill="#10b981"/>
+    <text x="26" y="275" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Export to CSV</text>
+    <circle cx="12" cy="298" r="6" fill="#10b981"/>
+    <text x="26" y="303" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Works offline in browser</text>
+    <rect x="0" y="400" width="150" height="46" rx="23" fill="url(#greenGrad)"/>
+    <text x="75" y="428" font-family="Arial Black, sans-serif" font-size="22" font-weight="900" fill="#ffffff" text-anchor="middle">199 EGP</text>
+  </g>
+</svg>
