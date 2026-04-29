@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <style>
 :root{--primary:#6366f1;--primary-dark:#4f46e5;--secondary:#10b981;--bg:#0f0f13;--bg2:#1a1a24;--bg3:#242435;--card:#1e1e2e;--border:#2d2d45;--text:#e2e8f0;--text-muted:#8892a4;--danger:#ef4444;--warning:#f59e0b;--success:#10b981;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,.4)}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -931,18 +932,23 @@ async function openCheckout(ids){
       <div class="pay-row"><span class="pay-label">Account Holder</span><span class="pay-val">${s.accountHolder}</span></div>
       <div class="pay-row"><span class="pay-label">Account Number</span><span class="pay-val">${s.accountNum} <button class="copy-btn" onclick="copyText('${s.accountNum}')"><i class="fas fa-copy"></i></button></span></div>
     </div>
-    <div class="form-group" style="margin-top:16px">
-      <label class="form-label">${t('uploadProof')} <span class="req">*</span></label>
-      <div class="upload-area">
-        <input type="file" accept="image/*" onchange="handleProof(event)">
-        <i class="fas fa-cloud-upload-alt"></i>
-        <p>${t('proofHint')}</p>
-        <img id="proof-preview" src="" alt="">
-      </div>
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:14px;margin-top:6px;margin-bottom:16px;font-size:13px;color:var(--text-muted);line-height:1.7">
+      <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+      <strong style="color:var(--text)"> After paying:</strong> Send the exact amount above, then enter your payment reference number below. Your download link will be emailed to you once we confirm your payment.
     </div>
     <div class="form-group">
       <label class="form-label">Payment Method</label>
       <select class="form-control" id="pay-method"><option value="instapay">Instapay</option><option value="bank">Bank Transfer</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Payment Reference Number <span class="req">*</span></label>
+      <input class="form-control" id="pay-ref" placeholder="e.g. last 4 digits or transaction ID from Instapay" style="letter-spacing:1px">
+      <div class="form-hint" style="font-size:12px;color:var(--text-muted);margin-top:5px"><i class="fas fa-lock" style="font-size:10px"></i> This helps us match your payment quickly</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your Email <span class="req">*</span></label>
+      <input class="form-control" id="co-email" type="email" value="${curUser && curUser.email ? curUser.email : ''}" placeholder="your@email.com">
+      <div class="form-hint" style="font-size:12px;color:var(--text-muted);margin-top:5px"><i class="fas fa-envelope" style="font-size:10px"></i> Your download link will be sent here after payment confirmation</div>
     </div>
     <div id="co-alert"></div>
     <button class="btn btn-success btn-full btn-lg" id="co-btn" onclick="submitOrder()"><i class="fas fa-check-circle"></i> ${t('placeOrder')}</button>`;
@@ -970,18 +976,21 @@ function handleProof(e){
 }
 
 async function submitOrder(){
-  if(!proofB64){ showAlert('co-alert','danger',t('selectProof')); return; }
+  const payRef=(document.getElementById('pay-ref')||{}).value||'';
+  const coEmail=(document.getElementById('co-email')||{}).value||'';
+  if(!payRef.trim()){ showAlert('co-alert','danger','Please enter your payment reference number.'); return; }
+  if(!coEmail.trim()){ showAlert('co-alert','danger','Please enter your email address so we can send the download link.'); return; }
   const btn=document.getElementById('co-btn');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span> Submitting...';
   const method=document.getElementById('pay-method').value;
   try{
     for(const p of checkoutItems){
       await db.collection('orders').add({
-        buyerId:curUser.uid, buyerName:curUser.name, buyerEmail:curUser.email,
+        buyerId:curUser.uid, buyerName:curUser.name, buyerEmail:coEmail.trim(),
         sellerId:p.sellerId||'admin', sellerName:p.sellerName||'Admin',
         productId:p.id, productTitle:p.title, productTitleAr:p.titleAr||'',
         downloadUrl:p.downloadUrl||'', price:Number(p.price)||0,
-        status:'paid', paymentProof:proofB64, paymentMethod:method,
+        status:'paid', paymentRef:payRef.trim(), paymentMethod:method,
         createdAt:FV.serverTimestamp()
       });
     }
@@ -1291,9 +1300,8 @@ async function buildAdminOverview(){
   <div class="card"><div class="card-title"><i class="fas fa-clock" style="color:var(--warning)"></i> Pending Approvals (${pending.length})</div>
   ${pending.length?pending.map(o=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
-      <div><div style="font-weight:600;font-size:14px">${o.productTitle}</div><div style="font-size:12px;color:var(--text-muted)">${o.buyerName} · ${o.price} EGP · ${o.paymentMethod||'—'}</div></div>
+      <div><div style="font-weight:600;font-size:14px">${o.productTitle}</div><div style="font-size:12px;color:var(--text-muted)">${o.buyerName} · ${o.buyerEmail} · ${o.price} EGP · ${o.paymentMethod||'—'}${o.paymentRef?` · <strong style="color:var(--text)">Ref: ${o.paymentRef}</strong>`:''}</div></div>
       <div style="display:flex;gap:7px">
-        ${o.paymentProof?`<button class="btn btn-ghost btn-sm" onclick="showProof('${o.id}')"><i class="fas fa-image"></i></button>`:''}
         <button class="btn btn-success btn-sm" onclick="approveOrder('${o.id}')"><i class="fas fa-check"></i> ${t('approve')}</button>
         <button class="btn btn-danger btn-sm" onclick="rejectOrder('${o.id}')"><i class="fas fa-times"></i> ${t('reject')}</button>
       </div>
@@ -1332,13 +1340,13 @@ function filterOTab(btn,status){
 function ordersTableHTML(orders){
   if(!orders.length) return `<div class="empty" style="padding:30px"><i class="fas fa-inbox"></i><p>No orders</p></div>`;
   return `<div class="table-wrap"><table>
-    <thead><tr><th>Product</th><th>Buyer</th><th>Amount</th><th>Method</th><th>Proof</th><th>Status</th><th>Actions</th><th>Date</th></tr></thead>
+    <thead><tr><th>Product</th><th>Buyer</th><th>Amount</th><th>Method</th><th>Ref #</th><th>Status</th><th>Actions</th><th>Date</th></tr></thead>
     <tbody>${orders.map(o=>`<tr>
       <td style="font-weight:600">${o.productTitle}</td>
       <td><div>${o.buyerName}</div><div style="font-size:11px;color:var(--text-muted)">${o.buyerEmail}</div></td>
       <td style="font-weight:700;color:var(--secondary)">${o.price} EGP</td>
       <td>${o.paymentMethod||'—'}</td>
-      <td>${o.paymentProof?`<button class="btn btn-ghost btn-sm" onclick="showProof('${o.id}')"><i class="fas fa-image"></i></button>`:'-'}</td>
+      <td style="font-family:monospace;font-size:12px;color:var(--text)">${o.paymentRef||'—'}</td>
       <td><span class="status s-${o.status}">${sLabel(o.status)}</span></td>
       <td style="white-space:nowrap">${o.status==='paid'?`<button class="btn btn-success btn-sm" onclick="approveOrder('${o.id}')"><i class="fas fa-check"></i></button> <button class="btn btn-danger btn-sm" onclick="rejectOrder('${o.id}')"><i class="fas fa-times"></i></button>`:'-'}</td>
       <td style="color:var(--text-muted);white-space:nowrap">${(o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleDateString() : '—')}</td>
@@ -1393,6 +1401,8 @@ async function buildAdminUsers(){
 async function buildAdminSettings(){
   let s={instapay:'',phone:'',bank:'',accountNum:'',accountHolder:'',commission:5};
   try{ const d=await db.collection('settings').doc('payment').get(); if(d.exists) s={...s,...d.data()}; }catch{}
+  let ejs={publicKey:'',serviceId:'',templateId:''};
+  try{ const ed=await db.collection('settings').doc('emailjs').get(); if(ed.exists) ejs={...ejs,...ed.data()}; }catch{}
   return `<h2 style="font-size:22px;font-weight:800;margin-bottom:22px">Settings</h2>
   <div class="card"><div class="card-title"><i class="fas fa-credit-card" style="color:var(--primary)"></i> Payment Settings</div>
   <form onsubmit="saveSettings(event)">
@@ -1411,8 +1421,28 @@ async function buildAdminSettings(){
       <div class="form-hint">Admin platform fee deducted from each seller sale. Default: 5%. Set to 0 for no commission.</div>
     </div>
     <div id="settings-alert"></div>
-    <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save Settings</button>
-  </form></div>`;
+    <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save Payment Settings</button>
+  </form></div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title"><i class="fas fa-envelope" style="color:var(--secondary)"></i> Email Automation (EmailJS) <span style="font-size:12px;font-weight:400;color:var(--text-muted)">— auto-send download links when you approve orders</span></div>
+    <div style="background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:14px;margin-bottom:18px;font-size:13px;color:var(--text-muted);line-height:1.8">
+      <i class="fas fa-lightbulb" style="color:var(--secondary)"></i>
+      <strong style="color:var(--text)"> Setup (free — 200 emails/month):</strong><br>
+      1. Go to <a href="https://www.emailjs.com" target="_blank" style="color:var(--primary)">emailjs.com</a> → create free account<br>
+      2. Add an Email Service (Gmail works great) → copy the <strong style="color:var(--text)">Service ID</strong><br>
+      3. Create an Email Template with these variables: <code style="background:var(--bg3);padding:2px 5px;border-radius:4px">{{to_name}}</code> <code style="background:var(--bg3);padding:2px 5px;border-radius:4px">{{product_name}}</code> <code style="background:var(--bg3);padding:2px 5px;border-radius:4px">{{download_url}}</code> <code style="background:var(--bg3);padding:2px 5px;border-radius:4px">{{amount}}</code> → copy the <strong style="color:var(--text)">Template ID</strong><br>
+      4. Account → API Keys → copy your <strong style="color:var(--text)">Public Key</strong>
+    </div>
+    <form onsubmit="saveEmailJsSettings(event)">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">EmailJS Public Key</label><input class="form-control" id="ejs-public" value="${escH(ejs.publicKey)}" placeholder="e.g. user_xxxxxxxxxxxxxxx"></div>
+        <div class="form-group"><label class="form-label">Service ID</label><input class="form-control" id="ejs-service" value="${escH(ejs.serviceId)}" placeholder="e.g. service_xxxxxxx"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Template ID</label><input class="form-control" id="ejs-template" value="${escH(ejs.templateId)}" placeholder="e.g. template_xxxxxxx"></div>
+      <div id="emailjs-alert"></div>
+      <button type="submit" class="btn btn-secondary btn-lg"><i class="fas fa-save"></i> Save Email Settings</button>
+    </form>
+  </div>`;
 }
 
 async function saveSettings(e){
@@ -1430,9 +1460,54 @@ async function saveSettings(e){
   toast(t('settingsSaved'),'success');
 }
 
+async function saveEmailJsSettings(e){
+  e.preventDefault();
+  const publicKey=document.getElementById('ejs-public').value.trim();
+  const serviceId=document.getElementById('ejs-service').value.trim();
+  const templateId=document.getElementById('ejs-template').value.trim();
+  try{
+    await db.collection('settings').doc('emailjs').set({publicKey,serviceId,templateId});
+    toast('Email settings saved!','success');
+  }catch(err){
+    showAlert('emailjs-alert','danger','Save failed: '+err.message);
+  }
+}
+
 async function approveOrder(id){
-  await db.collection('orders').doc(id).update({status:'approved'});
-  toast(t('orderApproved'),'success'); renderAdmin();
+  try{
+    const snap=await db.collection('orders').doc(id).get();
+    if(!snap.exists){ toast('Order not found','error'); return; }
+    const o=snap.data();
+    let ejs={publicKey:'',serviceId:'',templateId:''};
+    try{
+      const ejsSnap=await db.collection('settings').doc('emailjs').get();
+      if(ejsSnap.exists) ejs={...ejs,...ejsSnap.data()};
+    }catch{}
+    await db.collection('orders').doc(id).update({status:'approved'});
+    if(ejs.publicKey && ejs.serviceId && ejs.templateId && o.buyerEmail){
+      try{
+        emailjs.init(ejs.publicKey);
+        await emailjs.send(ejs.serviceId, ejs.templateId, {
+          to_email:    o.buyerEmail,
+          to_name:     o.buyerName||'Customer',
+          product_name: o.productTitle||'your product',
+          download_url: o.downloadUrl||'(link coming soon)',
+          order_id:    id,
+          amount:      (o.price||0)+' EGP'
+        });
+        toast('✓ Order approved & email sent to '+o.buyerEmail,'success');
+      }catch(emailErr){
+        console.error('EmailJS error:',emailErr);
+        toast('Order approved — but email failed: '+emailErr.text,'error');
+      }
+    } else {
+      toast(t('orderApproved'),'success');
+      if(ejs.publicKey===''){ toast('Tip: Configure EmailJS in Settings to auto-email customers','info'); }
+    }
+  }catch(err){
+    toast('Error: '+err.message,'error');
+  }
+  renderAdmin();
 }
 async function rejectOrder(id){
   await db.collection('orders').doc(id).update({status:'rejected'});
