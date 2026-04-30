@@ -447,6 +447,7 @@ footer p{color:var(--text-muted);font-size:13px}
         <div id="seller-fields" style="display:none">
           <div class="form-group"><label class="form-label">Shop Name <span class="req">*</span></label><input class="form-control" id="reg-shop" placeholder="My Awesome Shop"></div>
           <div class="form-group"><label class="form-label">Shop Description</label><textarea class="form-control" id="reg-shopdesc" rows="3" placeholder="Tell buyers about your shop..."></textarea></div>
+          <div class="form-group"><label class="form-label">Your Instapay ID <span class="req">*</span></label><input class="form-control" id="reg-instapay" placeholder="yourname@instapay.com"><div class="form-hint">Buyers will send payments directly to this Instapay</div></div>
         </div>
         <button type="submit" class="btn btn-primary btn-full btn-lg" id="reg-btn">Create Account</button>
       </form>
@@ -480,6 +481,7 @@ footer p{color:var(--text-muted);font-size:13px}
       <div class="sidebar-link" onclick="sellerTab('products')" id="sl-products"><i class="fas fa-box" style="width:16px"></i> My Products</div>
       <div class="sidebar-link" onclick="sellerTab('add')" id="sl-add"><i class="fas fa-plus-circle" style="width:16px"></i> Add Product</div>
       <div class="sidebar-link" onclick="sellerTab('sales')" id="sl-sales"><i class="fas fa-shopping-bag" style="width:16px"></i> Sales</div>
+      <div class="sidebar-link" onclick="sellerTab('payment')" id="sl-payment"><i class="fas fa-wallet" style="width:16px"></i> My Payment Info</div>
     </div>
     <div class="dash-main" id="seller-main"></div>
   </div>
@@ -684,12 +686,13 @@ async function doRegister(e){
   if(pass.length<6){ showAlert('reg-alert','danger',t('passMin')); btn.disabled=false; btn.textContent='Create Account'; return; }
   const shopName = role==='seller'?document.getElementById('reg-shop').value.trim():'';
   const shopDesc = role==='seller'?document.getElementById('reg-shopdesc').value.trim():'';
+  const sellerInstapay = role==='seller'?document.getElementById('reg-instapay').value.trim():'';
   try{
     const cred = await auth.createUserWithEmailAndPassword(email,pass);
     const actualRole = email===ADMIN_EMAIL?'admin':role;
     await db.collection('users').doc(cred.user.uid).set({
       name:fname+' '+lname, email, role:actualRole,
-      shopName, shopDesc, createdAt:FV.serverTimestamp()
+      shopName, shopDesc, instapay:sellerInstapay, createdAt:FV.serverTimestamp()
     });
     if(actualRole==='admin'){
       const sd = await db.collection('settings').doc('payment').get();
@@ -914,27 +917,79 @@ async function openCheckout(ids){
   if(!checkoutItems.length) return;
   proofB64='';
   const total=checkoutItems.reduce((s,p)=>s+Number(p.price||0),0);
-  let s={instapay:'mohamed.abdallah4377@instapay.com',phone:'01150015688',bank:'HSBC',accountNum:'114069602013',accountHolder:'Mohamed Moustafa'};
+  // Load admin payment settings
+  let s={instapay:'mohamed.abdallah4377@instapay.com',phone:'01150015688',bank:'HSBC',accountNum:'114069602013',accountHolder:'Mohamed Moustafa',commission:5};
   try{ const sd=await db.collection('settings').doc('payment').get(); if(sd.exists) s={...s,...sd.data()}; }catch{}
+  const commPct=Number(s.commission)||5;
+
+  // Determine if this is a 3rd-party seller product or admin's own
+  // Group items: admin-owned vs seller-owned
+  const adminItems = checkoutItems.filter(p=>!p.sellerId||p.sellerId==='admin');
+  const sellerItems = checkoutItems.filter(p=>p.sellerId&&p.sellerId!=='admin');
+
+  // Fetch seller payment info for any seller items
+  let sellerPayMap = {}; // sellerId -> {instapay, bankName, accountNum, accountHolder, shopName}
+  for(const p of sellerItems){
+    if(!sellerPayMap[p.sellerId]){
+      try{
+        const ud=await db.collection('users').doc(p.sellerId).get();
+        sellerPayMap[p.sellerId]=ud.exists?ud.data():{};
+      }catch{ sellerPayMap[p.sellerId]={}; }
+    }
+  }
+
+  // Build payment instructions HTML
+  let paymentHTML = '';
+
+  // Admin items — show admin payment details
+  if(adminItems.length){
+    const adminTotal = adminItems.reduce((sum,p)=>sum+Number(p.price||0),0);
+    paymentHTML += `
+    <div class="pay-box">
+      <h4><i class="fas fa-store" style="color:#a5b4fc"></i> DigitalMarket — ${adminTotal} EGP</h4>
+      <div class="pay-row"><span class="pay-label">Instapay</span><span class="pay-val">${s.instapay} <button class="copy-btn" onclick="copyText('${s.instapay}')"><i class="fas fa-copy"></i></button></span></div>
+      ${s.phone?`<div class="pay-row"><span class="pay-label">Phone</span><span class="pay-val">${s.phone} <button class="copy-btn" onclick="copyText('${s.phone}')"><i class="fas fa-copy"></i></button></span></div>`:''}
+      <div class="pay-row"><span class="pay-label">Bank (${s.bank})</span><span class="pay-val">${s.accountNum} <button class="copy-btn" onclick="copyText('${s.accountNum}')"><i class="fas fa-copy"></i></button></span></div>
+    </div>`;
+  }
+
+  // Seller items — group by seller and show each seller's payment details
+  const sellerGroups = {};
+  for(const p of sellerItems){
+    if(!sellerGroups[p.sellerId]) sellerGroups[p.sellerId]=[];
+    sellerGroups[p.sellerId].push(p);
+  }
+  for(const [sid, items] of Object.entries(sellerGroups)){
+    const sd2=sellerPayMap[sid]||{};
+    const sellerTotal=items.reduce((sum,p)=>sum+Number(p.price||0),0);
+    const commAmt=Math.round(sellerTotal*commPct/100*100)/100;
+    const netAmt=Math.round((sellerTotal-commAmt)*100)/100;
+    const shopLabel=sd2.shopName||sd2.name||'Seller';
+    paymentHTML += `
+    <div class="pay-box" style="border-color:rgba(16,185,129,.35)">
+      <h4><i class="fas fa-store" style="color:#6ee7b7"></i> ${shopLabel} — ${sellerTotal} EGP</h4>
+      ${sd2.instapay?`<div class="pay-row"><span class="pay-label">Instapay</span><span class="pay-val">${sd2.instapay} <button class="copy-btn" onclick="copyText('${sd2.instapay}')"><i class="fas fa-copy"></i></button></span></div>`:''}
+      ${sd2.accountNum?`<div class="pay-row"><span class="pay-label">Bank (${sd2.bankName||''})</span><span class="pay-val">${sd2.accountHolder||''} — ${sd2.accountNum} <button class="copy-btn" onclick="copyText('${sd2.accountNum}')"><i class="fas fa-copy"></i></button></span></div>`:''}
+      ${(!sd2.instapay&&!sd2.accountNum)?`<div style="font-size:12px;color:var(--warning);padding:6px 0"><i class="fas fa-exclamation-triangle"></i> Seller hasn't added payment info yet — contact admin.</div>`:''}
+      <div style="margin-top:10px;padding:10px;background:rgba(99,102,241,.08);border-radius:8px;font-size:12px;color:var(--text-muted)">
+        <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+        Send the full <strong style="color:var(--text)">${sellerTotal} EGP</strong> to the seller.
+        The seller will forward the <strong style="color:var(--warning)">${commPct}% platform fee (${commAmt} EGP)</strong> to DigitalMarket.
+        You keep your <strong style="color:var(--secondary)">${netAmt} EGP</strong> net amount.
+      </div>
+    </div>`;
+  }
+
   document.getElementById('modal-checkout-body').innerHTML=`
     <div style="margin-bottom:18px">
       ${checkoutItems.map(p=>`<div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid var(--border)"><span>${lang==='ar'&&p.titleAr?p.titleAr:p.title}</span><span style="font-weight:700">${p.price} EGP</span></div>`).join('')}
       <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;padding:10px 0"><span>${t('orderTotal')}</span><span style="color:var(--secondary)">${total} EGP</span></div>
     </div>
     <div class="alert alert-info"><i class="fas fa-info-circle"></i> ${t('instapayInfo')}</div>
-    <div class="pay-box">
-      <h4><i class="fas fa-bolt" style="color:#a5b4fc"></i> Instapay</h4>
-      <div class="pay-row"><span class="pay-label">Instapay ID</span><span class="pay-val">${s.instapay} <button class="copy-btn" onclick="copyText('${s.instapay}')"><i class="fas fa-copy"></i></button></span></div>
-      <div class="pay-row"><span class="pay-label">Phone</span><span class="pay-val">${s.phone} <button class="copy-btn" onclick="copyText('${s.phone}')"><i class="fas fa-copy"></i></button></span></div>
-    </div>
-    <div class="pay-box">
-      <h4><i class="fas fa-university" style="color:#6ee7b7"></i> Bank Transfer — ${s.bank}</h4>
-      <div class="pay-row"><span class="pay-label">Account Holder</span><span class="pay-val">${s.accountHolder}</span></div>
-      <div class="pay-row"><span class="pay-label">Account Number</span><span class="pay-val">${s.accountNum} <button class="copy-btn" onclick="copyText('${s.accountNum}')"><i class="fas fa-copy"></i></button></span></div>
-    </div>
+    ${paymentHTML}
     <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:14px;margin-top:6px;margin-bottom:16px;font-size:13px;color:var(--text-muted);line-height:1.7">
       <i class="fas fa-info-circle" style="color:var(--primary)"></i>
-      <strong style="color:var(--text)"> After paying:</strong> Send the exact amount above, then enter your payment reference number below. Your download link will be emailed to you once we confirm your payment.
+      <strong style="color:var(--text)"> After paying:</strong> Enter your payment reference number below. Your download link will be emailed to you once the seller confirms your payment.
     </div>
     <div class="form-group">
       <label class="form-label">Payment Method</label>
@@ -954,6 +1009,7 @@ async function openCheckout(ids){
     <button class="btn btn-success btn-full btn-lg" id="co-btn" onclick="submitOrder()"><i class="fas fa-check-circle"></i> ${t('placeOrder')}</button>`;
   openModal('modal-checkout');
 }
+
 
 function handleProof(e){
   const file=e.target.files[0]; if(!file) return;
@@ -1051,7 +1107,7 @@ let curSellerTab='overview';
 function sellerTab(tab){ curSellerTab=tab; renderSeller(); }
 
 async function renderSeller(){
-  const map={overview:'sl-overview',products:'sl-products',add:'sl-add',sales:'sl-sales'};
+  const map={overview:'sl-overview',products:'sl-products',add:'sl-add',sales:'sl-sales',payment:'sl-payment'};
   document.querySelectorAll('[id^=sl-]').forEach(e=>e.classList.remove('active'));
   if(map[curSellerTab]){var _sel=document.getElementById(map[curSellerTab]);if(_sel)_sel.classList.add('active');}
   const el=document.getElementById('seller-main');
@@ -1060,6 +1116,7 @@ async function renderSeller(){
   if(curSellerTab==='products') el.innerHTML=await buildSellerProducts();
   if(curSellerTab==='add')      el.innerHTML=buildProductForm();
   if(curSellerTab==='sales')    el.innerHTML=await buildSellerSales();
+  if(curSellerTab==='payment')  el.innerHTML=await buildSellerPayment();
 }
 
 async function buildSellerOverview(){
@@ -1217,6 +1274,81 @@ async function delProduct(id){
   toast(t('productDeleted'),'info');
   if(curUser.role==='admin') adminTab('products');
   else sellerTab('products');
+}
+
+async function buildSellerPayment(){
+  // Load admin payment settings (for commission transfer target)
+  var adminS={instapay:'',phone:'',bank:'',accountNum:'',accountHolder:'',commission:5};
+  try{ var sd=await db.collection('settings').doc('payment').get(); if(sd.exists) adminS={...adminS,...sd.data()}; }catch{}
+  // Load seller's own current payment info
+  var sellerData={instapay:'',bankName:'',accountNum:'',accountHolder:''};
+  try{ var ud=await db.collection('users').doc(curUser.uid).get(); if(ud.exists) sellerData={...sellerData,...ud.data()}; }catch{}
+  // Commission owed (from approved orders)
+  var commPct=Number(adminS.commission)||5;
+  var snap=await db.collection('orders').where('sellerId','==',curUser.uid).where('status','==','approved').get();
+  var totalGross=snap.docs.reduce((s,d)=>s+Number(d.data().price||0),0);
+  var commOwed=Math.round(totalGross*commPct/100*100)/100;
+  return `<h2 style="font-size:22px;font-weight:800;margin-bottom:22px">My Payment Info</h2>
+  <!-- Commission Owed Box -->
+  <div class="card" style="margin-bottom:22px;border:1px solid rgba(99,102,241,.35)">
+    <div class="card-title"><i class="fas fa-hand-holding-usd" style="color:var(--warning)"></i> Commission You Owe DigitalMarket</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:18px">
+      <div style="background:var(--bg3);border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">Total Approved Sales</div>
+        <div style="font-size:24px;font-weight:800;color:var(--secondary)">${totalGross} EGP</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:16px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">Commission Rate</div>
+        <div style="font-size:24px;font-weight:800;color:var(--warning)">${commPct}%</div>
+      </div>
+      <div style="background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(239,68,68,.05));border-radius:10px;padding:16px;border:1px solid rgba(239,68,68,.3)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">Total Commission Owed</div>
+        <div style="font-size:28px;font-weight:800;color:var(--danger)">${commOwed} EGP</div>
+      </div>
+    </div>
+    <div style="background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.25);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px"><i class="fas fa-bolt" style="color:#a5b4fc"></i> Send Commission to Admin via Instapay</div>
+      <div class="pay-row"><span class="pay-label">Instapay ID</span><span class="pay-val">${adminS.instapay||'—'} ${adminS.instapay?`<button class="copy-btn" onclick="copyText('${adminS.instapay}')"><i class="fas fa-copy"></i></button>`:''}</span></div>
+      ${adminS.phone?`<div class="pay-row"><span class="pay-label">Phone</span><span class="pay-val">${adminS.phone} <button class="copy-btn" onclick="copyText('${adminS.phone}')"><i class="fas fa-copy"></i></button></span></div>`:''}
+      ${adminS.accountNum?`<div class="pay-row"><span class="pay-label">Bank (${adminS.bank||''})</span><span class="pay-val">${adminS.accountHolder||''} — ${adminS.accountNum} <button class="copy-btn" onclick="copyText('${adminS.accountNum}')"><i class="fas fa-copy"></i></button></span></div>`:''}
+    </div>
+    <div style="font-size:12px;color:var(--text-muted)"><i class="fas fa-info-circle" style="color:var(--primary)"></i> Commission is collected per sale. Please transfer the amount above to the admin account. Contact admin if you have questions.</div>
+  </div>
+  <!-- Seller's Own Payment Info -->
+  <div class="card">
+    <div class="card-title"><i class="fas fa-id-card" style="color:var(--secondary)"></i> Your Payment Details <span style="font-size:12px;font-weight:400;color:var(--text-muted)">— shown to buyers in checkout</span></div>
+    <form onsubmit="saveSellerPayment(event)">
+      <div class="form-group">
+        <label class="form-label">Your Instapay ID <span class="req">*</span></label>
+        <input class="form-control" id="sp-instapay" value="${escH(sellerData.instapay||'')}" placeholder="yourname@instapay.com">
+        <div class="form-hint">Buyers will send the full product price directly to this Instapay</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Bank Name</label><input class="form-control" id="sp-bank" value="${escH(sellerData.bankName||'')}" placeholder="e.g. CIB, Banque Misr"></div>
+        <div class="form-group"><label class="form-label">Account Holder</label><input class="form-control" id="sp-holder" value="${escH(sellerData.accountHolder||'')}" placeholder="Full name"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Account Number</label><input class="form-control" id="sp-accnum" value="${escH(sellerData.accountNum||'')}" placeholder="Bank account number"></div>
+      <div id="sp-alert"></div>
+      <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Save Payment Info</button>
+    </form>
+  </div>`;
+}
+
+async function saveSellerPayment(e){
+  e.preventDefault();
+  const instapay=document.getElementById('sp-instapay').value.trim();
+  if(!instapay){ showAlert('sp-alert','danger','Please enter your Instapay ID.'); return; }
+  try{
+    await db.collection('users').doc(curUser.uid).update({
+      instapay,
+      bankName: document.getElementById('sp-bank').value.trim(),
+      accountHolder: document.getElementById('sp-holder').value.trim(),
+      accountNum: document.getElementById('sp-accnum').value.trim()
+    });
+    // Update local state
+    curUser.instapay=instapay;
+    showAlert('sp-alert','success','Payment info saved! Buyers will now see your Instapay in checkout.');
+  }catch(err){ showAlert('sp-alert','danger','Error: '+err.message); }
 }
 
 async function buildSellerSales(){
