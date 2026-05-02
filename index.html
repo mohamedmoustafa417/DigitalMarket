@@ -792,7 +792,7 @@
               <tr>
                 <th>ID</th><th data-i18n="buyer">Buyer</th><th data-i18n="products">Products</th>
                 <th data-i18n="total">Total</th><th data-i18n="status">Status</th>
-                <th data-i18n="proof">Proof</th><th data-i18n="actions">Actions</th>
+                <th>Payment / Ref</th><th data-i18n="proof">Proof</th><th data-i18n="actions">Actions</th>
               </tr>
             </thead>
             <tbody id="admin-orders-tbody"></tbody>
@@ -909,9 +909,13 @@
           <div class="invalid-feedback">Name is required.</div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="prod-desc">Description <span class="req" aria-hidden="true">*</span></label>
+          <label class="form-label" for="prod-desc">Description (English) <span class="req" aria-hidden="true">*</span></label>
           <textarea class="form-control" id="prod-desc" rows="3" required maxlength="1000" style="resize:vertical;"></textarea>
           <div class="invalid-feedback">Description is required.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="prod-desc-ar">الوصف بالعربية (Arabic Description)</label>
+          <textarea class="form-control" id="prod-desc-ar" rows="3" maxlength="1000" style="resize:vertical;direction:rtl;font-family:var(--font-ar);" placeholder="وصف المنتج بالعربية..."></textarea>
         </div>
         <div class="flex gap-2">
           <div class="form-group" style="flex:1">
@@ -935,6 +939,11 @@
         <div class="form-group">
           <label class="form-label" for="prod-img">Image URL (optional)</label>
           <input class="form-control" type="url" id="prod-img" placeholder="https://…">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="prod-emoji">Product Emoji (optional)</label>
+          <input class="form-control" type="text" id="prod-emoji" placeholder="e.g. 💰 📊 🎨" maxlength="4" style="font-size:1.3rem;">
+          <small style="color:var(--text-muted);font-size:0.75rem;">Shown as thumbnail if no image URL is set</small>
         </div>
         <div class="form-group">
           <label class="form-label" for="prod-download">Download Link <span class="req" aria-hidden="true">*</span></label>
@@ -961,7 +970,29 @@
 
       <hr style="border-color:var(--border);margin:1.2rem 0;">
 
-      <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;" data-i18n="uploadProof">Upload Payment Proof</h4>
+      <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">Payment Method</h4>
+      <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <label style="flex:1;min-width:130px;display:flex;align-items:center;gap:0.5rem;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.2s;">
+          <input type="radio" name="pay-method" id="pay-instapay" value="instapay" onchange="onPayMethodChange()" style="accent-color:var(--primary);">
+          <span style="font-size:1.1rem;">📱</span> <span style="font-weight:600;font-size:0.9rem;">InstaPay</span>
+        </label>
+        <label style="flex:1;min-width:130px;display:flex;align-items:center;gap:0.5rem;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.2s;">
+          <input type="radio" name="pay-method" id="pay-bank" value="bank" onchange="onPayMethodChange()" style="accent-color:var(--primary);">
+          <span style="font-size:1.1rem;">🏦</span> <span style="font-weight:600;font-size:0.9rem;">Bank Transfer</span>
+        </label>
+        <label style="flex:1;min-width:130px;display:flex;align-items:center;gap:0.5rem;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.2s;">
+          <input type="radio" name="pay-method" id="pay-vodafone" value="vodafone" onchange="onPayMethodChange()" style="accent-color:var(--primary);">
+          <span style="font-size:1.1rem;">📞</span> <span style="font-weight:600;font-size:0.9rem;">Vodafone Cash</span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="pay-ref-input">Transaction Reference Number <span class="req">*</span></label>
+        <input class="form-control" type="text" id="pay-ref-input" placeholder="Enter your transaction/reference number" maxlength="100">
+        <small style="color:var(--text-muted);font-size:0.75rem;">The reference number from your payment confirmation</small>
+      </div>
+
+      <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;" data-i18n="uploadProof">Upload Payment Screenshot</h4>
       <div class="file-upload" onclick="document.getElementById('proof-input').click()" role="button" tabindex="0"
            onkeydown="if(event.key==='Enter')this.click()" aria-label="Click to upload payment proof">
         <i class="fa-solid fa-cloud-arrow-up" style="font-size:1.5rem;color:var(--text-muted);margin-bottom:0.5rem;" aria-hidden="true"></i>
@@ -994,10 +1025,15 @@
 // ═══════════════════════════════════════════════════════════════════
 
 // ⚠️  REPLACE these placeholders before deploying:
-const RECAPTCHA_SITE_KEY = '6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz';   // Google reCAPTCHA v3
-const EMAILJS_SERVICE_ID  = 'YOUR_EMAILJS_SERVICE_ID';
-const EMAILJS_TEMPLATE_ID = 'YOUR_EMAILJS_TEMPLATE_ID';
-const EMAILJS_PUBLIC_KEY  = 'YOUR_EMAILJS_PUBLIC_KEY';
+const RECAPTCHA_SITE_KEY  = '6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz';   // Google reCAPTCHA v3
+
+// ── EmailJS Configuration ─────────────────────────────────────────
+// Sign up free at https://www.emailjs.com → Services → Add Service
+// Create a template with variables: {{to_name}}, {{to_email}}, {{subject}}, {{message}}
+const EMAILJS_PUBLIC_KEY  = 'YOUR_EMAILJS_PUBLIC_KEY';   // Account → API Keys
+const EMAILJS_SERVICE_ID  = 'YOUR_EMAILJS_SERVICE_ID';   // Email Services tab
+const EMAILJS_TEMPLATE_ID = 'YOUR_EMAILJS_TEMPLATE_ID';  // Email Templates tab
+const ADMIN_EMAIL         = 'mohamed.moustafa417@gmail.com'; // Receives new order alerts
 
 // ⚠️  ADMIN ROLE: Set this to '' and assign admin role via Firestore manually.
 //     NEVER detect admin by email comparison in client-side code.
@@ -1026,7 +1062,51 @@ try {
   console.error('Firebase init failed:', e);
 }
 
-emailjs.init(EMAILJS_PUBLIC_KEY);
+try { emailjs.init(EMAILJS_PUBLIC_KEY); } catch(e) {}
+
+// ═══════════════════════════════════════════════════════════════════
+// EMAIL AUTOMATION
+// ═══════════════════════════════════════════════════════════════════
+function sendOrderEmail(eventType, params) {
+  if (EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY') return; // not configured yet
+  const templates = {
+    order_submitted: {
+      subject: `New Order Received – EGP ${params.total}`,
+      message: `Hello ${params.to_name},\n\nYour order has been received and is pending review.\n\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\nPayment: ${params.pay_method} – Ref: ${params.ref_num}\n\nWe will notify you once your payment is verified.\n\nThank you for shopping at DigitalMarket!`
+    },
+    order_approved: {
+      subject: `Your Order is Approved! ✅ – DigitalMarket`,
+      message: `Hello ${params.to_name},\n\nGreat news! Your order has been approved and your products are ready.\n\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\n\nYou can download your products from your Orders page.\n\nThank you for shopping at DigitalMarket!`
+    },
+    order_rejected: {
+      subject: `Order Update – DigitalMarket`,
+      message: `Hello ${params.to_name},\n\nUnfortunately your order could not be verified.\n\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\n\nPlease contact support if you believe this is an error.\n\nDigitalMarket Team`
+    },
+    admin_new_order: {
+      subject: `[Admin] New Order – EGP ${params.total}`,
+      message: `New order received!\n\nBuyer: ${params.buyer_name} (${params.buyer_email})\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\nPayment: ${params.pay_method} – Ref: ${params.ref_num}\n\nLog in to approve or reject.`
+    }
+  };
+  const tpl = templates[eventType];
+  if (!tpl) return;
+  try {
+    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_name:  params.to_name  || 'Customer',
+      to_email: params.to_email,
+      subject:  tpl.subject,
+      message:  tpl.message
+    });
+    // Also alert admin on new orders
+    if (eventType === 'order_submitted') {
+      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        to_name:  'Admin',
+        to_email: ADMIN_EMAIL,
+        subject:  templates.admin_new_order.subject,
+        message:  templates.admin_new_order.message
+      });
+    }
+  } catch(e) { console.warn('Email send failed:', e); }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // SECURITY HELPERS
@@ -1638,10 +1718,19 @@ document.getElementById('search-input').addEventListener('keydown', e => { if (e
 
 function getFilteredProducts() {
   let list = [...allProducts];
-  if (currentFilter !== 'all') list = list.filter(p => p.category === currentFilter);
+  if (currentFilter !== 'all') list = list.filter(p => {
+    const cat = (p.category || '').toLowerCase().replace(/[-_\s]/g,'');
+    if (currentFilter === 'software')  return cat.includes('software');
+    if (currentFilter === 'ebook')     return cat.includes('book') || cat === 'ebook';
+    if (currentFilter === 'course')    return cat.includes('course');
+    if (currentFilter === 'graphics')  return cat.includes('graphic') || cat.includes('template') || cat.includes('design');
+    if (currentFilter === 'other')     return !['software','book','course','graphic','template','design'].some(k => cat.includes(k));
+    return cat === currentFilter;
+  });
   if (searchQuery) list = list.filter(p =>
     (p.name || '').toLowerCase().includes(searchQuery) ||
-    (p.description || '').toLowerCase().includes(searchQuery)
+    (p.description || '').toLowerCase().includes(searchQuery) ||
+    (p.descriptionAr || '').toLowerCase().includes(searchQuery)
   );
   const sort = document.getElementById('sort-select')?.value || 'newest';
   if (sort === 'price-asc')  list.sort((a,b) => Number(a.price||0) - Number(b.price||0));
@@ -1666,12 +1755,14 @@ function renderProducts() {
          aria-label="${sanitize(p.name)} - EGP ${Number(p.price||0).toLocaleString()}">
       <div class="product-img">
         ${p.imageUrl
-          ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<i class=\\"fa-solid fa-image\\" aria-hidden=\\"true\\"></i>'">`
-          : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
+          ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:3rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
+          : p.emoji
+            ? `<span style="font-size:3rem;line-height:1;" aria-hidden="true">${sanitize(p.emoji)}</span>`
+            : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
       </div>
       <div class="product-body">
         <div class="product-title">${sanitize(p.name)}</div>
-        <div class="product-desc">${sanitize(p.description || '')}</div>
+        <div class="product-desc">${document.documentElement.lang==='ar' && p.descriptionAr ? sanitize(p.descriptionAr) : sanitize(p.description || '')}</div>
       </div>
       <div class="product-footer">
         <span class="product-price">EGP ${Number(p.price||0).toLocaleString()}</span>
@@ -1692,11 +1783,15 @@ function openProductDetail(id) {
   body.innerHTML = `
     <div style="text-align:center;margin-bottom:1rem;">
       ${p.imageUrl
-        ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" style="max-width:100%;max-height:220px;border-radius:var(--radius);object-fit:cover;" loading="lazy">`
-        : `<div style="height:120px;background:var(--bg3);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:3rem;color:var(--text-muted);"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i></div>`}
+        ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" style="max-width:100%;max-height:220px;border-radius:var(--radius);object-fit:cover;" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+        : ''}
+      <div style="height:120px;background:var(--bg3);border-radius:var(--radius);display:${p.imageUrl?'none':'flex'};align-items:center;justify-content:center;font-size:4rem;">
+        ${p.emoji ? sanitize(p.emoji) : '<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>'}
+      </div>
     </div>
     <h3 style="margin-bottom:0.5rem;">${sanitize(p.name)}</h3>
-    <div style="margin-bottom:1rem;color:var(--text-muted);font-size:0.9rem;">${sanitize(p.description || '')}</div>
+    <div style="margin-bottom:0.75rem;color:var(--text-muted);font-size:0.9rem;">${sanitize(p.description || '')}</div>
+    ${p.descriptionAr ? `<div style="margin-bottom:1rem;color:var(--text-muted);font-size:0.9rem;direction:rtl;text-align:right;font-family:var(--font-ar);">${sanitize(p.descriptionAr)}</div>` : ''}
     <div class="flex gap-2" style="flex-wrap:wrap;margin-bottom:1rem;">
       <span class="badge badge-primary"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${sanitize(p.category || 'other')}</span>
       <span class="badge badge-success" style="font-size:1rem;padding:0.3rem 0.75rem;"><strong>EGP ${Number(p.price||0).toLocaleString()}</strong></span>
@@ -1732,7 +1827,11 @@ function renderCart() {
   list.innerHTML = items.map(p => `
     <div class="cart-item">
       <div class="cart-item-icon">
-        ${p.imageUrl ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" loading="lazy">` : '<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>'}
+        ${p.imageUrl
+          ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" loading="lazy">`
+          : p.emoji
+            ? `<span style="font-size:1.6rem;">${sanitize(p.emoji)}</span>`
+            : '<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>'}
       </div>
       <div class="cart-item-info">
         <div class="cart-item-title">${sanitize(p.name)}</div>
@@ -1848,23 +1947,47 @@ function handleProof(e) {
   reader.readAsDataURL(file);
 }
 
+function onPayMethodChange() {
+  document.querySelectorAll('label:has(input[name="pay-method"])').forEach(lbl => {
+    const radio = lbl.querySelector('input[type="radio"]');
+    lbl.style.borderColor = radio.checked ? 'var(--primary)' : 'var(--border)';
+  });
+}
+
 async function submitOrder() {
-  if (!proofB64) { showAlert('checkout-alert', 'danger', t('noProof')); return; }
+  const payMethod = document.querySelector('input[name="pay-method"]:checked')?.value;
+  const payRef    = document.getElementById('pay-ref-input')?.value.trim();
+  if (!payMethod) { showAlert('checkout-alert', 'danger', 'Please select a payment method.'); return; }
+  if (!payRef)    { showAlert('checkout-alert', 'danger', 'Please enter your transaction reference number.'); return; }
+  if (!proofB64)  { showAlert('checkout-alert', 'danger', t('noProof')); return; }
+
   const btn = document.getElementById('submit-order-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Submitting…';
 
   try {
     const total = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
-    await db.collection('orders').add({
-      buyerId:    curUser.uid,
-      buyerEmail: sanitize(curUser.email || ''),
-      buyerName:  sanitize(curUserData?.name || ''),
-      items:      checkoutItems.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin' })),
+    const orderRef = await db.collection('orders').add({
+      buyerId:       curUser.uid,
+      buyerEmail:    sanitize(curUser.email || ''),
+      buyerName:     sanitize(curUserData?.name || ''),
+      items:         checkoutItems.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin' })),
       total,
-      proof:      proofB64,
-      status:     'pending',
-      createdAt:  FV.serverTimestamp()
+      proof:         proofB64,
+      paymentMethod: payMethod,
+      referenceNum:  sanitize(payRef),
+      status:        'pending',
+      createdAt:     FV.serverTimestamp()
+    });
+    // Send confirmation email to buyer
+    sendOrderEmail('order_submitted', {
+      to_email: curUser.email,
+      to_name:  curUserData?.name || curUser.email,
+      order_id: orderRef.id,
+      total:    total,
+      items:    checkoutItems.map(p => p.name).join(', '),
+      pay_method: payMethod,
+      ref_num:  payRef
     });
     clearCart();
     closeModal('checkout-modal');
@@ -1929,9 +2052,9 @@ async function viewProof(orderId) {
   openModal('proof-modal');
 }
 
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // SELLER DASHBOARD
-// ════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 function sellerTab(tab) {
   ['products','orders','settings'].forEach(t => {
     document.getElementById(`seller-tab-${t}`)?.classList.toggle('hidden', t !== tab);
@@ -2032,9 +2155,9 @@ async function saveSellerSettings(e) {
   btn.disabled = false;
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 // PRODUCT MODAL (Add/Edit)
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 function openProductModal(isAdmin = false, editId = null) {
   document.getElementById('product-form').reset();
   document.getElementById('edit-product-id').value = editId || '';
@@ -2043,12 +2166,14 @@ function openProductModal(isAdmin = false, editId = null) {
 
   if (editId) {
     const p = allProducts.find(x => x.id === editId) || {};
-    document.getElementById('prod-name').value     = p.name     || '';
-    document.getElementById('prod-desc').value     = p.description || '';
-    document.getElementById('prod-price').value    = p.price    || '';
-    document.getElementById('prod-cat').value      = p.category || '';
-    document.getElementById('prod-img').value      = p.imageUrl || '';
-    document.getElementById('prod-download').value = p.downloadUrl || '';
+    document.getElementById('prod-name').value     = p.name          || '';
+    document.getElementById('prod-desc').value     = p.description   || '';
+    document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
+    document.getElementById('prod-price').value    = p.price         || '';
+    document.getElementById('prod-cat').value      = p.category      || '';
+    document.getElementById('prod-img').value      = p.imageUrl      || '';
+    document.getElementById('prod-emoji').value    = p.emoji         || '';
+    document.getElementById('prod-download').value = p.downloadUrl   || '';
   }
   openModal('add-product-modal');
 }
@@ -2058,9 +2183,11 @@ async function submitProduct(e) {
   const editId  = document.getElementById('edit-product-id').value;
   const name    = document.getElementById('prod-name').value.trim();
   const desc    = document.getElementById('prod-desc').value.trim();
+  const descAr  = document.getElementById('prod-desc-ar').value.trim();
   const price   = parseFloat(document.getElementById('prod-price').value);
   const cat     = document.getElementById('prod-cat').value;
   const imgUrl  = document.getElementById('prod-img').value.trim();
+  const emoji   = document.getElementById('prod-emoji').value.trim();
   const dlUrl   = document.getElementById('prod-download').value.trim();
   const btn     = document.getElementById('prod-submit-btn');
 
@@ -2076,15 +2203,17 @@ async function submitProduct(e) {
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>';
 
   const data = {
-    name:        sanitize(name),
-    description: sanitize(desc),
+    name:          sanitize(name),
+    description:   sanitize(desc),
+    descriptionAr: sanitize(descAr),
     price,
-    category:    sanitize(cat),
-    imageUrl:    imgUrl,
-    downloadUrl: dlUrl,
-    sellerId:    curUser.uid,
-    sellerName:  sanitize(curUserData?.shopName || curUserData?.name || ''),
-    updatedAt:   FV.serverTimestamp()
+    category:      sanitize(cat),
+    imageUrl:      imgUrl,
+    emoji:         emoji,
+    downloadUrl:   dlUrl,
+    sellerId:      curUser.uid,
+    sellerName:    sanitize(curUserData?.shopName || curUserData?.name || ''),
+    updatedAt:     FV.serverTimestamp()
   };
 
   try {
@@ -2133,18 +2262,21 @@ function adminTab(tab) {
 async function loadAdminDashboard() {
   if (curUserData?.role !== 'admin') return;
   adminTab('orders');
+  // Load stats independently so one failure doesn't blank everything
   try {
-    const [orders, products, users] = await Promise.all([
-      db.collection('orders').get(),
-      db.collection('products').get(),
-      db.collection('users').get()
-    ]);
-    const totalRevenue = orders.docs.filter(d => d.data().status === 'approved')
+    const snap = await db.collection('orders').get();
+    const revenue = snap.docs.filter(d => d.data().status === 'approved')
       .reduce((s, d) => s + Number(d.data().total || 0), 0);
-    document.getElementById('a-stat-orders').textContent   = orders.size;
-    document.getElementById('a-stat-products').textContent = products.size;
-    document.getElementById('a-stat-users').textContent    = users.size;
-    document.getElementById('a-stat-revenue').textContent  = totalRevenue.toLocaleString();
+    document.getElementById('a-stat-orders').textContent  = snap.size;
+    document.getElementById('a-stat-revenue').textContent = revenue.toLocaleString();
+  } catch {}
+  try {
+    const snap = await db.collection('products').get();
+    document.getElementById('a-stat-products').textContent = snap.size;
+  } catch {}
+  try {
+    const snap = await db.collection('users').get();
+    document.getElementById('a-stat-users').textContent = snap.size;
   } catch {}
 }
 
@@ -2152,26 +2284,32 @@ async function loadAdminOrders() {
   const tbody = document.getElementById('admin-orders-tbody');
   try {
     const snap = await db.collection('orders').orderBy('createdAt','desc').get();
+    if (!snap.docs.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`; return; }
     tbody.innerHTML = snap.docs.map(d => {
       const o = d.data();
-      const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
-      const names = (o.items||[]).map(i => sanitize(i.name)).join(', ');
+      const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
+      const names = (o.items||[]).map(i => sanitize(i.name||'')).filter(Boolean).join(', ') || sanitize(o.productName||'—');
+      const payBadge = o.paymentMethod ? `<span style="font-size:0.7rem;background:var(--bg3);padding:0.1rem 0.35rem;border-radius:4px;">${sanitize(o.paymentMethod)}</span>` : '';
+      const refNum  = o.referenceNum ? `<div style="font-size:0.72rem;color:var(--text-muted);">Ref: ${sanitize(o.referenceNum)}</div>` : '';
       return `<tr>
-        <td style="font-size:0.75rem;">${d.id.slice(0,8)}…</td>
+        <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
         <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
-        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
         <td>EGP ${Number(o.total||0).toLocaleString()}</td>
         <td>${statusBadge(o.status)}</td>
+        <td>${payBadge}${refNum}</td>
         <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
-        <td style="display:flex;gap:0.3rem;">
+        <td>
           ${o.status==='pending' ? `
-            <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')">✓</button>
-            <button class="btn btn-sm btn-danger"  onclick="updateOrderStatus('${d.id}','rejected')">✗</button>
+            <div style="display:flex;gap:0.3rem;">
+              <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')" title="Approve">✓</button>
+              <button class="btn btn-sm btn-danger"  onclick="updateOrderStatus('${d.id}','rejected')" title="Reject">✗</button>
+            </div>
           ` : '—'}
         </td>
       </tr>`;
     }).join('');
-  } catch {}
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function loadAdminProducts() {
@@ -2268,9 +2406,23 @@ async function updateOrderStatus(orderId, status) {
   try {
     await db.collection('orders').doc(orderId).update({ status });
     toast(`Order ${status}.`, 'success');
+    // Send email to buyer
+    try {
+      const snap = await db.collection('orders').doc(orderId).get();
+      const o = snap.data();
+      if (o && o.buyerEmail) {
+        sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
+          to_email: o.buyerEmail,
+          to_name:  o.buyerName || o.buyerEmail,
+          order_id: orderId,
+          items:    (o.items || []).map(i => i.name).join(', '),
+          total:    o.total || 0
+        });
+      }
+    } catch {}
     loadAdminOrders();
-    loadSellerOrders();
-  } catch {}
+    try { loadSellerOrders(); } catch {}
+  } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
 
 async function updateProductStatus(productId, status) {
@@ -2318,4 +2470,26 @@ document.querySelectorAll('.nav-link, .sidebar-link').forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
 });
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FOOTER                                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<footer style="background:var(--bg2);border-top:1px solid var(--border);padding:1.5rem 1rem;margin-top:3rem;text-align:center;">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-bottom:0.75rem;">
+      <i class="fa-solid fa-store" style="color:var(--primary);" aria-hidden="true"></i>
+      <span style="font-weight:700;color:var(--primary);font-size:1.1rem;">DigitalMarket</span>
+    </div>
+    <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
+      <span onclick="navigate('home')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Home</span>
+      <span onclick="navigate('register')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Start Selling</span>
+      <span onclick="navigate('cart')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Cart</span>
+      <a href="mailto:support@digitalmarketstore.shop" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Contact</a>
+    </div>
+    <p style="color:var(--text-muted);font-size:0.8rem;">
+      &copy; <span id="footer-year"></span> DigitalMarket. All rights reserved.
+    </p>
+  </div>
+</footer>
+<script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
 </body></html>
