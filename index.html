@@ -1030,9 +1030,9 @@ const RECAPTCHA_SITE_KEY  = '6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz';   // Goog
 // ── EmailJS Configuration ─────────────────────────────────────────
 // Sign up free at https://www.emailjs.com → Services → Add Service
 // Create a template with variables: {{to_name}}, {{to_email}}, {{subject}}, {{message}}
-const EMAILJS_PUBLIC_KEY  = 'YOUR_EMAILJS_PUBLIC_KEY';   // Account → API Keys
-const EMAILJS_SERVICE_ID  = 'YOUR_EMAILJS_SERVICE_ID';   // Email Services tab
-const EMAILJS_TEMPLATE_ID = 'YOUR_EMAILJS_TEMPLATE_ID';  // Email Templates tab
+const EMAILJS_PUBLIC_KEY  = 'PTbpbT65i6De6l4cJ';         // Account → API Keys
+const EMAILJS_SERVICE_ID  = 'service_9ipy5dr';            // Email Services tab
+const EMAILJS_TEMPLATE_ID = 'template_ee7a0vi';           // Email Templates tab
 const ADMIN_EMAIL         = 'mohamed.moustafa417@gmail.com'; // Receives new order alerts
 
 // ⚠️  ADMIN ROLE: Set this to '' and assign admin role via Firestore manually.
@@ -1536,7 +1536,7 @@ document.addEventListener('click', e => {
 
 // ═══════════════════════════════════════════════════════════════════
 // AUTH: LOGIN
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 async function doLogin(e) {
   e.preventDefault();
   const form  = document.getElementById('login-form');
@@ -1582,7 +1582,7 @@ async function doLogin(e) {
 
 // ═══════════════════════════════════════════════════════════════════
 // AUTH: REGISTER
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════
 function setRole(role) {
   document.getElementById('reg-role').value = role;
   document.getElementById('role-buyer-btn').classList.toggle('active', role === 'buyer');
@@ -1985,7 +1985,7 @@ async function submitOrder() {
       to_name:  curUserData?.name || curUser.email,
       order_id: orderRef.id,
       total:    total,
-      items:    checkoutItems.map(p => p.name).join(', '),
+       items:    checkoutItems.map(p => p.name).join(', '),
       pay_method: payMethod,
       ref_num:  payRef
     });
@@ -2001,8 +2001,7 @@ async function submitOrder() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ORDERS
-// ═══════════════════════════════════════════════════════════════════
+// ORDERSL// ═══════════════════════════════════════════════════════════════════
 async function loadOrders() {
   if (!curUser) return;
   const info   = document.getElementById('orders-info');
@@ -2026,7 +2025,7 @@ async function loadOrders() {
       const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
       const badge = statusBadge(o.status);
       const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
-      return `<tr>
+      return `<tr
         <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
         <td>${date}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
