@@ -971,19 +971,12 @@
       <hr style="border-color:var(--border);margin:1.2rem 0;">
 
       <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">Payment Method</h4>
-      <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
-        <label style="flex:1;min-width:130px;display:flex;align-items:center;gap:0.5rem;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.2s;">
-          <input type="radio" name="pay-method" id="pay-instapay" value="instapay" onchange="onPayMethodChange()" style="accent-color:var(--primary);">
-          <span style="font-size:1.1rem;">📱</span> <span style="font-weight:600;font-size:0.9rem;">InstaPay</span>
-        </label>
-        <label style="flex:1;min-width:130px;display:flex;align-items:center;gap:0.5rem;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.2s;">
-          <input type="radio" name="pay-method" id="pay-bank" value="bank" onchange="onPayMethodChange()" style="accent-color:var(--primary);">
-          <span style="font-size:1.1rem;">🏦</span> <span style="font-weight:600;font-size:0.9rem;">Bank Transfer</span>
-        </label>
-        <label style="flex:1;min-width:130px;display:flex;align-items:center;gap:0.5rem;background:var(--bg3);border:2px solid var(--border);border-radius:var(--radius);padding:0.65rem 0.9rem;cursor:pointer;transition:border-color 0.2s;">
-          <input type="radio" name="pay-method" id="pay-vodafone" value="vodafone" onchange="onPayMethodChange()" style="accent-color:var(--primary);">
-          <span style="font-size:1.1rem;">📞</span> <span style="font-weight:600;font-size:0.9rem;">Vodafone Cash</span>
-        </label>
+      <div class="form-group" style="margin-bottom:1rem;">
+                  <select id="pay-method-select" class="form-control" onchange="onPayMethodChange()" style="font-size:0.95rem;cursor:pointer;">
+                                <option value="">— Select Payment Method —</option>
+                                            <option value="instapay">📱 InstaPay</option>
+                                                        <option value="bank">🏦 Bank Transfer</option>
+                                                                  </select>
       </div>
 
       <div class="form-group">
@@ -1952,14 +1945,12 @@ function handleProof(e) {
 }
 
 function onPayMethodChange() {
-  document.querySelectorAll('label:has(input[name="pay-method"])').forEach(lbl => {
-    const radio = lbl.querySelector('input[type="radio"]');
-    lbl.style.borderColor = radio.checked ? 'var(--primary)' : 'var(--border)';
-  });
+  const sel = document.getElementById('pay-method-select');
+      if (sel) sel.style.borderColor = sel.value ? 'var(--primary)' : 'var(--border)';
 }
 
 async function submitOrder() {
-  const payMethod = document.querySelector('input[name="pay-method"]:checked')?.value;
+  const payMethod = document.getElementById('pay-method-select')?.value;
   const payRef    = document.getElementById('pay-ref-input')?.value.trim();
   if (!payMethod) { showAlert('checkout-alert', 'danger', 'Please select a payment method.'); return; }
   if (!payRef)    { showAlert('checkout-alert', 'danger', 'Please enter your transaction reference number.'); return; }
