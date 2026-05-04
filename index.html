@@ -1034,11 +1034,7 @@ const EMAILJS_PUBLIC_KEY  = 'PTbpbT65i6De6l4cJ';         // Account → API Keys
 const EMAILJS_SERVICE_ID  = 'service_9ipy5dr';            // Email Services tab
 const EMAILJS_TEMPLATE_ID = 'template_ee7a0vi';           // Email Templates tab
 const ADMIN_EMAIL         = 'mohamed.moustafa417@gmail.com'; // Receives new order alerts
-
-// ⚠️  ADMIN ROLE: Set this to '' and assign admin role via Firestore manually.
-//     NEVER detect admin by email comparison in client-side code.
-//     After first deploy: go to Firestore → users → your UID → set role = "admin"
-const ADMIN_SEED_EMAIL = ''; // Only used for first-run seed if needed
+const ADMIN_ONLY_EMAIL    = 'mohamed.moustafa417@gmail.com'; // ONLY this account may have admin access
 
 const firebaseConfig = {
   apiKey:            "AIzaSyBlz4mh7Aw0juMQPemqRUysxVVDhGaU8Rw",
@@ -1342,6 +1338,11 @@ function toggleLang() {
 // ═══════════════════════════════════════════════════════════════════
 let curUser      = null;
 let curUserData  = null;
+
+// Admin guard: user must have role='admin' in Firestore AND be the designated admin email
+function isAdmin() {
+  return curUserData?.role === 'admin' && curUser?.email === ADMIN_ONLY_EMAIL;
+}
 let allProducts  = [];
 let currentFilter = 'all';
 let searchQuery  = '';
@@ -1446,13 +1447,12 @@ function navigate(view) {
   if (['orders','seller','admin'].includes(view) && !curUser) {
     navigate('login'); toast('Please login first', 'info'); return;
   }
-  if (view === 'seller' && curUserData?.role !== 'seller' && curUserData?.role !== 'admin') {
+  if (view === 'seller' && curUserData?.role !== 'seller' && !isAdmin()) {
     navigate('home'); return;
   }
-  if (view === 'admin' && curUserData?.role !== 'admin') {
+  if (view === 'admin' && !isAdmin()) {
     navigate('home'); return;
   }
-
   VIEWS.forEach(v => {
     const el = document.getElementById(`view-${v}`);
     const nav = document.getElementById(`nav-${v}`);
@@ -1504,11 +1504,11 @@ function updateHeaderForUser() {
   const navOrders  = document.getElementById('nav-orders');
 
   if (navOrders) navOrders.classList.remove('hidden');
-  if (role === 'seller' || role === 'admin') {
+  if (role === 'seller' || isAdmin()) {
     if (sellerLink) sellerLink.classList.remove('hidden');
     if (navSeller)  navSeller.classList.remove('hidden');
   }
-  if (role === 'admin') {
+  if (isAdmin()) {
     if (adminLink) adminLink.classList.remove('hidden');
     if (navAdmin)  navAdmin.classList.remove('hidden');
   }
@@ -2223,7 +2223,7 @@ async function submitProduct(e) {
     if (editId) {
       await db.collection('products').doc(editId).update(data);
     } else {
-      data.status    = curUserData?.role === 'admin' ? 'approved' : 'pending';
+      data.status    = isAdmin() ? 'approved' : 'pending';
       data.createdAt = FV.serverTimestamp();
       await db.collection('products').add(data);
     }
@@ -2263,7 +2263,7 @@ function adminTab(tab) {
 }
 
 async function loadAdminDashboard() {
-  if (curUserData?.role !== 'admin') return;
+  if (!isAdmin()) return;
   adminTab('orders');
   // Load stats independently so one failure doesn't blank everything
   try {
