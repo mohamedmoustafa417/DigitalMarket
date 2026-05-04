@@ -1081,6 +1081,9 @@ function sendOrderEmail(eventType, params) {
     amount_paid:   `EGP ${Number(params.total || 0).toLocaleString()}`,
     order_id:      params.order_id || '',
     download_link: downloadLink,
+    link:          downloadLink,
+    download_url:  downloadLink,
+    download:      downloadLink,
     message: ''
   };
 
@@ -1088,7 +1091,7 @@ function sendOrderEmail(eventType, params) {
   if (eventType === 'order_submitted') {
     basePayload.message = `Hello ${basePayload.to_name},\n\nYour order has been received and is pending payment verification.\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\nPayment: ${params.pay_method || ''} – Ref: ${params.ref_num || ''}\n\nWe will email you once approved.\n\nDigitalMarket Team`;
   } else if (eventType === 'order_approved') {
-    basePayload.message = `Hello ${basePayload.to_name},\n\nYour payment is confirmed and your download is ready!\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\n\nDownload link: ${downloadLink}\n\nThank you for shopping at DigitalMarket!`;
+    basePayload.message = `Hello ${basePayload.to_name},\n\nYour payment is confirmed and your download is ready!\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\n\n📥 DOWNLOAD YOUR FILE HERE:\n${downloadLink}\n\n(Copy and paste the link above into your browser if the button does not work)\n\nThank you for shopping at DigitalMarket!`;
   } else if (eventType === 'order_rejected') {
     basePayload.message = `Hello ${basePayload.to_name},\n\nUnfortunately your order could not be verified.\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\n\nPlease contact support if you believe this is an error.\n\nDigitalMarket Team`;
   } else if (eventType === 'admin_new_order') {
@@ -2431,7 +2434,7 @@ async function updateOrderStatus(orderId, status) {
       const snap = await db.collection('orders').doc(orderId).get();
       const o = snap.data();
       if (o && o.buyerEmail) {
-        let downloadLink = '';
+        let downloadLink = 'https://digitalmarketstore.shop/#orders';
         // For approved orders: fetch actual download URLs from each product
         if (status === 'approved' && o.items && o.items.length) {
           const dlUrls = [];
@@ -2439,13 +2442,13 @@ async function updateOrderStatus(orderId, status) {
             try {
               const pdSnap = await db.collection('products').doc(item.id).get();
               if (pdSnap.exists && pdSnap.data().downloadUrl) {
-                dlUrls.push(`${sanitize(item.name)}: ${pdSnap.data().downloadUrl}`);
+                dlUrls.push(pdSnap.data().downloadUrl);
               }
             } catch {}
           }
           // If multiple products, join with newlines; else just the URL
-          if (dlUrls.length === 1 && dlUrls[0].includes(': ')) {
-            downloadLink = dlUrls[0].split(': ').slice(1).join(': ');
+          if (dlUrls.length === 1) {
+            downloadLink = dlUrls[0];
           } else if (dlUrls.length > 1) {
             downloadLink = 'https://digitalmarketstore.shop/#orders';
           }
