@@ -1069,52 +1069,56 @@ try { emailjs.init(EMAILJS_PUBLIC_KEY); } catch(e) {}
 // ═══════════════════════════════════════════════════════════════════
 function sendOrderEmail(eventType, params) {
   if (EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY') return; // not configured yet
-  const templates = {
-    order_submitted: {
-      subject: `New Order Received – EGP ${params.total}`,
-      message: `Hello ${params.to_name},\n\nYour order has been received and is pending review.\n\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\nPayment: ${params.pay_method} – Ref: ${params.ref_num}\n\nWe will notify you once your payment is verified.\n\nThank you for shopping at DigitalMarket!`
-    },
-    order_approved: {
-      subject: `Your Order is Approved! ✅ – DigitalMarket`,
-      message: `Hello ${params.to_name},\n\nGreat news! Your order has been approved and your products are ready.\n\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\n\nYou can download your products from your Orders page.\n\nThank you for shopping at DigitalMarket!`
-    },
-    order_rejected: {
-      subject: `Order Update – DigitalMarket`,
-      message: `Hello ${params.to_name},\n\nUnfortunately your order could not be verified.\n\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\n\nPlease contact support if you believe this is an error.\n\nDigitalMarket Team`
-    },
-    admin_new_order: {
-      subject: `[Admin] New Order – EGP ${params.total}`,
-      message: `New order received!\n\nBuyer: ${params.buyer_name} (${params.buyer_email})\nOrder ID: ${params.order_id}\nItems: ${params.items}\nTotal: EGP ${params.total}\nPayment: ${params.pay_method} – Ref: ${params.ref_num}\n\nLog in to approve or reject.`
-    }
+  const siteUrl = 'https://digitalmarketstore.shop';
+  // download_link: use real product download URLs if provided, else link to Orders page
+  const downloadLink = params.download_link || (siteUrl + '/#orders');
+
+  const subjects = {
+    order_submitted:  `DigitalMarket – Order Received #${params.order_id}`,
+    order_approved:   `✅ Your order is approved – Download ready! | DigitalMarket`,
+    order_rejected:   `Order Update – DigitalMarket`,
+    admin_new_order:  `[Admin] New Order EGP ${params.total} – ${params.items}`
   };
-  const tpl = templates[eventType];
-  if (!tpl) return;
+
+  // Template variables that match the EmailJS template fields exactly:
+  // {{to_name}}, {{to_email}}, {{subject}}, {{message}},
+  // {{product_name}}, {{amount_paid}}, {{order_id}}, {{download_link}}
+  const basePayload = {
+    to_name:       params.to_name  || 'Customer',
+    to_email:      params.to_email || '',
+    subject:       subjects[eventType] || 'DigitalMarket Order Update',
+    product_name:  params.items    || '',
+    amount_paid:   `EGP ${Number(params.total || 0).toLocaleString()}`,
+    order_id:      params.order_id || '',
+    download_link: downloadLink,
+    message: ''
+  };
+
+  // Set a plain-text message fallback for templates using {{message}}
+  if (eventType === 'order_submitted') {
+    basePayload.message = `Hello ${basePayload.to_name},\n\nYour order has been received and is pending payment verification.\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\nPayment: ${params.pay_method || ''} – Ref: ${params.ref_num || ''}\n\nWe will email you once approved.\n\nDigitalMarket Team`;
+  } else if (eventType === 'order_approved') {
+    basePayload.message = `Hello ${basePayload.to_name},\n\nYour payment is confirmed and your download is ready!\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\n\nDownload link: ${downloadLink}\n\nThank you for shopping at DigitalMarket!`;
+  } else if (eventType === 'order_rejected') {
+    basePayload.message = `Hello ${basePayload.to_name},\n\nUnfortunately your order could not be verified.\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\n\nPlease contact support if you believe this is an error.\n\nDigitalMarket Team`;
+  } else if (eventType === 'admin_new_order') {
+    basePayload.message = `New order received!\n\nBuyer: ${params.buyer_name || ''} (${params.buyer_email || ''})\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\nPayment: ${params.pay_method || ''} – Ref: ${params.ref_num || ''}\n\nLog in to approve or reject: ${siteUrl}`;
+  }
+
   try {
-    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_name:  params.to_name  || 'Customer',
-      to_email: params.to_email,
-      subject:  tpl.subject,
-      message:  tpl.message
-    });
-    // Also alert admin on new orders
+    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, basePayload);
+    // Also alert admin on new buyer orders
     if (eventType === 'order_submitted') {
       emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        ...basePayload,
         to_name:  'Admin',
         to_email: ADMIN_EMAIL,
-        subject:  templates.admin_new_order.subject,
-        message:  templates.admin_new_order.message
+        subject:  subjects.admin_new_order,
+        message:  basePayload.message.replace(`Hello ${basePayload.to_name}`, 'Hello Admin')
       });
     }
   } catch(e) { console.warn('Email send failed:', e); }
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// SECURITY HELPERS
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Sanitize text to prevent XSS. Always use before inserting user content into DOM.
- */
 function sanitize(str) {
   if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(String(str || ''), {ALLOWED_TAGS: [], ALLOWED_ATTR: []});
   const d = document.createElement('div');
@@ -2410,12 +2414,32 @@ async function updateOrderStatus(orderId, status) {
       const snap = await db.collection('orders').doc(orderId).get();
       const o = snap.data();
       if (o && o.buyerEmail) {
+        let downloadLink = '';
+        // For approved orders: fetch actual download URLs from each product
+        if (status === 'approved' && o.items && o.items.length) {
+          const dlUrls = [];
+          for (const item of o.items) {
+            try {
+              const pdSnap = await db.collection('products').doc(item.id).get();
+              if (pdSnap.exists && pdSnap.data().downloadUrl) {
+                dlUrls.push(`${sanitize(item.name)}: ${pdSnap.data().downloadUrl}`);
+              }
+            } catch {}
+          }
+          // If multiple products, join with newlines; else just the URL
+          if (dlUrls.length === 1 && dlUrls[0].includes(': ')) {
+            downloadLink = dlUrls[0].split(': ').slice(1).join(': ');
+          } else if (dlUrls.length > 1) {
+            downloadLink = 'https://digitalmarketstore.shop/#orders';
+          }
+        }
         sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
-          to_email: o.buyerEmail,
-          to_name:  o.buyerName || o.buyerEmail,
-          order_id: orderId,
-          items:    (o.items || []).map(i => i.name).join(', '),
-          total:    o.total || 0
+          to_email:      o.buyerEmail,
+          to_name:       o.buyerName || o.buyerEmail,
+          order_id:      orderId,
+          items:         (o.items || []).map(i => i.name).join(', '),
+          total:         o.total || 0,
+          download_link: downloadLink
         });
       }
     } catch {}
@@ -2423,7 +2447,6 @@ async function updateOrderStatus(orderId, status) {
     try { loadSellerOrders(); } catch {}
   } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
-
 async function updateProductStatus(productId, status) {
   try {
     await db.collection('products').doc(productId).update({ status });
