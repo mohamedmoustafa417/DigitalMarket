@@ -643,6 +643,7 @@
           <th data-i18n="orderTotal">Total</th>
           <th data-i18n="orderStatus">Status</th>
           <th data-i18n="actions">Actions</th>
+                    <th>Download</th>
         </tr>
       </thead>
       <tbody id="orders-tbody"></tbody>
@@ -994,7 +995,7 @@
         <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)">
         <img id="proof-preview" class="file-preview" alt="Payment proof preview">
       </div>
-      <div class="alert alert-danger mt-2" id="checkout-alert" role="alert"></div>
+      <div class="alert alert-danger mt-2" id="checkout-alert" role="alert" style="display:none;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('checkout-modal')" data-i18n="cancel">Cancel</button>
@@ -1954,7 +1955,13 @@ async function submitOrder() {
   const payRef    = document.getElementById('pay-ref-input')?.value.trim();
   if (!payMethod) { showAlert('checkout-alert', 'danger', 'Please select a payment method.'); return; }
   if (!payRef)    { showAlert('checkout-alert', 'danger', 'Please enter your transaction reference number.'); return; }
-  if (!proofB64)  { showAlert('checkout-alert', 'danger', t('noProof')); return; }
+    if (!proofB64) {
+          showAlert('checkout-alert', 'danger', t('noProof'));
+              const proofArea = document.querySelector('#checkout-modal .file-upload');
+                  if (proofArea) { proofArea.style.borderColor = 'var(--danger)'; setTimeout(() => { proofArea.style.borderColor = ''; }, 3000); }
+                      return;
+                        }
+    }
 
   const btn = document.getElementById('submit-order-btn');
   btn.disabled = true;
@@ -2012,23 +2019,43 @@ async function loadOrders() {
     if (info) info.style.display = 'none';
     if (wrap) wrap.classList.remove('hidden');
     if (!snap.docs.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`;
       return;
     }
-    tbody.innerHTML = snap.docs.map(d => {
-      const o = d.data();
-      const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
-      const badge = statusBadge(o.status);
-      const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
-      return `<tr
-        <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
-        <td>${date}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
-        <td>EGP ${Number(o.total||0).toLocaleString()}</td>
-        <td>${badge}</td>
-        <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image" aria-hidden="true"></i></button>` : '—'}</td>
-      </tr>`;
-    }).join('');
+        // For approved orders, fetch download URLs from each product
+            const rows = await Promise.all(snap.docs.map(async d => {
+                  const o = d.data();
+                        const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
+                              const badge = statusBadge(o.status);
+                                    const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
+                                          let dlCell = '—';
+                                                if (o.status === 'approved' && o.items && o.items.length) {
+                                                        try {
+                                                                  const dlLinks = [];
+                                                                            for (const item of o.items) {
+                                                                                        const pdSnap = await db.collection('products').doc(item.id).get();
+                                                                                                    if (pdSnap.exists && pdSnap.data().downloadUrl) {
+                                                                                                                  dlLinks.push({ name: sanitize(item.name), url: pdSnap.data().downloadUrl });
+                                                                                                                              }
+                                                                                                                                        }
+                                                                                                                                                  if (dlLinks.length === 1) {
+                                                                                                                                                              dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>`;
+                                                                                                                                                                        } else if (dlLinks.length > 1) {
+                                                                                                                                                                                    dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ');
+                                                                                                                                                                                              }
+                                                                                                                                                                                                      } catch {}
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                                  return `<tr>
+                                                                                                                                                                                                                          <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
+                                                                                                                                                                                                                                  <td>${date}</td>
+                                                                                                                                                                                                                                          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
+                                                                                                                                                                                                                                                  <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+                                                                                                                                                                                                                                                          <td>${badge}</td>
+                                                                                                                                                                                                                                                                  <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image" aria-hidden="true"></i></button>` : '—'}</td>
+                                                                                                                                                                                                                                                                          <td>${dlCell}</td>
+                                                                                                                                                                                                                                                                                </tr>`;
+                                                                                                                                                                                                                                                                                    }));
+                                                                                                                                                                                                                                                                                        tbody.innerHTML = rows.join('');
   } catch (err) {
     if (info) { info.className = 'alert alert-danger'; info.style.display = 'block'; info.textContent = sanitize(err.message); }
   }
