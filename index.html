@@ -2374,7 +2374,11 @@ async function adminEditProduct(productId) {
                                                   document.getElementById('prod-price').value    = p.price         || '';
                                                       document.getElementById('prod-cat').value      = p.category      || '';
                                                           document.getElementById('prod-img').value      = p.imageUrl      || '';
-                                                              document.getElementById('prod-emoji').value    
+                                                              document.getElementById('prod-emoji').value     = p.emoji || '';
+    document.getElementById('prod-download').value = p.downloadUrl || '';
+    openModal('add-product-modal');
+  } catch(err) { toast(sanitize(err.message), 'danger'); }
+}
 
 async function loadAdminUsers() {
   const tbody = document.getElementById('admin-users-tbody');
