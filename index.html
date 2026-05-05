@@ -2251,6 +2251,7 @@ async function submitProduct(e) {
     toast(t('productSaved'), 'success');
     await loadProducts();
     if (curUserData?.role === 'seller') loadSellerDashboard();
+        if (isAdmin()) loadAdminProducts();
   } catch (err) {
     showAlert('prod-modal-alert', 'danger', sanitize(err.message));
   }
@@ -2346,7 +2347,8 @@ async function loadAdminProducts() {
         <td>${sanitize(p.sellerName||'Admin')}</td>
         <td>EGP ${Number(p.price||0).toLocaleString()}</td>
         <td>${statusBadge(p.status||'pending')}</td>
-        <td style="display:flex;gap:0.3rem;">
+        <td style="display:flex;gap:0.3rem;flex-wrap:wrap;">
+                    <button class="btn btn-sm btn-primary" onclick="adminEditProduct('${d.id}')" title="Edit"><i class="fa-solid fa-pen"></i> Edit</button>
           ${p.status!=='approved' ? `<button class="btn btn-sm btn-success" onclick="updateProductStatus('${d.id}','approved')">Approve</button>` : ''}
           ${p.status!=='rejected' ? `<button class="btn btn-sm btn-danger" onclick="updateProductStatus('${d.id}','rejected')">Reject</button>` : ''}
           <button class="btn btn-sm btn-outline" onclick="deleteProduct('${d.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -2355,6 +2357,24 @@ async function loadAdminProducts() {
     }).join('');
   } catch {}
 }
+
+async function adminEditProduct(productId) {
+  try {
+      const snap = await db.collection('products').doc(productId).get();
+          if (!snap.exists) { toast('Product not found.', 'danger'); return; }
+              const p = snap.data();
+                  document.getElementById('product-form').reset();
+                      document.getElementById('prod-modal-alert').style.display = 'none';
+                          document.getElementById('edit-product-id').value = productId;
+                              document.getElementById('add-product-title').textContent = 'Edit Product';
+                                  document.getElementById('prod-submit-btn').textContent = 'Update';
+                                      document.getElementById('prod-name').value     = p.name          || '';
+                                          document.getElementById('prod-desc').value     = p.description   || '';
+                                              document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
+                                                  document.getElementById('prod-price').value    = p.price         || '';
+                                                      document.getElementById('prod-cat').value      = p.category      || '';
+                                                          document.getElementById('prod-img').value      = p.imageUrl      || '';
+                                                              document.getElementById('prod-emoji').value    
 
 async function loadAdminUsers() {
   const tbody = document.getElementById('admin-users-tbody');
