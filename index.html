@@ -1078,7 +1078,7 @@ function sendOrderEmail(eventType, params) {
     to_email:      params.to_email || '',
     subject:       subjects[eventType] || 'DigitalMarket Order Update',
     product_name:  params.items    || '',
-    amount_paid:   `EGP ${Number(params.total || 0).toLocaleString()}`,
+    amount_paid:   `EGP ${Number(params.total || 0).toLocaleString()}`,    amount:        `EGP ${Number(params.total || 0).toLocaleString()}`,    total:         `EGP ${Number(params.total || 0).toLocaleString()}`,    price:         `EGP ${Number(params.total || 0).toLocaleString()}`,    amount:        `EGP ${Number(params.total || 0).toLocaleString()}`,
     order_id:      params.order_id || '',
     download_link: downloadLink,
     link:          downloadLink,
