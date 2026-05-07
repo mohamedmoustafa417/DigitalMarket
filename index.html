@@ -20,6 +20,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- Three.js for 3D hero animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <!-- DOMPurify for XSS sanitization -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
   <!-- Google reCAPTCHA v3 – replace YOUR_RECAPTCHA_SITE_KEY -->
@@ -181,12 +183,28 @@
     .view { display: none; max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
     .view.active { display: block; }
 
-    /* ── Hero ── */
-    .hero { background: linear-gradient(135deg, var(--bg2) 0%, #1a1f3a 100%); border-radius: 16px; padding: 3rem 2rem; text-align: center; margin-bottom: 2rem; border: 1px solid var(--border); }
-    .hero h1 { font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 700; margin-bottom: 1rem; }
-    .hero h1 span { color: var(--primary); }
-    .hero p { color: var(--text-muted); font-size: 1.1rem; max-width: 500px; margin: 0 auto 1.5rem; }
+    /* ── Hero 3D Brand Section ── */
+    .hero-3d { position: relative; overflow: hidden; border-radius: 20px; margin-bottom: 2rem; min-height: 600px; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 60% 40%, #1a0a3e 0%, #0a0f28 50%, #060c1e 100%); border: 1px solid rgba(99,102,241,0.2); }
+    #hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; }
+    .brand-content { position: relative; z-index: 2; text-align: center; padding: 3rem 2rem; max-width: 860px; width: 100%; }
+    .brand-icon-wrap { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+    .brand-icon-3d { width: 82px; height: 82px; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border-radius: 22px; display: flex; align-items: center; justify-content: center; font-size: 2.2rem; animation: iconFloat 6s ease-in-out infinite; box-shadow: 0 0 30px rgba(99,102,241,0.7), 0 0 70px rgba(99,102,241,0.25), inset 0 1px 0 rgba(255,255,255,0.2); }
+    @keyframes iconFloat { 0%,100% { transform: translateY(0) rotateY(0deg) rotateX(8deg) scale(1); } 25% { transform: translateY(-14px) rotateY(90deg) rotateX(4deg) scale(1.06); } 50% { transform: translateY(-20px) rotateY(180deg) rotateX(-8deg) scale(1.03); } 75% { transform: translateY(-10px) rotateY(270deg) rotateX(4deg) scale(1.06); } }
+    .brand-name { font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 800; letter-spacing: -1px; margin-bottom: 0.5rem; background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 45%, #c084fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: nameGlow 4s ease-in-out infinite alternate; }
+    @keyframes nameGlow { 0% { filter: brightness(1); } 100% { filter: brightness(1.15) drop-shadow(0 0 24px rgba(165,180,252,0.55)); } }
+    .brand-tagline { font-size: 0.82rem; color: rgba(255,255,255,0.38); margin-bottom: 2.5rem; letter-spacing: 0.22em; text-transform: uppercase; }
+    .vm-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 2.5rem; }
+    .vm-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.5rem 1.5rem 1.4rem; text-align: left; transition: transform 0.4s cubic-bezier(.2,.8,.3,1), box-shadow 0.4s ease, border-color 0.4s ease; cursor: default; backdrop-filter: blur(16px); }
+    .vm-card:hover { transform: translateY(-8px) rotateX(4deg) rotateY(-3deg) scale(1.02); box-shadow: 0 28px 56px rgba(0,0,0,0.55), 0 0 30px rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.45); }
+    .vm-card-emoji { font-size: 2rem; margin-bottom: 0.7rem; display: block; }
+    .vm-card-label { font-size: 0.72rem; font-weight: 700; color: #818cf8; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 0.4rem; }
+    .vm-card-divider { width: 34px; height: 3px; background: linear-gradient(90deg, #6366f1, #a855f7); border-radius: 2px; margin-bottom: 0.75rem; }
+    .vm-card h3 { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 0.45rem; }
+    .vm-card p { font-size: 0.875rem; color: rgba(255,255,255,0.52); line-height: 1.65; }
     .hero-btns { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    .hero-3d .btn-outline { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.75); }
+    .hero-3d .btn-outline:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.07); color: #fff; }
+    @media(max-width:640px) { .vm-cards { grid-template-columns: 1fr; } .brand-content { padding: 2.5rem 1.25rem; } .hero-3d { min-height: auto; } }
 
     /* ── Category Filters ── */
     .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
@@ -295,7 +313,7 @@
       .header-inner { flex-wrap: wrap; }
       .search-bar { order: 3; flex-basis: 100%; max-width: 100%; }
       .products-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-      .hero { padding: 2rem 1rem; }
+      .hero-3d { min-height: 480px; }
       .auth-card { padding: 1.5rem; }
       .modal { max-height: 100vh; border-radius: 16px 16px 0 0; }
       .modal-overlay { align-items: flex-end; }
@@ -383,12 +401,34 @@
 <!-- VIEW: HOME                                                          -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <main id="view-home" class="view active" role="main">
-  <div class="hero">
-    <h1 data-i18n="heroTitle">Welcome to <span>DigitalMarket</span></h1>
-    <p data-i18n="heroSub">Buy and sell digital products securely in one place</p>
-    <div class="hero-btns">
-      <button class="btn btn-primary btn-lg" onclick="document.getElementById('products-section').scrollIntoView({behavior:'smooth'})" data-i18n="browseProducts">Browse Products</button>
-      <button class="btn btn-outline btn-lg" onclick="navigate('register')" id="sell-btn" data-i18n="startSelling">Start Selling</button>
+  <div class="hero-3d">
+    <canvas id="hero-canvas"></canvas>
+    <div class="brand-content">
+      <div class="brand-icon-wrap">
+        <div class="brand-icon-3d">🛍️</div>
+      </div>
+      <h1 class="brand-name">DigitalMarket</h1>
+      <p class="brand-tagline">The Future of Digital Commerce</p>
+      <div class="vm-cards">
+        <div class="vm-card">
+          <span class="vm-card-emoji">🎯</span>
+          <div class="vm-card-label">Our Vision</div>
+          <div class="vm-card-divider"></div>
+          <h3>Leading Digital Commerce</h3>
+          <p>To become the world's most trusted digital marketplace — empowering creators and connecting them with buyers across the globe.</p>
+        </div>
+        <div class="vm-card">
+          <span class="vm-card-emoji">🚀</span>
+          <div class="vm-card-label">Our Mission</div>
+          <div class="vm-card-divider"></div>
+          <h3>Empowering Every Creator</h3>
+          <p>To provide a seamless, secure platform where digital creators monetize their work and buyers discover exceptional digital products.</p>
+        </div>
+      </div>
+      <div class="hero-btns">
+        <button class="btn btn-primary btn-lg" onclick="document.getElementById('products-section').scrollIntoView({behavior:'smooth'})" data-i18n="browseProducts">Browse Products</button>
+        <button class="btn btn-outline btn-lg" onclick="navigate('register')" id="sell-btn" data-i18n="startSelling">Start Selling</button>
+      </div>
     </div>
   </div>
 
@@ -1433,6 +1473,58 @@ function showAlert(id, type, msg) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// HERO 3D CANVAS
+// ═══════════════════════════════════════════════════════════════════
+function initHeroCanvas() {
+  const canvas = document.getElementById('hero-canvas');
+  if (!canvas || !window.THREE) return;
+  if (canvas._initialized) return;
+  canvas._initialized = true;
+  const wrap = canvas.parentElement;
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+  camera.position.z = 6;
+  function resize() {
+    const w = wrap.offsetWidth || 800, h = wrap.offsetHeight || 600;
+    renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  resize(); window.addEventListener('resize', resize);
+  function makePts(n, spread, color, size, opacity) {
+    const g = new THREE.BufferGeometry();
+    const p = new Float32Array(n * 3);
+    for (let i = 0; i < n * 3; i++) p[i] = (Math.random() - 0.5) * spread;
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    return new THREE.Points(g, new THREE.PointsMaterial({ color, size, transparent: true, opacity }));
+  }
+  const p1 = makePts(320, 24, 0x6366f1, 0.07, 0.75);
+  const p2 = makePts(180, 20, 0xa855f7, 0.045, 0.55);
+  const p3 = makePts(100, 18, 0x38bdf8, 0.035, 0.4);
+  scene.add(p1); scene.add(p2); scene.add(p3);
+  const shapes = [];
+  const geos = [new THREE.OctahedronGeometry(0.38), new THREE.TetrahedronGeometry(0.32), new THREE.IcosahedronGeometry(0.3), new THREE.BoxGeometry(0.42,0.42,0.42), new THREE.OctahedronGeometry(0.28)];
+  const cols = [0x6366f1, 0xa855f7, 0x38bdf8, 0x34d399, 0xfbbf24];
+  for (let i = 0; i < 9; i++) {
+    const m = new THREE.Mesh(geos[i % geos.length], new THREE.MeshBasicMaterial({ color: cols[i % cols.length], wireframe: true, transparent: true, opacity: 0.18 + Math.random() * 0.2 }));
+    m.position.set((Math.random()-0.5)*16, (Math.random()-0.5)*8, (Math.random()-0.5)*5-1);
+    m.userData = { rx:(Math.random()-0.5)*0.016, ry:(Math.random()-0.5)*0.018, baseY:m.position.y, fs:0.25+Math.random()*0.55, fa:0.25+Math.random()*0.45, ph:Math.random()*Math.PI*2 };
+    scene.add(m); shapes.push(m);
+  }
+  let t = 0, animId;
+  function animate() {
+    animId = requestAnimationFrame(animate); t += 0.007;
+    p1.rotation.y = t*0.045; p1.rotation.x = Math.sin(t*0.25)*0.03;
+    p2.rotation.y = -t*0.065; p2.rotation.z = Math.cos(t*0.18)*0.025;
+    p3.rotation.x = t*0.03; p3.rotation.z = -t*0.04;
+    shapes.forEach(s => { s.rotation.x += s.userData.rx; s.rotation.y += s.userData.ry; s.position.y = s.userData.baseY + Math.sin(t*s.userData.fs+s.userData.ph)*s.userData.fa; });
+    renderer.render(scene, camera);
+  }
+  animate();
+  canvas._cleanup = () => { cancelAnimationFrame(animId); window.removeEventListener('resize', resize); renderer.dispose(); };
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════════════
 const VIEWS = ['home','login','register','forgot','cart','orders','seller','admin'];
@@ -1459,6 +1551,7 @@ function navigate(view) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  if (view === 'home')   setTimeout(initHeroCanvas, 80);
   if (view === 'cart')   renderCart();
   if (view === 'orders') loadOrders();
   if (view === 'seller') loadSellerDashboard();
@@ -2527,6 +2620,7 @@ cart = loadCart();
 updateCartBadge();
 applyLang();
 loadProducts();
+setTimeout(initHeroCanvas, 300);
 
 // Restore lockout banner on page load
 if (isLockedOut()) showLockoutBanner();
