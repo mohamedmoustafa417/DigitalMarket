@@ -1110,7 +1110,7 @@ function sendOrderEmail(eventType, params) {
         message:  basePayload.message.replace(`Hello ${basePayload.to_name}`, 'Hello Admin')
       });
     }
-  } catch(e) { console.warn('Email send failed:', e); }
+  } catch(e) { console.error('Email failed:', e); toast('Email notification failed. Check EmailJS config.', 'danger'); }
 }
 function sanitize(str) {
   if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(String(str || ''), {ALLOWED_TAGS: [], ALLOWED_ATTR: []});
@@ -2474,7 +2474,7 @@ async function updateOrderStatus(orderId, status) {
           if (dlUrls.length === 1) {
             downloadLink = dlUrls[0];
           } else if (dlUrls.length > 1) {
-            downloadLink = 'https://digitalmarketstore.shop/#orders';
+                  downloadLink = dlUrls.join(' | ');
           }
         }
         sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
@@ -2486,7 +2486,7 @@ async function updateOrderStatus(orderId, status) {
           download_link: downloadLink
         });
       }
-    } catch {}
+    } catch(emailErr) { console.error('Order email error:', emailErr); toast('Order updated, but email failed. Check EmailJS settings.', 'danger'); }
     loadAdminOrders();
     try { loadSellerOrders(); } catch {}
   } catch(err) { toast(sanitize(err.message), 'danger'); }
