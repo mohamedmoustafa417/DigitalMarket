@@ -1985,9 +1985,9 @@ async function loadAndRenderReviews(productId) {
   try {
     const snap = await db.collection('reviews')
       .where('productId', '==', productId)
-      .orderBy('createdAt', 'desc')
       .get();
-    const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
     let isVerified = false;
     if (curUser) {
       const ordSnap = await db.collection('orders')
