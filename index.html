@@ -347,6 +347,12 @@
 </head>
 <body>
 
+<noscript>
+  <div style="background:#ef4444;color:#fff;padding:1rem 1.5rem;text-align:center;font-family:sans-serif;font-size:0.95rem;position:fixed;top:0;left:0;right:0;z-index:99999;">
+    <strong>JavaScript is required</strong> to use DigitalMarket. Please enable JavaScript in your browser settings and reload the page.
+  </div>
+</noscript>
+
 <!-- Toast container -->
 <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
@@ -388,6 +394,7 @@
           <div class="dropdown-item" id="user-name-display"><i class="fa-solid fa-user" aria-hidden="true"></i> <span>User</span></div>
           <hr class="dropdown-divider">
           <div class="dropdown-item" onclick="navigate('orders');closeUserMenu();" role="menuitem"><i class="fa-solid fa-box" aria-hidden="true"></i> <span id="dd-orders">My Orders</span></div>
+          <div class="dropdown-item" onclick="openProfileModal();closeUserMenu();" role="menuitem"><i class="fa-solid fa-user-pen" aria-hidden="true"></i> <span>My Profile</span></div>
           <div class="dropdown-item hidden" id="dd-seller-link" onclick="navigate('seller');closeUserMenu();" role="menuitem"><i class="fa-solid fa-shop" aria-hidden="true"></i> <span id="dd-seller">Seller Dashboard</span></div>
           <div class="dropdown-item hidden" id="dd-admin-link" onclick="navigate('admin');closeUserMenu();" role="menuitem"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> <span id="dd-admin">Admin Panel</span></div>
           <hr class="dropdown-divider">
@@ -857,7 +864,10 @@
 
       <!-- Orders tab -->
       <div id="admin-tab-orders">
-        <h3 style="margin-bottom:1rem;" data-i18n="allOrders">All Orders</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+          <h3 data-i18n="allOrders">All Orders</h3>
+          <button class="btn btn-outline btn-sm" onclick="exportOrdersCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -1026,7 +1036,15 @@
           <input class="form-control" type="url" id="prod-download" required placeholder="https://drive.google.com/…">
           <div class="invalid-feedback">Download link required.</div>
         </div>
-        <button type="submit" class="btn btn-primary btn-full" id="prod-submit-btn">Save Product</button>
+        <div class="form-group">
+          <label class="form-label" for="prod-tags">Tags <small style="color:var(--text-muted);font-weight:400;">(comma-separated, optional)</small></label>
+          <input class="form-control" type="text" id="prod-tags" placeholder="e.g. excel, finance, template" maxlength="200">
+          <small style="color:var(--text-muted);font-size:0.75rem;">Helps buyers discover your product</small>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button type="button" class="btn btn-outline btn-full" id="prod-draft-btn" onclick="submitProduct(event,true)">Save Draft</button>
+          <button type="submit" class="btn btn-primary btn-full" id="prod-submit-btn">Submit for Review</button>
+        </div>
       </form>
     </div>
   </div>
@@ -1070,6 +1088,16 @@
         <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)">
         <img id="proof-preview" class="file-preview" alt="Payment proof preview">
       </div>
+      <!-- Coupon code -->
+      <div class="form-group" style="margin-top:1rem;">
+        <label class="form-label" style="font-size:0.85rem;">Coupon Code (optional)</label>
+        <div style="display:flex;gap:0.5rem;">
+          <input class="form-control" type="text" id="coupon-input" placeholder="Enter code" maxlength="32" style="flex:1;text-transform:uppercase;">
+          <button class="btn btn-outline btn-sm" onclick="applyCoupon()" style="white-space:nowrap;">Apply</button>
+        </div>
+        <div id="coupon-feedback" style="font-size:0.8rem;margin-top:0.35rem;"></div>
+      </div>
+
       <div class="alert alert-danger mt-2" id="checkout-alert" role="alert" style="display:none;"></div>
     </div>
     <div class="modal-footer">
@@ -1078,6 +1106,57 @@
     </div>
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: ORDER RECEIPT                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="order-receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <h3 id="receipt-title">🎉 Order Received!</h3>
+      <button class="btn-icon" onclick="closeModal('order-receipt-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="order-receipt-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('order-receipt-modal');navigate('orders')"><i class="fa-solid fa-list-check"></i> View My Orders</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: BUYER PROFILE                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title" onclick="if(event.target===this)closeModal('profile-modal')">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <h3 id="profile-title"><i class="fa-solid fa-user-circle"></i> My Profile</h3>
+      <button class="btn-icon" onclick="closeModal('profile-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="profile-alert" class="alert" style="display:none;margin-bottom:1rem;"></div>
+      <div class="form-group">
+        <label class="form-label">Display Name</label>
+        <input class="form-control" type="text" id="profile-name" placeholder="Your name" maxlength="60">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-control" type="email" id="profile-email" placeholder="your@email.com">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="saveProfileInfo()" style="margin-bottom:1.2rem;">Save Name &amp; Email</button>
+      <hr style="border-color:var(--border);margin-bottom:1.2rem;">
+      <div class="form-group">
+        <label class="form-label">New Password</label>
+        <input class="form-control" type="password" id="profile-password" placeholder="Leave blank to keep current" minlength="6" autocomplete="new-password">
+      </div>
+      <button class="btn btn-outline btn-full" onclick="saveProfilePassword()">Change Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: COUPON / DISCOUNT                                            -->
+<!-- (Applied inside checkout via inline section)                        -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- MODAL: VIEW PROOF IMAGE                                             -->
@@ -2024,6 +2103,8 @@ document.getElementById('search-input').addEventListener('keydown', e => { if (e
 
 function getFilteredProducts() {
   let list = [...allProducts];
+  // Seller storefront filter
+  if (sellerStoreFilter) list = list.filter(p => p.sellerId === sellerStoreFilter.id);
   if (currentFilter !== 'all') list = list.filter(p => {
     const cat = (p.category || '').toLowerCase().replace(/[-_\s]/g,'');
     if (currentFilter === 'software')  return cat.includes('software');
@@ -2050,6 +2131,17 @@ function getFilteredProducts() {
 function renderProducts() {
   const grid  = document.getElementById('products-grid');
   const empty = document.getElementById('products-empty');
+  // Seller storefront banner
+  document.getElementById('seller-store-banner')?.remove();
+  if (sellerStoreFilter) {
+    const banner = document.createElement('div');
+    banner.id = 'seller-store-banner';
+    banner.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:0.65rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;font-size:0.88rem;';
+    banner.innerHTML = `<i class="fa-solid fa-shop" style="color:var(--primary);"></i>
+      <span>Showing products by <strong>${sanitize(sellerStoreFilter.name)}</strong></span>
+      <button onclick="clearSellerFilter()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:0.15rem 0.6rem;cursor:pointer;font-size:0.78rem;">✕ Clear</button>`;
+    grid.parentElement.insertBefore(banner, grid);
+  }
   const list  = getFilteredProducts();
   if (!list.length) {
     grid.innerHTML = '';
@@ -2109,11 +2201,23 @@ function openProductDetail(id) {
       <span class="badge badge-primary"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${sanitize(p.category || 'other')}</span>
       <span class="badge badge-success" style="font-size:1rem;padding:0.3rem 0.75rem;"><strong>EGP ${Number(p.price||0).toLocaleString()}</strong></span>
     </div>
-    ${p.sellerName ? `<div style="font-size:0.82rem;color:var(--text-muted);"><i class="fa-solid fa-shop" aria-hidden="true"></i> ${sanitize(p.sellerName)}</div>` : ''}
+    ${p.sellerName ? `<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem;">
+      <i class="fa-solid fa-shop" aria-hidden="true"></i>
+      <button onclick="filterBySeller('${sanitize(p.sellerId||'')}','${sanitize(p.sellerName)}')"
+        style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.82rem;padding:0;text-decoration:underline;"
+        title="See all products by this seller">
+        ${sanitize(p.sellerName)}
+      </button>
+    </div>` : ''}
+    ${(p.tags||[]).length ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;">
+      ${p.tags.map(tag => `<button onclick="filterByTag('${sanitize(tag)}')" style="background:var(--bg3);border:none;color:var(--text-muted);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:20px;cursor:pointer;">#${sanitize(tag)}</button>`).join('')}
+    </div>` : ''}
     <div id="product-reviews-section" style="margin-top:1.25rem;"></div>
   `;
   const addBtn = document.getElementById('add-to-cart-btn');
   if (addBtn) addBtn.textContent = cart.includes(id) ? '✓ In Cart' : t('addToCart');
+  // Update OG meta for deep-linking
+  updateOGMeta(p.name, p.description || '', p.imageUrl || '');
   openModal('product-modal');
   loadAndRenderReviews(id);
 }
@@ -2359,6 +2463,11 @@ async function openCheckout(ids) {
 
   proofB64  = '';
   proofFile = null;
+  _appliedCoupon = null;
+  const ci = document.getElementById('coupon-input');
+  const cf = document.getElementById('coupon-feedback');
+  if (ci) ci.value = '';
+  if (cf) cf.textContent = '';
   document.getElementById('proof-preview').style.display = 'none';
 
   const total = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
@@ -2408,6 +2517,18 @@ async function openCheckout(ids) {
 
   document.getElementById('checkout-body').innerHTML = html;
   openModal('checkout-modal');
+}
+
+function renderCheckoutSummary() {
+  const subtotal = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
+  const discount = calcCouponDiscount(subtotal);
+  const total    = Math.max(0, subtotal - discount);
+  const el = document.querySelector('#checkout-body strong + span, #checkout-body [data-checkout-total]');
+  // Re-render just the total line in the checkout body header
+  const totalEl = document.querySelector('#checkout-body div strong');
+  if (totalEl && totalEl.nextElementSibling) {
+    totalEl.nextElementSibling.innerHTML = `EGP ${total.toLocaleString()}${discount > 0 ? ` <del style="font-size:0.8rem;color:var(--text-muted);">EGP ${subtotal.toLocaleString()}</del>` : ''}`;
+  }
 }
 
 function buildPaymentBlock(label, amount, info) {
@@ -2482,8 +2603,10 @@ async function submitOrder() {
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Submitting…';
 
   try {
-    const total = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
-    const sellerIds = [...new Set(checkoutItems.map(p => p.sellerId || 'admin'))];
+    const subtotal    = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
+    const discount    = calcCouponDiscount(subtotal);
+    const total       = Math.max(0, subtotal - discount);
+    const sellerIds   = [...new Set(checkoutItems.map(p => p.sellerId || 'admin'))];
 
     // Upload proof image to Firebase Storage (keeps Firestore docs small)
     let proofStorageUrl = '';
@@ -2507,7 +2630,10 @@ async function submitOrder() {
       buyerName:     sanitize(curUserData?.name || ''),
       items:         checkoutItems.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin', downloadUrl: p.downloadUrl || '' })),
       sellerIds,
+      subtotal,
+      discount,
       total,
+      couponCode:    _appliedCoupon?.code || null,
       proof:         proofStorageUrl,
       paymentMethod: payMethod,
       referenceNum:  sanitize(payRef),
@@ -2556,11 +2682,21 @@ async function submitOrder() {
         }
       } catch {}
     }
+    // Increment coupon usage counter
+    if (_appliedCoupon?.id) {
+      try { await db.collection('coupons').doc(_appliedCoupon.id).update({ usageCount: FV.increment(1) }); } catch {}
+    }
+    _appliedCoupon = null;
     _orderSubmitting = false;
     clearCart();
     closeModal('checkout-modal');
-    toast(t('orderSent'), 'success');
-    navigate('orders');
+    // Reset coupon UI
+    const couponInput = document.getElementById('coupon-input');
+    const couponFb    = document.getElementById('coupon-feedback');
+    if (couponInput) couponInput.value = '';
+    if (couponFb)    couponFb.textContent = '';
+    // Show receipt modal instead of plain toast
+    showOrderReceipt(orderRef.id, checkoutItems, total);
   } catch (err) {
     _orderSubmitting = false;
     showAlert('checkout-alert', 'danger', sanitize(err.message));
@@ -2684,18 +2820,20 @@ async function loadSellerDashboard() {
       return;
     }
     empty?.classList.add('hidden');
-    tbody.innerHTML = products.map(p => `
-      <tr>
-        <td>${sanitize(p.name)}</td>
+    tbody.innerHTML = products.map(p => {
+      const draftBadge = p.status === 'draft' ? `<span style="font-size:0.68rem;background:var(--bg3);color:var(--text-muted);padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">Draft</span>` : '';
+      return `<tr${p.status==='draft'?` style="opacity:0.7;"`:''}>
+        <td>${sanitize(p.name)}${draftBadge}</td>
         <td><span class="badge badge-primary">${sanitize(p.category||'')}</span></td>
         <td>EGP ${Number(p.price||0).toLocaleString()}</td>
         <td>${statusBadge(p.status||'pending')}</td>
         <td style="display:flex;gap:0.4rem;">
           <button class="btn btn-sm btn-outline" onclick="openProductModal(false,'${p.id}')">${t('edit')}</button>
+          ${p.status==='draft' ? `<button class="btn btn-sm btn-success" onclick="submitDraft('${p.id}')">Submit</button>` : ''}
           <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">${t('delete')}</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
@@ -2775,7 +2913,10 @@ function openProductModal(isAdmin = false, editId = null) {
   document.getElementById('product-form').reset();
   document.getElementById('edit-product-id').value = editId || '';
   document.getElementById('add-product-title').textContent = editId ? t('edit') + ' Product' : t('addProduct');
-  document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : 'Add Product';
+  document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : 'Submit for Review';
+  // Show/hide draft button (only for sellers, not admin)
+  const draftBtn = document.getElementById('prod-draft-btn');
+  if (draftBtn) draftBtn.style.display = isAdmin ? 'none' : '';
 
   if (editId) {
     const p = allProducts.find(x => x.id === editId) || {};
@@ -2787,12 +2928,13 @@ function openProductModal(isAdmin = false, editId = null) {
     document.getElementById('prod-img').value      = p.imageUrl      || '';
     document.getElementById('prod-emoji').value    = p.emoji         || '';
     document.getElementById('prod-download').value = p.downloadUrl   || '';
+    document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
   }
   openModal('add-product-modal');
 }
 
-async function submitProduct(e) {
-  e.preventDefault();
+async function submitProduct(e, isDraft = false) {
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
   const editId  = document.getElementById('edit-product-id').value;
   const name    = document.getElementById('prod-name').value.trim();
   const desc    = document.getElementById('prod-desc').value.trim();
@@ -2802,36 +2944,43 @@ async function submitProduct(e) {
   const imgUrl  = document.getElementById('prod-img').value.trim();
   const emoji   = document.getElementById('prod-emoji').value.trim();
   const dlUrl   = document.getElementById('prod-download').value.trim();
-  const btn     = document.getElementById('prod-submit-btn');
+  const tagsRaw = document.getElementById('prod-tags').value.trim();
+  const tags    = tagsRaw ? tagsRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).slice(0,10) : [];
+  const btn     = isDraft ? document.getElementById('prod-draft-btn') : document.getElementById('prod-submit-btn');
 
-  let valid = true;
-  if (!name)        { setInvalid('prod-name');  valid = false; }
-  if (!desc)        { setInvalid('prod-desc');  valid = false; }
-  if (isNaN(price) || price < 0) { setInvalid('prod-price'); valid = false; }
-  if (!cat)         { setInvalid('prod-cat');   valid = false; }
-  if (!dlUrl)       { setInvalid('prod-download', 'Download URL is required.'); valid = false; }
-  else if (!/^https?:\/\//i.test(dlUrl)) { setInvalid('prod-download', 'Must be a valid https:// URL.'); valid = false; }
-  if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
-  if (!valid) return;
+  // Drafts only need name; full validation for submissions
+  if (!isDraft) {
+    let valid = true;
+    if (!name)        { setInvalid('prod-name');  valid = false; }
+    if (!desc)        { setInvalid('prod-desc');  valid = false; }
+    if (isNaN(price) || price < 0) { setInvalid('prod-price'); valid = false; }
+    if (!cat)         { setInvalid('prod-cat');   valid = false; }
+    if (!dlUrl)       { setInvalid('prod-download', 'Download URL is required.'); valid = false; }
+    else if (!/^https?:\/\//i.test(dlUrl)) { setInvalid('prod-download', 'Must be a valid https:// URL.'); valid = false; }
+    if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
+    if (!valid) return;
 
-  // Block unverified sellers from listing products
-  if (curUser && !curUser.emailVerified) {
-    toast('Please verify your email address before listing products.', 'danger');
-    return;
+    // Block unverified sellers from listing products
+    if (curUser && !curUser.emailVerified) {
+      toast('Please verify your email address before listing products.', 'danger');
+      return;
+    }
+  } else {
+    if (!name) { setInvalid('prod-name'); toast('Please enter a product name for the draft.', 'warning'); return; }
   }
 
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" aria-hidden="true"></span>'; }
 
   const data = {
     name:          sanitize(name),
     description:   sanitize(desc),
     descriptionAr: sanitize(descAr),
-    price,
+    price:         isNaN(price) ? 0 : price,
     category:      sanitize(cat),
     imageUrl:      imgUrl,
     emoji:         emoji,
     downloadUrl:   dlUrl,
+    tags,
     sellerId:      curUser.uid,
     sellerName:    sanitize(curUserData?.shopName || curUserData?.name || ''),
     updatedAt:     FV.serverTimestamp()
@@ -2839,25 +2988,36 @@ async function submitProduct(e) {
 
   try {
     if (editId) {
-      // Reset to pending on seller edit so admin re-reviews any changes
-      if (!isAdmin()) data.status = 'pending';
+      // Track edit history; reset to pending on seller edit so admin re-reviews
+      if (!isAdmin()) {
+        data.status   = isDraft ? 'draft' : 'pending';
+        data.editedAt = FV.serverTimestamp();
+      }
       await db.collection('products').doc(editId).update(data);
     } else {
-      data.status    = isAdmin() ? 'approved' : 'pending';
+      data.status    = isDraft ? 'draft' : (isAdmin() ? 'approved' : 'pending');
       data.createdAt = FV.serverTimestamp();
       await db.collection('products').add(data);
     }
     closeModal('add-product-modal');
     document.getElementById('product-form').reset();
-    toast(t('productSaved'), 'success');
+    toast(isDraft ? 'Draft saved! You can edit and submit it later.' : t('productSaved'), isDraft ? 'info' : 'success');
     await loadProducts();
     if (curUserData?.role === 'seller') loadSellerDashboard();
     if (isAdmin()) loadAdminProducts();
   } catch (err) {
     showAlert('prod-modal-alert', 'danger', sanitize(err.message));
   }
-  btn.disabled = false;
-  btn.textContent = editId ? 'Update' : 'Add Product';
+  if (btn) { btn.disabled = false; btn.textContent = isDraft ? 'Save Draft' : (editId ? 'Update' : 'Submit for Review'); }
+}
+
+async function submitDraft(id) {
+  if (!confirm('Submit this draft for admin review?')) return;
+  try {
+    await db.collection('products').doc(id).update({ status: 'pending', updatedAt: FV.serverTimestamp() });
+    toast('Draft submitted for review!', 'success');
+    loadSellerDashboard();
+  } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
 
 async function deleteProduct(id) {
@@ -2883,10 +3043,14 @@ function adminTab(tab) {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
-  if (tab === 'orders')   loadAdminOrders();
-  if (tab === 'products') loadAdminProducts();
-  if (tab === 'users')    loadAdminUsers();
-  if (tab === 'settings') loadAdminSettings();
+  if (tab === 'orders') {
+    startAdminOrdersListener(); // real-time updates
+  } else {
+    stopAdminOrdersListener();  // stop listener when leaving orders tab
+    if (tab === 'products') loadAdminProducts();
+    if (tab === 'users')    loadAdminUsers();
+    if (tab === 'settings') loadAdminSettings();
+  }
 }
 
 async function loadAdminDashboard() {
@@ -2970,8 +3134,9 @@ async function loadAdminProducts() {
     });
     tbody.innerHTML = sorted.map(d => {
       const p = d.data();
+      const editedFlag = p.editedAt ? `<span title="Seller edited after approval" style="margin-left:0.3rem;font-size:0.68rem;background:var(--warning);color:#fff;padding:0.1rem 0.35rem;border-radius:4px;font-weight:600;">✏ Edited</span>` : '';
       return `<tr>
-        <td>${sanitize(p.name)}</td>
+        <td>${sanitize(p.name)}${editedFlag}</td>
         <td>${sanitize(p.sellerName||'Admin')}</td>
         <td>EGP ${Number(p.price||0).toLocaleString()}</td>
         <td>${statusBadge(p.status||'pending')}</td>
@@ -3188,6 +3353,262 @@ async function updateProductStatus(productId, status) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// SELLER STOREFRONT  (filter marketplace by seller)
+// ═══════════════════════════════════════════════════════════════════
+let sellerStoreFilter = null; // { id, name }
+
+function filterBySeller(sellerId, sellerName) {
+  sellerStoreFilter = { id: sellerId, name: sellerName };
+  closeModal('product-modal');
+  navigate('home');
+  toast(`Showing products by ${sanitize(sellerName)}`, 'info');
+  renderProducts();
+}
+
+function clearSellerFilter() {
+  sellerStoreFilter = null;
+  document.getElementById('seller-store-banner')?.remove();
+  renderProducts();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DRAFT PRODUCTS  (Save Draft vs Submit for Review)
+// ═══════════════════════════════════════════════════════════════════
+// submitProduct(e, isDraft) — isDraft=true saves status:'draft' without review
+
+// ═══════════════════════════════════════════════════════════════════
+// POST-ORDER RECEIPT MODAL
+// ═══════════════════════════════════════════════════════════════════
+function showOrderReceipt(orderId, items, total) {
+  const body = document.getElementById('order-receipt-body');
+  body.innerHTML = `
+    <div style="text-align:center;margin-bottom:1.2rem;">
+      <div style="font-size:3rem;line-height:1;">📦</div>
+      <p style="color:var(--text-muted);margin-top:0.5rem;">Your order has been submitted and is pending review.</p>
+    </div>
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;">
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem;">Order ID</div>
+      <div style="font-family:monospace;font-size:0.88rem;">${sanitize(orderId)}</div>
+    </div>
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:1rem;margin-bottom:1rem;">
+      <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;">Items</div>
+      ${items.map(p => `
+        <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+          <span>${sanitize(p.name)}</span>
+          <span>EGP ${Number(p.price||0).toLocaleString()}</span>
+        </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-weight:700;padding-top:0.5rem;font-size:0.9rem;">
+        <span>Total</span><span>EGP ${Number(total||0).toLocaleString()}</span>
+      </div>
+    </div>
+    <div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius);padding:0.85rem 1rem;font-size:0.83rem;color:var(--text-muted);">
+      <i class="fa-solid fa-circle-info" style="color:var(--primary);margin-right:0.4rem;"></i>
+      Your payment proof is being reviewed. You'll receive an email when your order is approved and download links are ready.
+    </div>`;
+  openModal('order-receipt-modal');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BUYER PROFILE
+// ═══════════════════════════════════════════════════════════════════
+function openProfileModal() {
+  if (!curUser) { toast('Please login first', 'info'); return; }
+  document.getElementById('profile-name').value  = curUser.displayName || curUserData?.name || '';
+  document.getElementById('profile-email').value = curUser.email || '';
+  document.getElementById('profile-password').value = '';
+  const alert = document.getElementById('profile-alert');
+  alert.style.display = 'none';
+  openModal('profile-modal');
+}
+
+async function saveProfileInfo() {
+  const name  = document.getElementById('profile-name').value.trim();
+  const email = document.getElementById('profile-email').value.trim();
+  const alert = document.getElementById('profile-alert');
+  alert.style.display = 'none';
+  if (!name) { alert.className='alert alert-danger'; alert.textContent='Name is required.'; alert.style.display='block'; return; }
+  if (!validateEmail(email)) { alert.className='alert alert-danger'; alert.textContent='Valid email required.'; alert.style.display='block'; return; }
+  try {
+    const updates = [];
+    if (name !== (curUser.displayName||'')) updates.push(curUser.updateProfile({ displayName: name }));
+    if (email !== curUser.email)           updates.push(curUser.updateEmail(email));
+    await Promise.all(updates);
+    await db.collection('users').doc(curUser.uid).update({ name: sanitize(name) });
+    alert.className='alert alert-success'; alert.textContent='Profile updated!'; alert.style.display='block';
+    updateHeaderForUser();
+  } catch(e) {
+    alert.className='alert alert-danger'; alert.textContent=sanitize(e.message); alert.style.display='block';
+  }
+}
+
+async function saveProfilePassword() {
+  const pw = document.getElementById('profile-password').value;
+  const alert = document.getElementById('profile-alert');
+  alert.style.display = 'none';
+  if (!pw || pw.length < 6) { alert.className='alert alert-danger'; alert.textContent='Password must be at least 6 characters.'; alert.style.display='block'; return; }
+  try {
+    await curUser.updatePassword(pw);
+    document.getElementById('profile-password').value = '';
+    alert.className='alert alert-success'; alert.textContent='Password changed successfully!'; alert.style.display='block';
+  } catch(e) {
+    alert.className='alert alert-danger'; alert.textContent=sanitize(e.message); alert.style.display='block';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// COUPON / DISCOUNT CODES
+// ═══════════════════════════════════════════════════════════════════
+let _appliedCoupon = null; // { code, discount, type } type: 'percent'|'fixed'
+
+async function applyCoupon() {
+  const code = (document.getElementById('coupon-input')?.value || '').trim().toUpperCase();
+  const fb   = document.getElementById('coupon-feedback');
+  if (!fb) return;
+  if (!code) { fb.style.color='var(--danger)'; fb.textContent='Please enter a coupon code.'; return; }
+  fb.style.color='var(--text-muted)'; fb.textContent='Checking…';
+  try {
+    const snap = await db.collection('coupons').where('code','==',code).limit(1).get();
+    if (snap.empty) { fb.style.color='var(--danger)'; fb.textContent='Invalid coupon code.'; _appliedCoupon=null; return; }
+    const c = snap.docs[0].data();
+    const now = new Date();
+    if (c.expiresAt && c.expiresAt.toDate && c.expiresAt.toDate() < now) {
+      fb.style.color='var(--danger)'; fb.textContent='This coupon has expired.'; _appliedCoupon=null; return;
+    }
+    if (c.usageLimit && (c.usageCount||0) >= c.usageLimit) {
+      fb.style.color='var(--danger)'; fb.textContent='This coupon has reached its usage limit.'; _appliedCoupon=null; return;
+    }
+    _appliedCoupon = { id: snap.docs[0].id, code, discount: c.discount||0, type: c.type||'percent' };
+    const label = c.type==='fixed' ? `EGP ${c.discount} off` : `${c.discount}% off`;
+    fb.style.color='var(--success)'; fb.textContent=`✓ Coupon applied: ${label}`;
+    renderCheckoutSummary();
+  } catch(e) { fb.style.color='var(--danger)'; fb.textContent='Could not validate coupon.'; }
+}
+
+function calcCouponDiscount(subtotal) {
+  if (!_appliedCoupon) return 0;
+  if (_appliedCoupon.type === 'fixed') return Math.min(_appliedCoupon.discount, subtotal);
+  return Math.round(subtotal * (_appliedCoupon.discount / 100) * 100) / 100;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PRODUCT TAGS  (filter by tag from product detail)
+// ═══════════════════════════════════════════════════════════════════
+function filterByTag(tag) {
+  closeModal('product-modal');
+  searchQuery = tag.toLowerCase();
+  document.getElementById('search-input').value = searchQuery;
+  renderProducts();
+  toast(`Showing products tagged "${tag}"`, 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DYNAMIC OG META TAGS  (update when product modal opens)
+// ═══════════════════════════════════════════════════════════════════
+function updateOGMeta(title, description, imageUrl) {
+  const set = (prop, val) => {
+    let el = document.querySelector(`meta[property="${prop}"]`);
+    if (!el) { el=document.createElement('meta'); el.setAttribute('property',prop); document.head.appendChild(el); }
+    el.setAttribute('content', val);
+  };
+  const base = 'DigitalMarket – ';
+  set('og:title',       base + title);
+  set('og:description', description);
+  if (imageUrl) set('og:image', imageUrl);
+  document.title = base + title;
+  // Update canonical URL with hash
+  window.history.replaceState(null,'', `#product/${currentProductId}`);
+}
+
+function resetOGMeta() {
+  document.title = 'DigitalMarket – Digital Marketplace';
+  document.querySelector('meta[property="og:title"]')?.setAttribute('content','DigitalMarket – Digital Marketplace');
+  document.querySelector('meta[property="og:description"]')?.setAttribute('content','Buy and sell digital products securely on DigitalMarket.');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HASH-BASED URL ROUTING  (#product/id, #section)
+// ═══════════════════════════════════════════════════════════════════
+function handleHashRoute() {
+  const hash = window.location.hash.slice(1); // strip #
+  if (!hash) return;
+  const productMatch = hash.match(/^product\/(.+)$/);
+  if (productMatch) {
+    const pid = productMatch[1];
+    // Try to open from allProducts; if not loaded yet, wait for loadProducts
+    const tryOpen = () => {
+      const p = allProducts.find(x => x.id === pid);
+      if (p) { navigate('home'); openProductDetail(pid); }
+    };
+    if (allProducts.length) tryOpen();
+    else setTimeout(tryOpen, 1500);
+    return;
+  }
+  const sectionMap = { orders: 'orders', seller: 'seller', admin: 'admin', login: 'login', register: 'register' };
+  if (sectionMap[hash]) navigate(sectionMap[hash]);
+}
+
+window.addEventListener('hashchange', handleHashRoute);
+window.addEventListener('load', () => setTimeout(handleHashRoute, 800));
+
+// ═══════════════════════════════════════════════════════════════════
+// REAL-TIME ADMIN ORDERS  (onSnapshot listener)
+// ═══════════════════════════════════════════════════════════════════
+let _adminOrdersListener = null;
+
+function startAdminOrdersListener() {
+  if (_adminOrdersListener) return; // already active
+  const tbody    = document.getElementById('admin-orders-tbody');
+  const lmBtn    = document.getElementById('admin-orders-load-more');
+  let initialized = false;
+  _adminOrdersListener = db.collection('orders')
+    .orderBy('createdAt', 'desc')
+    .limit(ADMIN_ORDERS_PAGE)
+    .onSnapshot(snap => {
+      if (!initialized) { initialized = true; }
+      tbody.innerHTML = snap.docs.map(_renderOrderRow).join('');
+      _adminOrdersCursor = snap.docs[snap.docs.length - 1] || null;
+      if (lmBtn) lmBtn.style.display = snap.docs.length < ADMIN_ORDERS_PAGE ? 'none' : 'block';
+    }, err => console.warn('Admin orders listener error:', err));
+}
+
+function stopAdminOrdersListener() {
+  if (_adminOrdersListener) { _adminOrdersListener(); _adminOrdersListener = null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CSV EXPORT FOR ADMIN ORDERS
+// ═══════════════════════════════════════════════════════════════════
+async function exportOrdersCSV() {
+  toast('Preparing CSV…', 'info');
+  try {
+    const snap = await db.collection('orders').orderBy('createdAt','desc').get();
+    const rows = [['Order ID','Date','Buyer Email','Buyer Name','Items','Total (EGP)','Status','Payment Method','Ref Num']];
+    snap.docs.forEach(d => {
+      const o = d.data();
+      rows.push([
+        d.id,
+        o.createdAt?.toDate ? o.createdAt.toDate().toISOString().slice(0,10) : '',
+        o.buyerEmail||'',
+        o.buyerName||'',
+        (o.items||[]).map(i=>i.name).join(' | '),
+        o.total||0,
+        o.status||'',
+        o.paymentMethod||'',
+        o.referenceNum||''
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `orders-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('CSV exported!', 'success');
+  } catch(e) { toast('Export failed: ' + sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════════════════════
 function openModal(id) {
@@ -3198,6 +3619,7 @@ function openModal(id) {
 function closeModal(id) {
   const m = document.getElementById(id);
   if (m) { m.classList.remove('show'); document.body.style.overflow = ''; }
+  if (id === 'product-modal') resetOGMeta();
 }
 
 // Close modal on Escape key
