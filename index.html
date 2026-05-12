@@ -2913,7 +2913,7 @@ function openProductModal(isAdmin = false, editId = null) {
   document.getElementById('product-form').reset();
   document.getElementById('edit-product-id').value = editId || '';
   document.getElementById('add-product-title').textContent = editId ? t('edit') + ' Product' : t('addProduct');
-  document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : 'Submit for Review';
+  document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : (isAdmin ? 'Add Product' : 'Submit for Review');
   // Show/hide draft button (only for sellers, not admin)
   const draftBtn = document.getElementById('prod-draft-btn');
   if (draftBtn) draftBtn.style.display = isAdmin ? 'none' : '';
@@ -2960,8 +2960,8 @@ async function submitProduct(e, isDraft = false) {
     if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
     if (!valid) return;
 
-    // Block unverified sellers from listing products
-    if (curUser && !curUser.emailVerified) {
+    // Block unverified sellers from listing products (admins are exempt)
+    if (curUser && !curUser.emailVerified && !isAdmin()) {
       toast('Please verify your email address before listing products.', 'danger');
       return;
     }
@@ -3161,6 +3161,9 @@ async function adminEditProduct(productId) {
     document.getElementById('edit-product-id').value = productId;
     document.getElementById('add-product-title').textContent = 'Edit Product';
     document.getElementById('prod-submit-btn').textContent = 'Update';
+    // Admin form: hide draft button
+    const draftBtn = document.getElementById('prod-draft-btn');
+    if (draftBtn) draftBtn.style.display = 'none';
     document.getElementById('prod-name').value     = p.name          || '';
     document.getElementById('prod-desc').value     = p.description   || '';
     document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
@@ -3169,6 +3172,7 @@ async function adminEditProduct(productId) {
     document.getElementById('prod-img').value      = p.imageUrl      || '';
     document.getElementById('prod-emoji').value    = p.emoji         || '';
     document.getElementById('prod-download').value = p.downloadUrl   || '';
+    document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
     openModal('add-product-modal');
   } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
