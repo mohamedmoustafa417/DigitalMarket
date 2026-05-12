@@ -11,6 +11,12 @@
   <meta property="og:url" content="https://digitalmarketstore.shop/">
   <meta property="og:image" content="https://digitalmarketstore.shop/og-image.png">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DigitalMarket">
+  <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="canonical" href="https://digitalmarketstore.shop/">
   <!-- Security Headers via Meta -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -31,6 +37,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <!-- EmailJS -->
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
@@ -455,6 +462,7 @@
       <h2 style="font-size:1.2rem;font-weight:700;" data-i18n="featuredProducts">Featured Products</h2>
       <select class="sort-select" id="sort-select" onchange="renderProducts()" aria-label="Sort products">
         <option value="newest" data-i18n="sortNewest">Newest</option>
+        <option value="best-sellers">Best Sellers</option>
         <option value="price-asc" data-i18n="sortPriceAsc">Price ↑</option>
         <option value="price-desc" data-i18n="sortPriceDesc">Price ↓</option>
         <option value="name" data-i18n="sortName">Name A-Z</option>
@@ -474,6 +482,11 @@
     <div id="products-empty" class="empty-state hidden">
       <i class="fa-solid fa-box-open" aria-hidden="true"></i>
       <p data-i18n="noProducts">No products found.</p>
+    </div>
+    <div style="text-align:center;margin-top:1.5rem;">
+      <button id="load-more-btn" onclick="loadMoreProducts()" class="btn btn-outline" style="display:none;gap:0.5rem;">
+        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Load More
+      </button>
     </div>
   </div>
 </main>
@@ -944,6 +957,7 @@
     <div class="modal-body" id="product-modal-body"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('product-modal')" data-i18n="close">Close</button>
+      <button class="btn btn-outline" id="buy-now-btn" onclick="buyNow()" style="color:var(--primary);border-color:var(--primary);">⚡ Buy Now</button>
       <button class="btn btn-primary" id="add-to-cart-btn" onclick="addCurrentToCart()" data-i18n="addToCart">Add to Cart</button>
     </div>
   </div>
@@ -1100,12 +1114,13 @@ const firebaseConfig = {
 // ═══════════════════════════════════════════════════════════════════
 // FIREBASE INIT
 // ═══════════════════════════════════════════════════════════════════
-let auth, db, FV;
+let auth, db, FV, storage;
 try {
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
-  db   = firebase.firestore();
-  FV   = firebase.firestore.FieldValue;
+  auth    = firebase.auth();
+  db      = firebase.firestore();
+  FV      = firebase.firestore.FieldValue;
+  storage = firebase.storage();
 } catch (e) {
   console.error('Firebase init failed:', e);
 }
@@ -1426,6 +1441,10 @@ let searchQuery  = '';
 let cart         = [];
 let checkoutItems = [];
 let proofB64     = '';
+let proofFile    = null; // Blob for Firebase Storage upload
+let lastProductDoc  = null;
+let hasMoreProducts = false;
+const PAGE_SIZE  = 20;
 let currentProductId = null; // for "add to cart" from modal
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1879,23 +1898,40 @@ async function doForgot(e) {
 // ═══════════════════════════════════════════════════════════════════
 // PRODUCTS: LOAD & RENDER
 // ═══════════════════════════════════════════════════════════════════
-async function loadProducts() {
+async function loadProducts(append = false) {
+  const loadMoreBtn = document.getElementById('load-more-btn');
   try {
-    const snap = await db.collection('products')
-      .where('status', '==', 'approved')
-      .get();
-    allProducts = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => {
-        const ta = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-        const tb = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-        return tb - ta;
-      });
+    let query = db.collection('products').where('status', '==', 'approved').limit(PAGE_SIZE);
+    if (append && lastProductDoc) query = query.startAfter(lastProductDoc);
+    if (loadMoreBtn && append) { loadMoreBtn.disabled = true; loadMoreBtn.innerHTML = '<span class="spin"></span> Loading…'; }
+
+    const snap = await query.get();
+    const newProducts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    allProducts = append ? [...allProducts, ...newProducts] : newProducts;
+    lastProductDoc  = snap.docs[snap.docs.length - 1] || null;
+    hasMoreProducts = snap.docs.length === PAGE_SIZE;
+
+    allProducts.sort((a, b) => {
+      const ta = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+      const tb = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+      return tb - ta;
+    });
     renderProducts();
+    if (loadMoreBtn) {
+      loadMoreBtn.style.display = hasMoreProducts ? 'inline-flex' : 'none';
+      loadMoreBtn.disabled = false;
+      loadMoreBtn.innerHTML = '<i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Load More';
+    }
   } catch (e) {
     console.error('Load products error:', e);
     toast('Failed to load products. Please refresh.', 'danger');
+    if (loadMoreBtn) { loadMoreBtn.disabled = false; loadMoreBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i> Load More'; }
   }
+}
+
+async function loadMoreProducts() {
+  await loadProducts(true);
 }
 
 function setFilter(cat) {
@@ -1930,12 +1966,14 @@ function getFilteredProducts() {
   if (searchQuery) list = list.filter(p =>
     (p.name || '').toLowerCase().includes(searchQuery) ||
     (p.description || '').toLowerCase().includes(searchQuery) ||
-    (p.descriptionAr || '').toLowerCase().includes(searchQuery)
+    (p.descriptionAr || '').toLowerCase().includes(searchQuery) ||
+    (p.sellerName || '').toLowerCase().includes(searchQuery)
   );
   const sort = document.getElementById('sort-select')?.value || 'newest';
-  if (sort === 'price-asc')  list.sort((a,b) => Number(a.price||0) - Number(b.price||0));
-  if (sort === 'price-desc') list.sort((a,b) => Number(b.price||0) - Number(a.price||0));
-  if (sort === 'name')       list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  if (sort === 'best-sellers') list.sort((a,b) => (b.purchaseCount||0) - (a.purchaseCount||0));
+  if (sort === 'price-asc')   list.sort((a,b) => Number(a.price||0) - Number(b.price||0));
+  if (sort === 'price-desc')  list.sort((a,b) => Number(b.price||0) - Number(a.price||0));
+  if (sort === 'name')        list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   return list;
 }
 
@@ -2004,6 +2042,13 @@ function openProductDetail(id) {
   if (addBtn) addBtn.textContent = cart.includes(id) ? '✓ In Cart' : t('addToCart');
   openModal('product-modal');
   loadAndRenderReviews(id);
+}
+
+function buyNow() {
+  if (!curUser) { closeModal('product-modal'); navigate('login'); toast('Please login first', 'info'); return; }
+  if (!currentProductId) return;
+  closeModal('product-modal');
+  openCheckout([currentProductId]);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2126,13 +2171,15 @@ async function submitReview(productId) {
       comment,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-    // update product aggregate rating
-    const allSnap = await db.collection('reviews').where('productId', '==', productId).get();
-    const allRatings = allSnap.docs.map(d => d.data().rating || 0);
-    const newAvg = allRatings.reduce((s, r) => s + r, 0) / allRatings.length;
-    await db.collection('products').doc(productId).update({
-      ratingAvg: Math.round(newAvg * 10) / 10,
-      ratingCount: allRatings.length
+    // Update aggregate rating atomically via transaction to avoid race conditions
+    await db.runTransaction(async tx => {
+      const allSnap = await db.collection('reviews').where('productId', '==', productId).get();
+      const allRatings = allSnap.docs.map(d => d.data().rating || 0);
+      const newAvg = allRatings.reduce((s, r) => s + r, 0) / allRatings.length;
+      tx.update(db.collection('products').doc(productId), {
+        ratingAvg: Math.round(newAvg * 10) / 10,
+        ratingCount: allRatings.length
+      });
     });
     _reviewRating = 0;
     _reviewSubmitting = false;
@@ -2210,7 +2257,8 @@ async function openCheckout(ids) {
     .map(r => ({ id: r.value.id, ...r.value.data() }));
   if (!checkoutItems.length) return;
 
-  proofB64 = '';
+  proofB64  = '';
+  proofFile = null;
   document.getElementById('proof-preview').style.display = 'none';
 
   const total = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
@@ -2226,16 +2274,15 @@ async function openCheckout(ids) {
   const adminItems  = checkoutItems.filter(p => !p.sellerId || p.sellerId === 'admin');
   const sellerItems = checkoutItems.filter(p => p.sellerId && p.sellerId !== 'admin');
 
-  // Fetch seller payment info
+  // Fetch all unique seller payment info in parallel
   const sellerPayMap = {};
-  for (const p of sellerItems) {
-    if (!sellerPayMap[p.sellerId]) {
-      try {
-        const ud = await db.collection('users').doc(p.sellerId).get();
-        sellerPayMap[p.sellerId] = ud.exists ? ud.data() : {};
-      } catch { sellerPayMap[p.sellerId] = {}; }
-    }
-  }
+  const uniqueSellerIds = [...new Set(sellerItems.map(p => p.sellerId))];
+  await Promise.all(uniqueSellerIds.map(async sid => {
+    try {
+      const ud = await db.collection('users').doc(sid).get();
+      sellerPayMap[sid] = ud.exists ? ud.data() : {};
+    } catch { sellerPayMap[sid] = {}; }
+  }));
 
   let html = `<div style="margin-bottom:1rem;"><strong>${t('orderTotal')}:</strong> <span style="color:var(--primary);font-size:1.1rem;font-weight:700;">EGP ${total.toLocaleString()}</span></div>`;
   html += `<div style="margin-bottom:1rem;font-size:0.85rem;color:var(--text-muted);">${checkoutItems.map(p => sanitize(p.name)).join(', ')}</div>`;
@@ -2286,7 +2333,7 @@ function handleProof(e) {
   if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { showAlert('checkout-alert', 'danger', 'Only JPG, PNG, WEBP allowed.'); return; }
   const objectUrl = URL.createObjectURL(file);
   const img = new Image();
-  img.onload = () => {
+  img.onload = async () => {
     URL.revokeObjectURL(objectUrl);
     const MAX = 900;
     let w = img.naturalWidth, h = img.naturalHeight;
@@ -2298,6 +2345,11 @@ function handleProof(e) {
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     proofB64 = canvas.toDataURL('image/jpeg', 0.75);
+    // Convert to Blob for efficient Firebase Storage upload (avoids base64 in Firestore)
+    try {
+      const res = await fetch(proofB64);
+      proofFile = await res.blob();
+    } catch { proofFile = null; }
     const preview = document.getElementById('proof-preview');
     preview.src = proofB64;
     preview.style.display = 'block';
@@ -2332,14 +2384,31 @@ async function submitOrder() {
   try {
     const total = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
     const sellerIds = [...new Set(checkoutItems.map(p => p.sellerId || 'admin'))];
+
+    // Upload proof image to Firebase Storage (keeps Firestore docs small)
+    let proofStorageUrl = '';
+    if (proofFile && storage) {
+      try {
+        const storageRef = storage.ref(`proofs/${curUser.uid}/${Date.now()}.jpg`);
+        const snapshot = await storageRef.put(proofFile, { contentType: 'image/jpeg' });
+        proofStorageUrl = await snapshot.ref.getDownloadURL();
+      } catch (uploadErr) {
+        console.error('Storage upload failed:', uploadErr);
+        showAlert('checkout-alert', 'danger', 'Failed to upload payment proof. Please try again.');
+        _orderSubmitting = false;
+        btn.disabled = false; btn.textContent = t('submitOrder');
+        return;
+      }
+    }
+
     const orderRef = await db.collection('orders').add({
       buyerId:       curUser.uid,
       buyerEmail:    sanitize(curUser.email || ''),
       buyerName:     sanitize(curUserData?.name || ''),
-      items:         checkoutItems.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin' })),
+      items:         checkoutItems.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin', downloadUrl: p.downloadUrl || '' })),
       sellerIds,
       total,
-      proof:         proofB64,
+      proof:         proofStorageUrl,
       paymentMethod: payMethod,
       referenceNum:  sanitize(payRef),
       status:        'pending',
@@ -2349,6 +2418,16 @@ async function submitOrder() {
     sendOrderEmail('order_submitted', {
       to_email:   curUser.email,
       to_name:    curUserData?.name || curUser.email,
+      order_id:   orderRef.id,
+      total,
+      items:      checkoutItems.map(p => p.name).join(', '),
+      pay_method: payMethod,
+      ref_num:    payRef
+    });
+    // Notify admin of new order
+    sendOrderEmail('order_submitted', {
+      to_email:   ADMIN_ONLY_EMAIL,
+      to_name:    'Admin',
       order_id:   orderRef.id,
       total,
       items:      checkoutItems.map(p => p.name).join(', '),
@@ -2421,23 +2500,15 @@ async function loadOrders() {
       const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
       const badge = statusBadge(o.status);
       const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
-      // Build download cell
+      // Build download cell — use URL stored on order item at checkout time (no extra reads)
       let dlCell = '—';
       if (o.status === 'approved' && o.items && o.items.length) {
-        try {
-          const dlLinks = [];
-          for (const item of o.items) {
-            const pdSnap = await db.collection('products').doc(item.id).get();
-            if (pdSnap.exists && pdSnap.data().downloadUrl) {
-              dlLinks.push({ name: sanitize(item.name), url: pdSnap.data().downloadUrl });
-            }
-          }
-          if (dlLinks.length === 1) {
-            dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>`;
-          } else if (dlLinks.length > 1) {
-            dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ');
-          }
-        } catch {}
+        const dlLinks = o.items.filter(i => i.downloadUrl).map(i => ({ name: sanitize(i.name), url: i.downloadUrl }));
+        if (dlLinks.length === 1) {
+          dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>`;
+        } else if (dlLinks.length > 1) {
+          dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ');
+        }
       }
       return `<tr>
         <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
@@ -2482,11 +2553,22 @@ function sellerTab(tab) {
 async function loadSellerDashboard() {
   if (!curUser) return;
   sellerTab('products');
+  const tbody = document.getElementById('seller-products-tbody');
+  // Load product count and order/revenue stats in parallel
   try {
-    const snap = await db.collection('products').where('sellerId','==', curUser.uid).get();
-    const products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const [productSnap, orderSnap] = await Promise.all([
+      db.collection('products').where('sellerId','==', curUser.uid).get(),
+      db.collection('orders').where('sellerIds','array-contains', curUser.uid).get()
+    ]);
+    const products = productSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const approvedOrders = orderSnap.docs.filter(d => d.data().status === 'approved');
+    const revenue = approvedOrders.reduce((sum, d) => {
+      const myItems = (d.data().items || []).filter(i => i.sellerId === curUser.uid);
+      return sum + myItems.reduce((s, i) => s + Number(i.price || 0), 0);
+    }, 0);
     document.getElementById('s-stat-products').textContent = products.length;
-    const tbody = document.getElementById('seller-products-tbody');
+    document.getElementById('s-stat-orders').textContent   = approvedOrders.length;
+    document.getElementById('s-stat-revenue').textContent  = revenue.toLocaleString();
     const empty = document.getElementById('seller-products-empty');
     if (!products.length) {
       tbody.innerHTML = '';
@@ -2506,7 +2588,7 @@ async function loadSellerDashboard() {
         </td>
       </tr>
     `).join('');
-  } catch {}
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function loadSellerOrders() {
@@ -2542,7 +2624,7 @@ async function loadSellerOrders() {
         </td>
       </tr>`;
     }).join('');
-  } catch {}
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function loadSellerSettings() {
@@ -2555,7 +2637,7 @@ async function loadSellerSettings() {
     document.getElementById('s-bank').value     = d.bank     || '';
     document.getElementById('s-accnum').value   = d.accountNum  || '';
     document.getElementById('s-accname').value  = d.accountHolder || '';
-  } catch {}
+  } catch(err) { showAlert('seller-settings-alert', 'danger', 'Failed to load settings: ' + sanitize(err.message)); }
 }
 
 async function saveSellerSettings(e) {
@@ -2642,6 +2724,8 @@ async function submitProduct(e) {
 
   try {
     if (editId) {
+      // Reset to pending on seller edit so admin re-reviews any changes
+      if (!isAdmin()) data.status = 'pending';
       await db.collection('products').doc(editId).update(data);
     } else {
       data.status    = isAdmin() ? 'approved' : 'pending';
@@ -2664,7 +2748,12 @@ async function submitProduct(e) {
 async function deleteProduct(id) {
   if (!confirm('Delete this product?')) return;
   try {
-    await db.collection('products').doc(id).delete();
+    // Delete associated reviews to avoid orphaned data
+    const reviewSnap = await db.collection('reviews').where('productId','==',id).get();
+    const batch = db.batch();
+    reviewSnap.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(db.collection('products').doc(id));
+    await batch.commit();
     toast('Product deleted.', 'info');
     await loadProducts();
     loadSellerDashboard();
@@ -2864,6 +2953,21 @@ async function saveAdminSettings(e) {
 async function updateOrderStatus(orderId, status) {
   try {
     await db.collection('orders').doc(orderId).update({ status });
+    // Increment purchaseCount on each product when order is approved
+    if (status === 'approved') {
+      try {
+        const oSnap = await db.collection('orders').doc(orderId).get();
+        if (oSnap.exists) {
+          const batch = db.batch();
+          (oSnap.data().items || []).forEach(item => {
+            batch.update(db.collection('products').doc(item.id), {
+              purchaseCount: firebase.firestore.FieldValue.increment(1)
+            });
+          });
+          await batch.commit();
+        }
+      } catch(e) { console.warn('purchaseCount increment failed:', e); }
+    }
     toast(`Order ${status}.`, 'success');
     // Send email to buyer
     try {
@@ -2885,7 +2989,7 @@ async function updateOrderStatus(orderId, status) {
           if (dlUrls.length === 1) {
             downloadLink = dlUrls[0];
           } else if (dlUrls.length > 1) {
-            downloadLink = dlUrls.join('\n\n');
+            downloadLink = dlUrls.map((u, i) => `${i + 1}. ${u}`).join('<br>');
           }
         }
         try {
@@ -2916,9 +3020,27 @@ async function updateProductStatus(productId, status) {
   try {
     await db.collection('products').doc(productId).update({ status });
     toast(`Product ${status}.`, 'success');
+    // Email seller about their product status change
+    try {
+      const pdSnap = await db.collection('products').doc(productId).get();
+      if (pdSnap.exists && pdSnap.data().sellerId) {
+        const sellerSnap = await db.collection('users').doc(pdSnap.data().sellerId).get();
+        if (sellerSnap.exists) {
+          const sd = sellerSnap.data();
+          sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
+            to_email:      sd.email,
+            to_name:       sd.shopName || sd.name || 'Seller',
+            order_id:      productId,
+            items:         sanitize(pdSnap.data().name || ''),
+            total:         pdSnap.data().price || 0,
+            download_link: 'https://digitalmarketstore.shop'
+          });
+        }
+      }
+    } catch(e) { console.warn('Could not send product status email:', e); }
     loadAdminProducts();
     await loadProducts();
-  } catch {}
+  } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2953,6 +3075,13 @@ setTimeout(initHeroCanvas, 300);
 // Restore lockout banner on page load
 if (isLockedOut()) showLockoutBanner();
 
+// Register service worker for PWA support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+  });
+}
+
 // Keyboard navigation for nav links
 document.querySelectorAll('.nav-link, .sidebar-link').forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
@@ -2969,9 +3098,9 @@ document.querySelectorAll('.nav-link, .sidebar-link').forEach(el => {
       <span style="font-weight:700;color:var(--primary);font-size:1.1rem;">DigitalMarket</span>
     </div>
     <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
-      <span onclick="navigate('home')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Home</span>
-      <span onclick="navigate('register')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Start Selling</span>
-      <span onclick="navigate('cart')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Cart</span>
+      <a href="#" onclick="navigate('home');return false;" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Home</a>
+      <a href="#" onclick="navigate('register');return false;" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Start Selling</a>
+      <a href="#" onclick="navigate('cart');return false;" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Cart</a>
       <a href="mailto:support@digitalmarketstore.shop" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Contact</a>
     </div>
     <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
