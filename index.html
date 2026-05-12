@@ -333,6 +333,21 @@
     .copy-btn { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 0.75rem; padding: 0.2rem 0.4rem; border-radius: 4px; transition: background var(--transition); }
     .copy-btn:hover { background: rgba(99,102,241,0.15); }
 
+    /* ── Skeleton Loader ── */
+    @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    .skeleton { background:linear-gradient(90deg,var(--bg3) 25%,var(--bg2) 50%,var(--bg3) 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; border-radius:var(--radius); }
+    .skeleton-card { background:var(--bg2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+    .skeleton-img  { width:100%; aspect-ratio:16/9; }
+    .skeleton-body { padding:0.9rem; }
+    .skeleton-line { height:14px; margin-bottom:0.5rem; }
+    .skeleton-line.short { width:55%; }
+    .skeleton-footer { padding:0.75rem 0.9rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; }
+    .skeleton-price { height:16px; width:70px; }
+    .skeleton-badge { height:16px; width:50px; }
+
+    /* ── Wishlist badge on nav ── */
+    .wishlist-count { background:var(--danger); color:#fff; font-size:0.6rem; font-weight:700; border-radius:50%; width:15px; height:15px; display:inline-flex; align-items:center; justify-content:center; margin-left:2px; vertical-align:super; }
+
     /* ── Responsive ── */
     @media(max-width: 640px) {
       .header-inner { flex-wrap: wrap; }
@@ -419,6 +434,9 @@
     </span>
     <span class="nav-link hidden" id="nav-orders" onclick="navigate('orders')" role="button" tabindex="0">
       <i class="fa-solid fa-box" aria-hidden="true"></i> <span data-i18n="orders">Orders</span>
+    </span>
+    <span class="nav-link" id="nav-wishlist" onclick="navigate('wishlist')" role="button" tabindex="0" title="My Wishlist">
+      <i class="fa-solid fa-heart" aria-hidden="true"></i> <span>Wishlist</span><span class="wishlist-count hidden" id="wishlist-nav-count">0</span>
     </span>
     <span class="nav-link hidden" id="nav-seller" onclick="navigate('seller')" role="button" tabindex="0">
       <i class="fa-solid fa-shop" aria-hidden="true"></i> <span data-i18n="sellerDash">Seller</span>
@@ -730,6 +748,22 @@
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- VIEW: WISHLIST                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="view-wishlist" class="view" aria-label="Wishlist">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem;">
+    <h2 style="font-size:1.3rem;font-weight:700;"><i class="fa-solid fa-heart" style="color:var(--danger);margin-right:0.4rem;"></i> My Wishlist</h2>
+    <button class="btn btn-outline btn-sm" onclick="clearWishlist()"><i class="fa-solid fa-trash"></i> Clear All</button>
+  </div>
+  <div id="wishlist-empty" class="empty-state hidden">
+    <i class="fa-solid fa-heart-crack" aria-hidden="true"></i>
+    <p>Your wishlist is empty.</p>
+    <button class="btn btn-primary" onclick="navigate('home')">Browse Products</button>
+  </div>
+  <div class="products-grid" id="wishlist-grid" role="list"></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- VIEW: SELLER DASHBOARD                                              -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <section id="view-seller" class="view" aria-label="Seller Dashboard">
@@ -782,7 +816,10 @@
 
       <!-- Orders tab -->
       <div id="seller-tab-orders" class="hidden">
-        <h3 style="margin-bottom:1rem;" data-i18n="sellerOrders">Orders</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
+          <h3 data-i18n="sellerOrders">Orders</h3>
+          <button class="btn btn-outline btn-sm" onclick="exportSellerOrdersCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -853,6 +890,9 @@
       <div class="sidebar-link" id="al-settings" onclick="adminTab('settings')" role="button" tabindex="0">
         <i class="fa-solid fa-gear" aria-hidden="true"></i> <span data-i18n="settings">Settings</span>
       </div>
+      <div class="sidebar-link" id="al-coupons" onclick="adminTab('coupons')" role="button" tabindex="0">
+        <i class="fa-solid fa-tag" aria-hidden="true"></i> <span>Coupons</span>
+      </div>
     </aside>
     <div>
       <div class="stats-row">
@@ -866,7 +906,15 @@
       <div id="admin-tab-orders">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
           <h3 data-i18n="allOrders">All Orders</h3>
-          <button class="btn btn-outline btn-sm" onclick="exportOrdersCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <select id="admin-order-filter" class="form-control" style="width:auto;padding:0.35rem 0.7rem;font-size:0.85rem;" onchange="applyAdminOrderFilter()">
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="exportOrdersCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -887,9 +935,12 @@
 
       <!-- Products tab -->
       <div id="admin-tab-products" class="hidden">
-        <div class="flex items-center gap-2" style="justify-content:space-between;margin-bottom:1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
           <h3 data-i18n="products">Products</h3>
           <button class="btn btn-primary" onclick="openProductModal(true)"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Product</button>
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <input type="search" id="admin-products-search" class="form-control" placeholder="Search by name or seller…" oninput="filterAdminProductsTable()" style="max-width:320px;">
         </div>
         <div class="table-wrap">
           <table>
@@ -906,7 +957,12 @@
 
       <!-- Users tab -->
       <div id="admin-tab-users" class="hidden">
-        <h3 style="margin-bottom:1rem;" data-i18n="users">Users</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
+          <h3 data-i18n="users">Users</h3>
+        </div>
+        <div style="margin-bottom:0.75rem;">
+          <input type="search" id="admin-users-search" class="form-control" placeholder="Search by name or email…" oninput="filterAdminUsersTable()" style="max-width:320px;">
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -953,7 +1009,49 @@
             <button type="submit" class="btn btn-primary btn-full">Save Platform Settings</button>
           </form>
         </div>
+      <!-- Coupons tab -->
+      <div id="admin-tab-coupons" class="hidden">
+        <h3 style="margin-bottom:1.2rem;">Coupon / Discount Codes</h3>
+        <div class="auth-card" style="max-width:500px;margin:0 0 1.5rem;">
+          <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:1rem;color:var(--primary);">Create New Coupon</h4>
+          <div class="flex gap-2">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Code <span class="req">*</span></label>
+              <input class="form-control" type="text" id="coupon-code-input" placeholder="e.g. SAVE20" maxlength="32" style="text-transform:uppercase;">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Type <span class="req">*</span></label>
+              <select class="form-control" id="coupon-type-input">
+                <option value="percent">Percent %</option>
+                <option value="fixed">Fixed EGP</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Discount Value <span class="req">*</span></label>
+              <input class="form-control" type="number" id="coupon-discount-input" min="1" placeholder="e.g. 20">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Usage Limit</label>
+              <input class="form-control" type="number" id="coupon-limit-input" min="1" placeholder="∞ unlimited">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Expires At (optional)</label>
+            <input class="form-control" type="datetime-local" id="coupon-expires-input">
+          </div>
+          <button class="btn btn-primary btn-full" onclick="createCoupon()"><i class="fa-solid fa-plus"></i> Create Coupon</button>
+        </div>
+        <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.75rem;color:var(--text-muted);">Active Coupons</h4>
+        <div class="table-wrap">
+          <table id="admin-coupons-table">
+            <thead><tr><th>Code</th><th>Type</th><th>Discount</th><th>Used</th><th>Limit</th><th>Expires</th><th>Actions</th></tr></thead>
+            <tbody id="admin-coupons-tbody"></tbody>
+          </table>
+        </div>
       </div>
+
     </div>
   </div>
 </section>
@@ -968,8 +1066,9 @@
       <button class="btn-icon" onclick="closeModal('product-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body" id="product-modal-body"></div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="flex-wrap:wrap;gap:0.5rem;">
       <button class="btn btn-outline" onclick="closeModal('product-modal')" data-i18n="close">Close</button>
+      <button class="btn btn-outline btn-sm" id="share-product-btn" onclick="shareProduct()" title="Copy shareable link" style="color:var(--text-muted);"><i class="fa-solid fa-share-nodes"></i> Share</button>
       <button class="btn btn-outline" id="buy-now-btn" onclick="buyNow()" style="color:var(--primary);border-color:var(--primary);">⚡ Buy Now</button>
       <button class="btn btn-primary" id="add-to-cart-btn" onclick="addCurrentToCart()" data-i18n="addToCart">Add to Cart</button>
     </div>
@@ -1610,6 +1709,7 @@ function toggleWishlist(id, e) {
   const idx = list.indexOf(id);
   if (idx === -1) { list.push(id); saveWishlist(list); toast('Added to wishlist ♥', 'success'); }
   else            { list.splice(idx, 1); saveWishlist(list); toast('Removed from wishlist', 'info'); }
+  updateWishlistBadge();
   renderProducts(); // refresh heart icons
 }
 
@@ -1750,7 +1850,7 @@ function initHeroCanvas() {
 // ═══════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════════════
-const VIEWS = ['home','login','register','forgot','cart','orders','seller','admin'];
+const VIEWS = ['home','login','register','forgot','cart','orders','wishlist','seller','admin'];
 
 function navigate(view) {
   if (!VIEWS.includes(view)) view = 'home';
@@ -1781,11 +1881,12 @@ function navigate(view) {
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  if (view === 'home')   setTimeout(initHeroCanvas, 80);
-  if (view === 'cart')   renderCart();
-  if (view === 'orders') loadOrders();
-  if (view === 'seller') loadSellerDashboard();
-  if (view === 'admin')  loadAdminDashboard();
+  if (view === 'home')     setTimeout(initHeroCanvas, 80);
+  if (view === 'cart')     renderCart();
+  if (view === 'orders')   loadOrders();
+  if (view === 'wishlist') renderWishlist();
+  if (view === 'seller')   loadSellerDashboard();
+  if (view === 'admin')    loadAdminDashboard();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1860,7 +1961,7 @@ async function resendVerificationEmail() {
   try {
     await curUser.sendEmailVerification();
     toast('Verification email sent! Check your inbox.', 'success');
-  } catch(e) { toast('Could not send email: ' + sanitize(e.message), 'danger'); }
+  } catch(e) { toast('Could not send email: ' + e.message, 'danger'); }
 }
 
 function toggleUserMenu() {
@@ -1902,6 +2003,14 @@ async function doLogin(e) {
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Signing in…';
+
+  // Apply persistence based on Remember Me checkbox
+  const rememberMe = document.getElementById('remember-me').checked;
+  try {
+    await auth.setPersistence(rememberMe
+      ? firebase.auth.Auth.Persistence.LOCAL
+      : firebase.auth.Auth.Persistence.SESSION);
+  } catch {}
 
   // reCAPTCHA v3 – server-side verified
   const captchaOk = await verifyRecaptcha('login');
@@ -2049,8 +2158,10 @@ async function doForgot(e) {
 // ═══════════════════════════════════════════════════════════════════
 async function loadProducts(append = false) {
   const loadMoreBtn = document.getElementById('load-more-btn');
+  if (!append) renderSkeletons(); // show skeleton cards on first load
   try {
-    let query = db.collection('products').where('status', '==', 'approved').limit(PAGE_SIZE);
+    // orderBy is required for reliable cursor-based pagination
+    let query = db.collection('products').where('status', '==', 'approved').orderBy('createdAt', 'desc').limit(PAGE_SIZE);
     if (append && lastProductDoc) query = query.startAfter(lastProductDoc);
     if (loadMoreBtn && append) { loadMoreBtn.disabled = true; loadMoreBtn.innerHTML = '<span class="spin"></span> Loading…'; }
 
@@ -2060,12 +2171,7 @@ async function loadProducts(append = false) {
     allProducts = append ? [...allProducts, ...newProducts] : newProducts;
     lastProductDoc  = snap.docs[snap.docs.length - 1] || null;
     hasMoreProducts = snap.docs.length === PAGE_SIZE;
-
-    allProducts.sort((a, b) => {
-      const ta = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
-      const tb = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
-      return tb - ta;
-    });
+    // Server already returns in createdAt desc order — no client sort needed
     renderProducts();
     if (loadMoreBtn) {
       loadMoreBtn.style.display = hasMoreProducts ? 'inline-flex' : 'none';
@@ -2126,6 +2232,25 @@ function getFilteredProducts() {
   if (sort === 'price-desc')  list.sort((a,b) => Number(b.price||0) - Number(a.price||0));
   if (sort === 'name')        list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   return list;
+}
+
+function renderSkeletons(count = 8) {
+  const grid = document.getElementById('products-grid');
+  const empty = document.getElementById('products-empty');
+  if (empty) empty.classList.add('hidden');
+  if (!grid) return;
+  grid.innerHTML = Array.from({length: count}).map(() => `
+    <div class="skeleton-card">
+      <div class="skeleton-img skeleton"></div>
+      <div class="skeleton-body">
+        <div class="skeleton-line skeleton"></div>
+        <div class="skeleton-line short skeleton"></div>
+      </div>
+      <div class="skeleton-footer">
+        <div class="skeleton-price skeleton"></div>
+        <div class="skeleton-badge skeleton"></div>
+      </div>
+    </div>`).join('');
 }
 
 function renderProducts() {
@@ -2367,23 +2492,26 @@ async function submitReview(productId) {
   const btn = document.querySelector('#review-write-box .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
   try {
-    await db.collection('reviews').add({
-      productId,
-      buyerId: curUser.uid,
-      buyerEmail: curUser.email,
-      rating,
-      comment,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    // Update aggregate rating atomically via transaction to avoid race conditions
+    // Atomic transaction: add review doc + update aggregate in one operation
+    const reviewRef  = db.collection('reviews').doc();
+    const productRef = db.collection('products').doc(productId);
     await db.runTransaction(async tx => {
-      const allSnap = await db.collection('reviews').where('productId', '==', productId).get();
-      const allRatings = allSnap.docs.map(d => d.data().rating || 0);
-      const newAvg = allRatings.reduce((s, r) => s + r, 0) / allRatings.length;
-      tx.update(db.collection('products').doc(productId), {
-        ratingAvg: Math.round(newAvg * 10) / 10,
-        ratingCount: allRatings.length
+      const prodSnap = await tx.get(productRef);
+      const d = prodSnap.data() || {};
+      const prevCount = d.ratingCount || 0;
+      const prevAvg   = d.ratingAvg   || 0;
+      const newCount  = prevCount + 1;
+      // Incremental average: avoids re-reading all reviews
+      const newAvg    = Math.round(((prevAvg * prevCount) + rating) / newCount * 10) / 10;
+      tx.set(reviewRef, {
+        productId,
+        buyerId:    curUser.uid,
+        buyerEmail: curUser.email,
+        rating,
+        comment,
+        createdAt:  firebase.firestore.FieldValue.serverTimestamp()
       });
+      tx.update(productRef, { ratingAvg: newAvg, ratingCount: newCount });
     });
     _reviewRating = 0;
     _reviewSubmitting = false;
@@ -2493,7 +2621,7 @@ async function openCheckout(ids) {
     } catch { sellerPayMap[sid] = {}; }
   }));
 
-  let html = `<div style="margin-bottom:1rem;"><strong>${t('orderTotal')}:</strong> <span style="color:var(--primary);font-size:1.1rem;font-weight:700;">EGP ${total.toLocaleString()}</span></div>`;
+  let html = `<div style="margin-bottom:1rem;"><strong>${t('orderTotal')}:</strong> <span id="checkout-total-amount" style="color:var(--primary);font-size:1.1rem;font-weight:700;">EGP ${total.toLocaleString()}</span></div>`;
   html += `<div style="margin-bottom:1rem;font-size:0.85rem;color:var(--text-muted);">${checkoutItems.map(p => sanitize(p.name)).join(', ')}</div>`;
 
   // Platform payment block
@@ -2523,11 +2651,9 @@ function renderCheckoutSummary() {
   const subtotal = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
   const discount = calcCouponDiscount(subtotal);
   const total    = Math.max(0, subtotal - discount);
-  const el = document.querySelector('#checkout-body strong + span, #checkout-body [data-checkout-total]');
-  // Re-render just the total line in the checkout body header
-  const totalEl = document.querySelector('#checkout-body div strong');
-  if (totalEl && totalEl.nextElementSibling) {
-    totalEl.nextElementSibling.innerHTML = `EGP ${total.toLocaleString()}${discount > 0 ? ` <del style="font-size:0.8rem;color:var(--text-muted);">EGP ${subtotal.toLocaleString()}</del>` : ''}`;
+  const el = document.getElementById('checkout-total-amount');
+  if (el) {
+    el.innerHTML = `EGP ${total.toLocaleString()}${discount > 0 ? ` <del style="font-size:0.8rem;color:var(--text-muted);">EGP ${subtotal.toLocaleString()}</del>` : ''}`;
   }
 }
 
@@ -2909,17 +3035,26 @@ async function saveSellerSettings(e) {
 // ═══════════════════════════════════════════════════════════════════
 // PRODUCT MODAL (Add/Edit)
 // ═══════════════════════════════════════════════════════════════════
-function openProductModal(isAdmin = false, editId = null) {
+async function openProductModal(isAdminContext = false, editId = null) {
   document.getElementById('product-form').reset();
+  document.getElementById('prod-modal-alert').style.display = 'none';
   document.getElementById('edit-product-id').value = editId || '';
   document.getElementById('add-product-title').textContent = editId ? t('edit') + ' Product' : t('addProduct');
-  document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : (isAdmin ? 'Add Product' : 'Submit for Review');
+  document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : (isAdminContext ? 'Add Product' : 'Submit for Review');
   // Show/hide draft button (only for sellers, not admin)
   const draftBtn = document.getElementById('prod-draft-btn');
-  if (draftBtn) draftBtn.style.display = isAdmin ? 'none' : '';
+  if (draftBtn) draftBtn.style.display = isAdminContext ? 'none' : '';
 
   if (editId) {
-    const p = allProducts.find(x => x.id === editId) || {};
+    // allProducts only contains approved products — pending/draft need a direct Firestore read
+    let p = allProducts.find(x => x.id === editId);
+    if (!p) {
+      try {
+        const _snap = await db.collection('products').doc(editId).get();
+        if (_snap.exists) p = { id: _snap.id, ..._snap.data() };
+      } catch(e) { console.warn('openProductModal fetch error:', e); }
+    }
+    p = p || {};
     document.getElementById('prod-name').value     = p.name          || '';
     document.getElementById('prod-desc').value     = p.description   || '';
     document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
@@ -3017,7 +3152,7 @@ async function submitDraft(id) {
     await db.collection('products').doc(id).update({ status: 'pending', updatedAt: FV.serverTimestamp() });
     toast('Draft submitted for review!', 'success');
     loadSellerDashboard();
-  } catch(err) { toast(sanitize(err.message), 'danger'); }
+  } catch(err) { toast(err.message, 'danger'); }
 }
 
 async function deleteProduct(id) {
@@ -3032,14 +3167,14 @@ async function deleteProduct(id) {
     toast('Product deleted.', 'info');
     await loadProducts();
     loadSellerDashboard();
-  } catch(err) { toast(sanitize(err.message), 'danger'); }
+  } catch(err) { toast(err.message, 'danger'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function adminTab(tab) {
-  ['orders','products','users','settings'].forEach(t => {
+  ['orders','products','users','settings','coupons'].forEach(t => {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
@@ -3050,6 +3185,7 @@ function adminTab(tab) {
     if (tab === 'products') loadAdminProducts();
     if (tab === 'users')    loadAdminUsers();
     if (tab === 'settings') loadAdminSettings();
+    if (tab === 'coupons')  loadAdminCoupons();
   }
 }
 
@@ -3174,7 +3310,7 @@ async function adminEditProduct(productId) {
     document.getElementById('prod-download').value = p.downloadUrl   || '';
     document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
     openModal('add-product-modal');
-  } catch(err) { toast(sanitize(err.message), 'danger'); }
+  } catch(err) { toast(err.message, 'danger'); }
 }
 
 async function loadAdminUsers() {
@@ -3202,10 +3338,11 @@ async function loadAdminUsers() {
 }
 
 async function updateUserRole(uid, role) {
+  if (!confirm(`Change this user's role to "${role}"? This takes effect immediately.`)) return;
   try {
     await db.collection('users').doc(uid).update({ role });
     toast('Role updated.', 'success');
-  } catch(err) { toast(sanitize(err.message), 'danger'); }
+  } catch(err) { toast(err.message, 'danger'); }
 }
 
 async function loadAdminSettings() {
@@ -3281,6 +3418,7 @@ async function updateOrderStatus(orderId, status) {
       } catch(e) { console.warn('purchaseCount increment failed:', e); }
     }
     toast(`Order ${status}.`, 'success');
+    // Real-time onSnapshot listener auto-refreshes admin orders table — no manual reload needed
     // Send email to buyer
     try {
       const snap = await db.collection('orders').doc(orderId).get();
@@ -3324,9 +3462,8 @@ async function updateOrderStatus(orderId, status) {
       console.error('Error preparing order email:', err);
       toast('Order updated but could not send email notification.', 'danger');
     }
-    loadAdminOrders();
     try { loadSellerOrders(); } catch {}
-  } catch(err) { toast(sanitize(err.message), 'danger'); }
+  } catch(err) { toast(err.message, 'danger'); }
 }
 
 async function updateProductStatus(productId, status) {
@@ -3353,7 +3490,7 @@ async function updateProductStatus(productId, status) {
     } catch(e) { console.warn('Could not send product status email:', e); }
     loadAdminProducts();
     await loadProducts();
-  } catch(err) { toast(sanitize(err.message), 'danger'); }
+  } catch(err) { toast(err.message, 'danger'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -3441,7 +3578,9 @@ async function saveProfileInfo() {
     alert.className='alert alert-success'; alert.textContent='Profile updated!'; alert.style.display='block';
     updateHeaderForUser();
   } catch(e) {
-    alert.className='alert alert-danger'; alert.textContent=sanitize(e.message); alert.style.display='block';
+    let msg = e.message;
+    if (e.code === 'auth/requires-recent-login') msg = 'For security, please log out and sign in again before changing your email.';
+    alert.className='alert alert-danger'; alert.textContent=msg; alert.style.display='block';
   }
 }
 
@@ -3449,7 +3588,7 @@ async function saveProfilePassword() {
   const pw = document.getElementById('profile-password').value;
   const alert = document.getElementById('profile-alert');
   alert.style.display = 'none';
-  if (!pw || pw.length < 6) { alert.className='alert alert-danger'; alert.textContent='Password must be at least 6 characters.'; alert.style.display='block'; return; }
+  if (!pw || pw.length < 8) { alert.className='alert alert-danger'; alert.textContent='Password must be at least 8 characters.'; alert.style.display='block'; return; }
   try {
     await curUser.updatePassword(pw);
     document.getElementById('profile-password').value = '';
@@ -3547,7 +3686,7 @@ function handleHashRoute() {
     else setTimeout(tryOpen, 1500);
     return;
   }
-  const sectionMap = { orders: 'orders', seller: 'seller', admin: 'admin', login: 'login', register: 'register' };
+  const sectionMap = { orders: 'orders', seller: 'seller', admin: 'admin', login: 'login', register: 'register', wishlist: 'wishlist' };
   if (sectionMap[hash]) navigate(sectionMap[hash]);
 }
 
@@ -3572,6 +3711,10 @@ function startAdminOrdersListener() {
       tbody.innerHTML = snap.docs.map(_renderOrderRow).join('');
       _adminOrdersCursor = snap.docs[snap.docs.length - 1] || null;
       if (lmBtn) lmBtn.style.display = snap.docs.length < ADMIN_ORDERS_PAGE ? 'none' : 'block';
+      // Re-apply status filter after data refresh
+      applyAdminOrderFilter();
+      // Refresh order count stat
+      document.getElementById('a-stat-orders').textContent = snap.size;
     }, err => console.warn('Admin orders listener error:', err));
 }
 
@@ -3613,6 +3756,243 @@ async function exportOrdersCSV() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// SHARE PRODUCT
+// ═══════════════════════════════════════════════════════════════════
+function shareProduct() {
+  if (!currentProductId) return;
+  const url = window.location.origin + window.location.pathname + '#product/' + currentProductId;
+  navigator.clipboard.writeText(url)
+    .then(() => toast('Link copied to clipboard!', 'success'))
+    .catch(() => {
+      // Fallback for browsers without clipboard API
+      const inp = document.createElement('input');
+      inp.value = url;
+      document.body.appendChild(inp);
+      inp.select();
+      document.execCommand('copy');
+      document.body.removeChild(inp);
+      toast('Link copied!', 'success');
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WISHLIST VIEW
+// ═══════════════════════════════════════════════════════════════════
+function updateWishlistBadge() {
+  const list  = loadWishlist();
+  const badge = document.getElementById('wishlist-nav-count');
+  if (!badge) return;
+  if (list.length > 0) { badge.textContent = list.length; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+}
+
+function clearWishlist() {
+  if (!confirm('Remove all items from your wishlist?')) return;
+  saveWishlist([]);
+  updateWishlistBadge();
+  renderWishlist();
+  renderProducts(); // refresh heart icons on home
+  toast('Wishlist cleared.', 'info');
+}
+
+function renderWishlist() {
+  const grid  = document.getElementById('wishlist-grid');
+  const empty = document.getElementById('wishlist-empty');
+  const list  = loadWishlist();
+  updateWishlistBadge();
+  if (!grid) return;
+  const items = list.map(id => allProducts.find(p => p.id === id)).filter(Boolean);
+  if (!items.length) {
+    grid.innerHTML = '';
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+  grid.innerHTML = items.map(p => `
+    <div class="product-card" onclick="openProductDetail('${sanitize(p.id)}')" role="listitem" tabindex="0"
+         onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')"
+         aria-label="${sanitize(p.name)}" style="position:relative;">
+      <button onclick="toggleWishlist('${sanitize(p.id)}',event);renderWishlist();" aria-label="Remove from wishlist"
+        style="position:absolute;top:0.5rem;right:0.5rem;background:rgba(0,0,0,0.35);border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:2;color:#f43f5e;">
+        ♥
+      </button>
+      <div class="product-img">
+        ${p.imageUrl
+          ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:3rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
+          : p.emoji
+            ? `<span style="font-size:3rem;line-height:1;">${sanitize(p.emoji)}</span>`
+            : `<i class="fa-solid fa-file-arrow-down"></i>`}
+      </div>
+      <div class="product-body">
+        <div class="product-title">${sanitize(p.name)}</div>
+        <div class="product-desc">${sanitize(p.description || '')}</div>
+      </div>
+      <div class="product-footer">
+        <span class="product-price">EGP ${Number(p.price||0).toLocaleString()}</span>
+        <span class="badge badge-primary">${sanitize(p.category || 'other')}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SELLER CSV EXPORT
+// ═══════════════════════════════════════════════════════════════════
+async function exportSellerOrdersCSV() {
+  if (!curUser) return;
+  toast('Preparing CSV…', 'info');
+  try {
+    const snap = await db.collection('orders')
+      .where('sellerIds', 'array-contains', curUser.uid)
+      .get();
+    const rows = [['Order ID','Date','Buyer Email','Buyer Name','My Items','My Total (EGP)','Status','Payment Method','Ref Num']];
+    snap.docs
+      .sort((a,b) => {
+        const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
+        const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
+        return tb - ta;
+      })
+      .forEach(d => {
+        const o = d.data();
+        const myItems = (o.items||[]).filter(i => i.sellerId === curUser.uid);
+        const myTotal = myItems.reduce((s,i) => s + Number(i.price||0), 0);
+        rows.push([
+          d.id,
+          o.createdAt?.toDate ? o.createdAt.toDate().toISOString().slice(0,10) : '',
+          o.buyerEmail||'',
+          o.buyerName||'',
+          myItems.map(i => i.name).join(' | '),
+          myTotal,
+          o.status||'',
+          o.paymentMethod||'',
+          o.referenceNum||''
+        ]);
+      });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `my-orders-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('CSV exported!', 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN ORDER FILTER
+// ═══════════════════════════════════════════════════════════════════
+let _allAdminOrderRows = []; // cache rendered rows for client-side filter
+
+function applyAdminOrderFilter() {
+  const status = document.getElementById('admin-order-filter')?.value || 'all';
+  const tbody  = document.getElementById('admin-orders-tbody');
+  if (!tbody) return;
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach(row => {
+    if (status === 'all') { row.style.display = ''; return; }
+    const badge = row.querySelector('.badge');
+    const rowStatus = badge ? badge.textContent.trim().toLowerCase() : '';
+    row.style.display = rowStatus.includes(status) ? '' : 'none';
+  });
+}
+
+// Hook into the real-time listener to update filter after each snapshot
+const _origStartListener = startAdminOrdersListener;
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN TABLE SEARCH (Products & Users)
+// ═══════════════════════════════════════════════════════════════════
+function filterAdminProductsTable() {
+  const q     = (document.getElementById('admin-products-search')?.value || '').toLowerCase();
+  const rows  = document.querySelectorAll('#admin-products-tbody tr');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = !q || text.includes(q) ? '' : 'none';
+  });
+}
+
+function filterAdminUsersTable() {
+  const q    = (document.getElementById('admin-users-search')?.value || '').toLowerCase();
+  const rows = document.querySelectorAll('#admin-users-tbody tr');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = !q || text.includes(q) ? '' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN COUPON MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+async function loadAdminCoupons() {
+  const tbody = document.getElementById('admin-coupons-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Loading…</td></tr>`;
+  try {
+    const snap = await db.collection('coupons').orderBy('code').get();
+    if (snap.empty) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No coupons yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = snap.docs.map(d => {
+      const c = d.data();
+      const expires = c.expiresAt?.toDate ? c.expiresAt.toDate().toLocaleDateString() : '—';
+      const isExpired = c.expiresAt?.toDate && c.expiresAt.toDate() < new Date();
+      const limitReached = c.usageLimit && (c.usageCount||0) >= c.usageLimit;
+      const statusStyle = (isExpired || limitReached) ? 'opacity:0.5;' : '';
+      return `<tr style="${statusStyle}">
+        <td><strong style="font-family:monospace;">${sanitize(c.code||'')}</strong>${isExpired ? ' <span style="font-size:0.68rem;color:var(--danger);">Expired</span>' : ''}${limitReached ? ' <span style="font-size:0.68rem;color:var(--warning);">Maxed</span>' : ''}</td>
+        <td>${sanitize(c.type||'percent')}</td>
+        <td>${c.type==='fixed' ? `EGP ${c.discount}` : `${c.discount}%`}</td>
+        <td>${c.usageCount||0}</td>
+        <td>${c.usageLimit||'∞'}</td>
+        <td>${expires}</td>
+        <td>
+          <button class="btn btn-sm btn-danger" onclick="deleteCoupon('${d.id}','${sanitize(c.code||'')}')"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);">${sanitize(e.message)}</td></tr>`; }
+}
+
+async function createCoupon() {
+  const code     = (document.getElementById('coupon-code-input')?.value || '').trim().toUpperCase();
+  const type     = document.getElementById('coupon-type-input')?.value || 'percent';
+  const discount = parseFloat(document.getElementById('coupon-discount-input')?.value);
+  const limit    = parseInt(document.getElementById('coupon-limit-input')?.value) || null;
+  const expiresRaw = document.getElementById('coupon-expires-input')?.value;
+
+  if (!code)            { toast('Coupon code is required.', 'warning'); return; }
+  if (isNaN(discount) || discount <= 0) { toast('Enter a valid discount value.', 'warning'); return; }
+  if (type === 'percent' && discount > 100) { toast('Percent discount cannot exceed 100.', 'warning'); return; }
+
+  try {
+    // Check for duplicate code
+    const existing = await db.collection('coupons').where('code','==',code).limit(1).get();
+    if (!existing.empty) { toast(`Code "${code}" already exists.`, 'danger'); return; }
+
+    const data = { code, type, discount, usageCount: 0 };
+    if (limit) data.usageLimit = limit;
+    if (expiresRaw) data.expiresAt = firebase.firestore.Timestamp.fromDate(new Date(expiresRaw));
+
+    await db.collection('coupons').add(data);
+    toast(`Coupon ${code} created!`, 'success');
+    // Reset form
+    ['coupon-code-input','coupon-discount-input','coupon-limit-input','coupon-expires-input']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    loadAdminCoupons();
+  } catch(e) { toast(e.message, 'danger'); }
+}
+
+async function deleteCoupon(id, code) {
+  if (!confirm(`Delete coupon "${code}"? This cannot be undone.`)) return;
+  try {
+    await db.collection('coupons').doc(id).delete();
+    toast('Coupon deleted.', 'info');
+    loadAdminCoupons();
+  } catch(e) { toast(e.message, 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════════════════════
 function openModal(id) {
@@ -3638,6 +4018,7 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════════
 cart = loadCart();
 updateCartBadge();
+updateWishlistBadge();
 applyLang();
 loadProducts();
 setTimeout(initHeroCanvas, 300);
@@ -3662,9 +4043,9 @@ window.addEventListener('storage', e => {
   if (e.key === CART_KEY) {
     cart = loadCart();
     updateCartBadge();
-    // Re-render cart modal if open
-    const cartModal = document.getElementById('cart-modal');
-    if (cartModal && cartModal.classList.contains('show')) renderCart();
+    // Re-render cart view if active
+    const cartView = document.getElementById('view-cart');
+    if (cartView && cartView.classList.contains('active')) renderCart();
   }
 });
 </script>
