@@ -1883,12 +1883,18 @@ async function loadProducts() {
   try {
     const snap = await db.collection('products')
       .where('status', '==', 'approved')
-      .orderBy('createdAt', 'desc')
       .get();
-    allProducts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    allProducts = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const ta = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(0);
+        const tb = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(0);
+        return tb - ta;
+      });
     renderProducts();
   } catch (e) {
     console.error('Load products error:', e);
+    toast('Failed to load products. Please refresh.', 'danger');
   }
 }
 
@@ -1903,7 +1909,12 @@ function doSearch() {
   renderProducts();
 }
 
-document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+let _searchTimer = null;
+document.getElementById('search-input').addEventListener('input', () => {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(doSearch, 300);
+});
+document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(_searchTimer); doSearch(); } });
 
 function getFilteredProducts() {
   let list = [...allProducts];
@@ -2010,6 +2021,8 @@ function starsHtml(avg) {
 }
 
 let _reviewRating = 0;
+let _reviewSubmitting = false;
+let _orderSubmitting  = false;
 function setStarRating(n) {
   _reviewRating = n;
   document.querySelectorAll('.star-picker span').forEach((s, i) => {
@@ -2096,10 +2109,12 @@ async function loadAndRenderReviews(productId) {
 
 async function submitReview(productId) {
   if (!curUser) { toast('Please login first', 'info'); return; }
+  if (_reviewSubmitting) return;
   const rating = _reviewRating;
   const comment = (document.getElementById('review-comment')?.value || '').trim();
   if (!rating) { toast('Please select a star rating', 'warning'); return; }
   if (!comment) { toast('Please write a comment', 'warning'); return; }
+  _reviewSubmitting = true;
   const btn = document.querySelector('#review-write-box .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
   try {
@@ -2120,10 +2135,12 @@ async function submitReview(productId) {
       ratingCount: allRatings.length
     });
     _reviewRating = 0;
+    _reviewSubmitting = false;
     toast('Review submitted! Thank you.', 'success');
     await loadAndRenderReviews(productId);
   } catch (e) {
     console.error('submitReview error', e);
+    _reviewSubmitting = false;
     toast('Failed to submit review. Try again.', 'danger');
     if (btn) { btn.disabled = false; btn.textContent = 'Submit Review'; }
   }
@@ -2171,6 +2188,8 @@ function renderCart() {
 
   subtotal.textContent = `EGP ${total.toLocaleString()}`;
   count.textContent = items.length;
+  // Sync cart array to only valid products (removes deleted/missing items)
+  if (items.length !== cart.length) { cart = items.map(p => p.id); saveCart(); updateCartBadge(); }
 }
 
 async function proceedToCheckout() {
@@ -2185,8 +2204,10 @@ async function openCheckout(ids) {
   if (!curUser) { navigate('login'); return; }
   if (!ids.length) { toast('Your cart is empty.', 'warning'); return; }
 
-  const snaps = await Promise.all(ids.map(id => db.collection('products').doc(id).get()));
-  checkoutItems = snaps.filter(d => d.exists).map(d => ({ id: d.id, ...d.data() }));
+  const results = await Promise.allSettled(ids.map(id => db.collection('products').doc(id).get()));
+  checkoutItems = results
+    .filter(r => r.status === 'fulfilled' && r.value.exists)
+    .map(r => ({ id: r.value.id, ...r.value.data() }));
   if (!checkoutItems.length) return;
 
   proofB64 = '';
@@ -2263,14 +2284,26 @@ function handleProof(e) {
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { showAlert('checkout-alert', 'danger', 'File too large. Max 5MB.'); return; }
   if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { showAlert('checkout-alert', 'danger', 'Only JPG, PNG, WEBP allowed.'); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    proofB64 = ev.target.result;
+  const objectUrl = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    const MAX = 900;
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else       { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    proofB64 = canvas.toDataURL('image/jpeg', 0.75);
     const preview = document.getElementById('proof-preview');
     preview.src = proofB64;
     preview.style.display = 'block';
   };
-  reader.readAsDataURL(file);
+  img.onerror = () => { URL.revokeObjectURL(objectUrl); showAlert('checkout-alert', 'danger', 'Failed to read image.'); };
+  img.src = objectUrl;
 }
 
 function onPayMethodChange() {
@@ -2279,6 +2312,7 @@ function onPayMethodChange() {
 }
 
 async function submitOrder() {
+  if (_orderSubmitting) return;
   const payMethod = document.getElementById('pay-method-select')?.value;
   const payRef    = document.getElementById('pay-ref-input')?.value.trim();
   if (!payMethod) { showAlert('checkout-alert', 'danger', 'Please select a payment method.'); return; }
@@ -2290,6 +2324,7 @@ async function submitOrder() {
     return;
   }
 
+  _orderSubmitting = true;
   const btn = document.getElementById('submit-order-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Submitting…';
@@ -2342,11 +2377,13 @@ async function submitOrder() {
         }
       } catch {}
     }
+    _orderSubmitting = false;
     clearCart();
     closeModal('checkout-modal');
     toast(t('orderSent'), 'success');
     navigate('orders');
   } catch (err) {
+    _orderSubmitting = false;
     showAlert('checkout-alert', 'danger', sanitize(err.message));
     btn.disabled = false;
     btn.textContent = t('submitOrder');
@@ -2581,7 +2618,9 @@ async function submitProduct(e) {
   if (!desc)        { setInvalid('prod-desc');  valid = false; }
   if (isNaN(price) || price < 0) { setInvalid('prod-price'); valid = false; }
   if (!cat)         { setInvalid('prod-cat');   valid = false; }
-  if (!dlUrl)       { setInvalid('prod-download'); valid = false; }
+  if (!dlUrl)       { setInvalid('prod-download', 'Download URL is required.'); valid = false; }
+  else if (!/^https?:\/\//i.test(dlUrl)) { setInvalid('prod-download', 'Must be a valid https:// URL.'); valid = false; }
+  if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
   if (!valid) return;
 
   btn.disabled = true;
@@ -2610,6 +2649,7 @@ async function submitProduct(e) {
       await db.collection('products').add(data);
     }
     closeModal('add-product-modal');
+    document.getElementById('product-form').reset();
     toast(t('productSaved'), 'success');
     await loadProducts();
     if (curUserData?.role === 'seller') loadSellerDashboard();
@@ -2628,7 +2668,7 @@ async function deleteProduct(id) {
     toast('Product deleted.', 'info');
     await loadProducts();
     loadSellerDashboard();
-  } catch {}
+  } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2669,7 +2709,12 @@ async function loadAdminDashboard() {
 async function loadAdminOrders() {
   const tbody = document.getElementById('admin-orders-tbody');
   try {
-    const snap = await db.collection('orders').orderBy('createdAt','desc').get();
+    const raw = await db.collection('orders').get();
+    const snap = { docs: raw.docs.sort((a,b) => {
+      const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
+      const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
+      return tb - ta;
+    }) };
     if (!snap.docs.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`; return; }
     tbody.innerHTML = snap.docs.map(d => {
       const o = d.data();
@@ -2701,8 +2746,13 @@ async function loadAdminOrders() {
 async function loadAdminProducts() {
   const tbody = document.getElementById('admin-products-tbody');
   try {
-    const snap = await db.collection('products').orderBy('createdAt','desc').get();
-    tbody.innerHTML = snap.docs.map(d => {
+    const snap = await db.collection('products').get();
+    const sorted = snap.docs.sort((a,b) => {
+      const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
+      const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
+      return tb - ta;
+    });
+    tbody.innerHTML = sorted.map(d => {
       const p = d.data();
       return `<tr>
         <td>${sanitize(p.name)}</td>
@@ -2717,7 +2767,7 @@ async function loadAdminProducts() {
         </td>
       </tr>`;
     }).join('');
-  } catch {}
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function adminEditProduct(productId) {
@@ -2763,14 +2813,14 @@ async function loadAdminUsers() {
         </td>
       </tr>`;
     }).join('');
-  } catch {}
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function updateUserRole(uid, role) {
   try {
     await db.collection('users').doc(uid).update({ role });
     toast('Role updated.', 'success');
-  } catch {}
+  } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
 
 async function loadAdminSettings() {
