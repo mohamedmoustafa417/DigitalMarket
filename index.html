@@ -1954,6 +1954,7 @@ function updateHeaderForGuest() {
   document.getElementById('nav-orders')?.classList.add('hidden');
   document.getElementById('nav-seller')?.classList.add('hidden');
   document.getElementById('nav-admin')?.classList.add('hidden');
+  document.getElementById('email-verify-banner')?.remove();
 }
 
 async function resendVerificationEmail() {
@@ -2016,7 +2017,7 @@ async function doLogin(e) {
   const captchaOk = await verifyRecaptcha('login');
   if (captchaOk === false) {
     btn.disabled = false;
-    btn.textContent = t('login');
+    btn.textContent = t('loginBtn');
     showAlert('login-alert', 'danger', 'Security check failed. Please try again.');
     return;
   }
@@ -2453,17 +2454,16 @@ async function loadAndRenderReviews(productId) {
   if (!sec) return;
   sec.innerHTML = `<div style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Loading reviews…</div>`;
   try {
-    const snap = await db.collection('reviews')
-      .where('productId', '==', productId)
-      .get();
+    // Fetch reviews + buyer's approved orders in parallel (saves one round-trip)
+    const reviewsPromise = db.collection('reviews').where('productId', '==', productId).get();
+    const ordersPromise  = curUser
+      ? db.collection('orders').where('buyerId', '==', curUser.uid).where('status', '==', 'approved').get()
+      : Promise.resolve(null);
+    const [snap, ordSnap] = await Promise.all([reviewsPromise, ordersPromise]);
     const rawReviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     let isVerified = false;
-    if (curUser) {
-      const ordSnap = await db.collection('orders')
-        .where('buyerId', '==', curUser.uid)
-        .where('status', '==', 'approved')
-        .get();
+    if (curUser && ordSnap) {
       isVerified = ordSnap.docs.some(doc => {
         const items = doc.data().items || [];
         return items.some(it => (it.id || it.productId) === productId);
@@ -2725,8 +2725,7 @@ async function submitOrder() {
 
   _orderSubmitting = true;
   const btn = document.getElementById('submit-order-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Submitting…';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Submitting…'; }
 
   try {
     const subtotal    = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
@@ -2745,7 +2744,7 @@ async function submitOrder() {
         console.error('Storage upload failed:', uploadErr);
         showAlert('checkout-alert', 'danger', 'Failed to upload payment proof. Please try again.');
         _orderSubmitting = false;
-        btn.disabled = false; btn.textContent = t('submitOrder');
+        if (btn) { btn.disabled = false; btn.textContent = t('submitOrder'); }
         return;
       }
     }
@@ -2826,8 +2825,7 @@ async function submitOrder() {
   } catch (err) {
     _orderSubmitting = false;
     showAlert('checkout-alert', 'danger', sanitize(err.message));
-    btn.disabled = false;
-    btn.textContent = t('submitOrder');
+    if (btn) { btn.disabled = false; btn.textContent = t('submitOrder'); }
   }
 }
 
@@ -2844,12 +2842,8 @@ async function loadOrders() {
   try {
     const snap = await db.collection('orders')
       .where('buyerId', '==', curUser.uid)
+      .orderBy('createdAt', 'desc')
       .get();
-    snap.docs.sort((a, b) => {
-      const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
-      const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
-      return tb - ta;
-    });
     if (info) info.style.display = 'none';
     if (wrap) wrap.classList.remove('hidden');
     if (!snap.docs.length) {
@@ -2890,7 +2884,7 @@ async function loadOrders() {
 
 function statusBadge(status) {
   const map = { approved: 'badge-success', pending: 'badge-warning', rejected: 'badge-danger' };
-  return `<span class="badge ${map[status] || 'badge-primary'}">${sanitize(t(status) || status)}</span>`;
+  return `<span class="badge ${map[status] || 'badge-primary'}" data-status="${status}">${sanitize(t(status) || status)}</span>`;
 }
 
 function orderAgeBadge(createdAt) {
@@ -3192,22 +3186,25 @@ function adminTab(tab) {
 async function loadAdminDashboard() {
   if (!isAdmin()) return;
   adminTab('orders');
-  // Load stats independently so one failure doesn't blank everything
-  try {
-    const snap = await db.collection('orders').get();
+  // Load all stats in parallel — one failure doesn't block the others
+  const [ordersRes, productsRes, usersRes] = await Promise.allSettled([
+    db.collection('orders').get(),
+    db.collection('products').get(),
+    db.collection('users').get()
+  ]);
+  if (ordersRes.status === 'fulfilled') {
+    const snap = ordersRes.value;
     const revenue = snap.docs.filter(d => d.data().status === 'approved')
       .reduce((s, d) => s + Number(d.data().total || 0), 0);
     document.getElementById('a-stat-orders').textContent  = snap.size;
     document.getElementById('a-stat-revenue').textContent = revenue.toLocaleString();
-  } catch {}
-  try {
-    const snap = await db.collection('products').get();
-    document.getElementById('a-stat-products').textContent = snap.size;
-  } catch {}
-  try {
-    const snap = await db.collection('users').get();
-    document.getElementById('a-stat-users').textContent = snap.size;
-  } catch {}
+  }
+  if (productsRes.status === 'fulfilled') {
+    document.getElementById('a-stat-products').textContent = productsRes.value.size;
+  }
+  if (usersRes.status === 'fulfilled') {
+    document.getElementById('a-stat-users').textContent = usersRes.value.size;
+  }
 }
 
 const ADMIN_ORDERS_PAGE = 20;
@@ -3385,13 +3382,15 @@ async function saveAdminSettings(e) {
 
 async function updateOrderStatus(orderId, status) {
   try {
+    // Read order document ONCE — reused for self-approve guard, purchaseCount, and email
+    const orderSnap = await db.collection('orders').doc(orderId).get();
+    if (!orderSnap.exists) { toast('Order not found.', 'danger'); return; }
+    const o = orderSnap.data();
+
     // Self-approve guard: buyer cannot approve their own order
-    if (status === 'approved' && !isAdmin()) {
-      const orderSnap = await db.collection('orders').doc(orderId).get();
-      if (orderSnap.exists && orderSnap.data().buyerId === curUser?.uid) {
-        toast('You cannot approve your own order.', 'danger');
-        return;
-      }
+    if (status === 'approved' && !isAdmin() && o.buyerId === curUser?.uid) {
+      toast('You cannot approve your own order.', 'danger');
+      return;
     }
     // Rejection reason prompt
     let rejectionReason = '';
@@ -3403,64 +3402,49 @@ async function updateOrderStatus(orderId, status) {
       ...(rejectionReason ? { rejectionReason: sanitize(rejectionReason) } : {})
     });
     // Increment purchaseCount on each product when order is approved
-    if (status === 'approved') {
+    if (status === 'approved' && o.items && o.items.length) {
       try {
-        const oSnap = await db.collection('orders').doc(orderId).get();
-        if (oSnap.exists) {
-          const batch = db.batch();
-          (oSnap.data().items || []).forEach(item => {
-            batch.update(db.collection('products').doc(item.id), {
-              purchaseCount: firebase.firestore.FieldValue.increment(1)
-            });
+        const batch = db.batch();
+        o.items.forEach(item => {
+          batch.update(db.collection('products').doc(item.id), {
+            purchaseCount: firebase.firestore.FieldValue.increment(1)
           });
-          await batch.commit();
-        }
+        });
+        await batch.commit();
       } catch(e) { console.warn('purchaseCount increment failed:', e); }
     }
     toast(`Order ${status}.`, 'success');
     // Real-time onSnapshot listener auto-refreshes admin orders table — no manual reload needed
     // Send email to buyer
-    try {
-      const snap = await db.collection('orders').doc(orderId).get();
-      const o = snap.data();
-      if (o && o.buyerEmail) {
-        let downloadLink = 'https://digitalmarketstore.shop/#orders';
-        // For approved orders: fetch actual download URLs from each product
-        if (status === 'approved' && o.items && o.items.length) {
-          const dlUrls = [];
-          for (const item of o.items) {
-            try {
-              const pdSnap = await db.collection('products').doc(item.id).get();
-              if (pdSnap.exists && pdSnap.data().downloadUrl) {
-                dlUrls.push(pdSnap.data().downloadUrl);
-              }
-            } catch(e) { console.warn('Could not fetch product download URL:', e); }
-          }
-          if (dlUrls.length === 1) {
-            downloadLink = dlUrls[0];
-          } else if (dlUrls.length > 1) {
-            downloadLink = dlUrls.map((u, i) => `${i + 1}. ${u}`).join('<br>');
-          }
+    if (o.buyerEmail) {
+      let downloadLink = 'https://digitalmarketstore.shop/#orders';
+      // For approved orders: fetch actual download URLs from each product
+      if (status === 'approved' && o.items && o.items.length) {
+        const dlUrls = [];
+        for (const item of o.items) {
+          try {
+            const pdSnap = await db.collection('products').doc(item.id).get();
+            if (pdSnap.exists && pdSnap.data().downloadUrl) dlUrls.push(pdSnap.data().downloadUrl);
+          } catch(e) { console.warn('Could not fetch product download URL:', e); }
         }
-        try {
-          await sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
-            to_email:      o.buyerEmail,
-            to_name:       o.buyerName || o.buyerEmail,
-            order_id:      orderId,
-            items:         (o.items || []).map(i => i.name).join(', '),
-            total:         o.total || 0,
-            download_link: downloadLink,
-            ...(rejectionReason ? { rejection_reason: rejectionReason } : {})
-          });
-          toast('Notification email sent to buyer.', 'success');
-        } catch(emailErr) {
-          console.error('Failed to send order email:', emailErr);
-          toast('Order updated but email notification failed. Check console.', 'danger');
-        }
+        if (dlUrls.length === 1) downloadLink = dlUrls[0];
+        else if (dlUrls.length > 1) downloadLink = dlUrls.map((u, i) => `${i + 1}. ${u}`).join('<br>');
       }
-    } catch(err) {
-      console.error('Error preparing order email:', err);
-      toast('Order updated but could not send email notification.', 'danger');
+      try {
+        await sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
+          to_email:      o.buyerEmail,
+          to_name:       o.buyerName || o.buyerEmail,
+          order_id:      orderId,
+          items:         (o.items || []).map(i => i.name).join(', '),
+          total:         o.total || 0,
+          download_link: downloadLink,
+          ...(rejectionReason ? { rejection_reason: rejectionReason } : {})
+        });
+        toast('Notification email sent to buyer.', 'success');
+      } catch(emailErr) {
+        console.error('Failed to send order email:', emailErr);
+        toast('Order updated but email notification failed. Check console.', 'danger');
+      }
     }
     try { loadSellerOrders(); } catch {}
   } catch(err) { toast(err.message, 'danger'); }
@@ -3502,7 +3486,16 @@ function filterBySeller(sellerId, sellerName) {
   sellerStoreFilter = { id: sellerId, name: sellerName };
   closeModal('product-modal');
   navigate('home');
-  toast(`Showing products by ${sanitize(sellerName)}`, 'info');
+  // Show a persistent banner so the user knows a filter is active and can clear it
+  document.getElementById('seller-store-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'seller-store-banner';
+  banner.style.cssText = 'background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:0.55rem 1rem;margin:0.5rem 0 1rem;display:flex;align-items:center;gap:0.6rem;font-size:0.875rem;flex-wrap:wrap;';
+  banner.innerHTML = `<i class="fa-solid fa-store" style="color:var(--primary);" aria-hidden="true"></i>
+    <span>Showing products by <strong>${sanitize(sellerName)}</strong></span>
+    <button onclick="clearSellerFilter()" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text-muted);font-size:0.8rem;padding:0.2rem 0.6rem;">✕ Clear filter</button>`;
+  const productsSection = document.getElementById('products-section');
+  if (productsSection) productsSection.insertBefore(banner, productsSection.firstChild);
   renderProducts();
 }
 
@@ -3677,13 +3670,13 @@ function handleHashRoute() {
   const productMatch = hash.match(/^product\/(.+)$/);
   if (productMatch) {
     const pid = productMatch[1];
-    // Try to open from allProducts; if not loaded yet, wait for loadProducts
-    const tryOpen = () => {
+    // Retry until products are loaded (up to ~5s), then give up gracefully
+    const tryOpen = (attempts = 0) => {
       const p = allProducts.find(x => x.id === pid);
-      if (p) { navigate('home'); openProductDetail(pid); }
+      if (p) { navigate('home'); openProductDetail(pid); return; }
+      if (attempts < 10) setTimeout(() => tryOpen(attempts + 1), 500);
     };
-    if (allProducts.length) tryOpen();
-    else setTimeout(tryOpen, 1500);
+    tryOpen();
     return;
   }
   const sectionMap = { orders: 'orders', seller: 'seller', admin: 'admin', login: 'login', register: 'register', wishlist: 'wishlist' };
@@ -3875,7 +3868,7 @@ async function exportSellerOrdersCSV() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast('CSV exported!', 'success');
-  } catch(e) { toast('Export failed: ' + e.message, 'danger'); }
+  } catch(e) { toast('Export failed: ' + sanitize(e.message), 'danger'); }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -3890,14 +3883,12 @@ function applyAdminOrderFilter() {
   const rows = tbody.querySelectorAll('tr');
   rows.forEach(row => {
     if (status === 'all') { row.style.display = ''; return; }
-    const badge = row.querySelector('.badge');
-    const rowStatus = badge ? badge.textContent.trim().toLowerCase() : '';
-    row.style.display = rowStatus.includes(status) ? '' : 'none';
+    // Use data-status attribute — locale-safe (badge text may be translated)
+    const badge = row.querySelector('.badge[data-status]');
+    const rowStatus = badge ? badge.dataset.status : '';
+    row.style.display = rowStatus === status ? '' : 'none';
   });
 }
-
-// Hook into the real-time listener to update filter after each snapshot
-const _origStartListener = startAdminOrdersListener;
 
 // ═══════════════════════════════════════════════════════════════════
 // ADMIN TABLE SEARCH (Products & Users)
