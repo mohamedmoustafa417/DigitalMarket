@@ -9,27 +9,28 @@
   <meta property="og:description" content="Buy and sell digital products securely on DigitalMarket.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://digitalmarketstore.shop/">
+  <meta property="og:image" content="https://digitalmarketstore.shop/og-image.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="canonical" href="https://digitalmarketstore.shop/">
   <!-- Security Headers via Meta -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com; object-src 'none'; base-uri 'self';">
   <title>DigitalMarket – Digital Marketplace</title>
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <!-- Three.js for 3D hero animations -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <!-- DOMPurify for XSS sanitization -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
   <!-- Google reCAPTCHA v3 – replace YOUR_RECAPTCHA_SITE_KEY -->
   <script src="https://www.google.com/recaptcha/api.js?render=6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz" async defer></script>
-  <!-- Firebase 8 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <!-- Firebase 10 (compat layer – same API as v8, no code changes needed) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <!-- EmailJS -->
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
@@ -206,6 +207,23 @@
     .hero-3d .btn-outline:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.07); color: #fff; }
     @media(max-width:640px) { .vm-cards { grid-template-columns: 1fr; } .brand-content { padding: 2.5rem 1.25rem; } .hero-3d { min-height: auto; } }
 
+    /* ── Reviews ── */
+    .stars { display:inline-flex; gap:1px; line-height:1; }
+    .star { font-size:0.85rem; color:#6b7280; }
+    .star.on { color:#f59e0b; }
+    .rating-pill { display:inline-flex; align-items:center; gap:4px; font-size:0.78rem; color:var(--text-muted); margin-top:0.3rem; }
+    .rating-pill .star { font-size:0.72rem; }
+    .review-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-wrap:wrap; gap:8px; }
+    .review-card { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:0.85rem 1rem; margin-bottom:0.6rem; }
+    .review-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:6px; margin-bottom:0.3rem; }
+    .review-author { font-size:0.82rem; font-weight:600; color:var(--text); }
+    .review-meta { font-size:0.75rem; color:var(--text-muted); }
+    .review-text { font-size:0.875rem; color:var(--text-muted); margin-top:0.3rem; line-height:1.55; }
+    .review-write-box { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:1rem; margin-top:0.75rem; }
+    .star-picker { display:flex; gap:5px; margin-bottom:0.65rem; }
+    .star-picker span { font-size:1.7rem; cursor:pointer; color:#6b7280; transition:color 0.12s; user-select:none; line-height:1; }
+    .star-picker span.lit { color:#f59e0b; }
+
     /* ── Category Filters ── */
     .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
     .filter-btn { padding: 0.4rem 0.9rem; border-radius: 20px; border: 1.5px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; cursor: pointer; transition: all var(--transition); }
@@ -318,22 +336,6 @@
       .modal { max-height: 100vh; border-radius: 16px 16px 0 0; }
       .modal-overlay { align-items: flex-end; }
     }
-
-    .stars { display:inline-flex; gap:1px; line-height:1; }
-    .star { font-size:0.85rem; color:#6b7280; }
-    .star.on { color:#f59e0b; }
-    .rating-pill { display:inline-flex; align-items:center; gap:4px; font-size:0.78rem; color:var(--text-muted); margin-top:0.3rem; }
-    .rating-pill .star { font-size:0.72rem; }
-    .review-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-wrap:wrap; gap:8px; }
-    .review-card { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:0.85rem 1rem; margin-bottom:0.6rem; }
-    .review-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:6px; margin-bottom:0.3rem; }
-    .review-author { font-size:0.82rem; font-weight:600; color:var(--text); }
-    .review-meta { font-size:0.75rem; color:var(--text-muted); }
-    .review-text { font-size:0.875rem; color:var(--text-muted); margin-top:0.3rem; line-height:1.55; }
-    .review-write-box { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:1rem; margin-top:0.75rem; }
-    .star-picker { display:flex; gap:5px; margin-bottom:0.65rem; }
-    .star-picker span { font-size:1.7rem; cursor:pointer; color:#6b7280; transition:color 0.12s; user-select:none; line-height:1; }
-    .star-picker span.lit { color:#f59e0b; }
   </style>
 </head>
 <body>
@@ -395,7 +397,7 @@
     <span class="nav-link active" id="nav-home" onclick="navigate('home')" role="button" tabindex="0">
       <i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="home">Home</span>
     </span>
-    <span class="nav-link" id="nav-products" onclick="navigate('home'); setTimeout(()=>document.getElementById('products-section').scrollIntoView({behavior:'smooth'}),100)" role="button" tabindex="0">
+    <span class="nav-link" id="nav-products" onclick="navigate('home')" role="button" tabindex="0">
       <i class="fa-solid fa-grid-2" aria-hidden="true"></i> <span data-i18n="products">Products</span>
     </span>
     <span class="nav-link" id="nav-cart" onclick="navigate('cart')" role="button" tabindex="0">
@@ -614,7 +616,7 @@
       <div class="form-group">
         <label style="display:flex;align-items:flex-start;gap:0.5rem;cursor:pointer;font-size:0.85rem;">
           <input type="checkbox" id="agree-terms" style="margin-top:3px;" required>
-          <span>I agree to the <a href="#" style="color:var(--primary);">Terms of Service</a> and <a href="#" style="color:var(--primary);">Privacy Policy</a></span>
+          <span>I agree to the <a href="terms.html" target="_blank" rel="noopener" style="color:var(--primary);">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--primary);">Privacy Policy</a></span>
         </label>
         <div class="invalid-feedback" id="terms-err">You must agree to the terms.</div>
       </div>
@@ -699,7 +701,7 @@
           <th data-i18n="orderTotal">Total</th>
           <th data-i18n="orderStatus">Status</th>
           <th data-i18n="actions">Actions</th>
-                    <th>Download</th>
+          <th>Download</th>
         </tr>
       </thead>
       <tbody id="orders-tbody"></tbody>
@@ -1029,11 +1031,11 @@
 
       <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">Payment Method</h4>
       <div class="form-group" style="margin-bottom:1rem;">
-                  <select id="pay-method-select" class="form-control" onchange="onPayMethodChange()" style="font-size:0.95rem;cursor:pointer;">
-                                <option value="">— Select Payment Method —</option>
-                                            <option value="instapay">📱 InstaPay</option>
-                                                        <option value="bank">🏦 Bank Transfer</option>
-                                                                  </select>
+        <select id="pay-method-select" class="form-control" onchange="onPayMethodChange()" style="font-size:0.95rem;cursor:pointer;">
+          <option value="">— Select Payment Method —</option>
+          <option value="instapay">📱 InstaPay</option>
+          <option value="bank">🏦 Bank Transfer</option>
+        </select>
       </div>
 
       <div class="form-group">
@@ -1129,17 +1131,27 @@ function sendOrderEmail(eventType, params) {
   // Template variables that match the EmailJS template fields exactly:
   // {{to_name}}, {{to_email}}, {{subject}}, {{message}},
   // {{product_name}}, {{amount_paid}}, {{order_id}}, {{download_link}}
+  const totalNum = Number(params.total) || 0;
+  const amountFormatted = `EGP ${totalNum.toLocaleString()}`;
   const basePayload = {
-    to_name:       params.to_name  || 'Customer',
-    to_email:      params.to_email || '',
-    subject:       subjects[eventType] || 'DigitalMarket Order Update',
-    product_name:  params.items    || '',
-    amount_paid:   `EGP ${Number(params.total || 0).toLocaleString()}`,    amount:        `EGP ${Number(params.total || 0).toLocaleString()}`,    total:         `EGP ${Number(params.total || 0).toLocaleString()}`,    price:         `EGP ${Number(params.total || 0).toLocaleString()}`,    amount:        `EGP ${Number(params.total || 0).toLocaleString()}`,
-    order_id:      params.order_id || '',
-    download_link: downloadLink,
-    link:          downloadLink,
-    download_url:  downloadLink,
-    download:      downloadLink,
+    to_name:        params.to_name  || 'Customer',
+    to_email:       params.to_email || '',
+    subject:        subjects[eventType] || 'DigitalMarket Order Update',
+    product_name:   params.items    || '',
+    // Send amount under every common variable name so the template always finds it
+    amount_paid:    amountFormatted,
+    amount:         amountFormatted,
+    total:          amountFormatted,
+    price:          amountFormatted,
+    total_price:    amountFormatted,
+    paid_amount:    amountFormatted,
+    total_amount:   amountFormatted,
+    order_id:       params.order_id || '',
+    // Send download link under every common variable name
+    download_link:  downloadLink,
+    link:           downloadLink,
+    download_url:   downloadLink,
+    download:       downloadLink,
     message: ''
   };
 
@@ -1154,20 +1166,29 @@ function sendOrderEmail(eventType, params) {
     basePayload.message = `New order received!\n\nBuyer: ${params.buyer_name || ''} (${params.buyer_email || ''})\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\nPayment: ${params.pay_method || ''} – Ref: ${params.ref_num || ''}\n\nLog in to approve or reject: ${siteUrl}`;
   }
 
-  try {
-    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, basePayload);
-    // Also alert admin on new buyer orders
-    if (eventType === 'order_submitted') {
-      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-        ...basePayload,
-        to_name:  'Admin',
-        to_email: ADMIN_EMAIL,
-        subject:  subjects.admin_new_order,
-        message:  basePayload.message.replace(`Hello ${basePayload.to_name}`, 'Hello Admin')
-      });
-    }
-  } catch(e) { console.error('Email failed:', e); toast('Email notification failed. Check EmailJS config.', 'danger'); }
+  return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, basePayload)
+    .then(() => {
+      // Also alert admin on new buyer orders
+      if (eventType === 'order_submitted') {
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+          ...basePayload,
+          to_name:  'Admin',
+          to_email: ADMIN_EMAIL,
+          subject:  subjects.admin_new_order,
+          message:  basePayload.message.replace(`Hello ${basePayload.to_name}`, 'Hello Admin')
+        });
+      }
+    })
+    .catch(e => { console.error('EmailJS send failed:', e); throw e; });
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// SECURITY HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Sanitize text to prevent XSS. Always use before inserting user content into DOM.
+ */
 function sanitize(str) {
   if (typeof DOMPurify !== 'undefined') return DOMPurify.sanitize(String(str || ''), {ALLOWED_TAGS: [], ALLOWED_ATTR: []});
   const d = document.createElement('div');
@@ -1493,51 +1514,105 @@ function showAlert(id, type, msg) {
 // ═══════════════════════════════════════════════════════════════════
 function initHeroCanvas() {
   const canvas = document.getElementById('hero-canvas');
-  if (!canvas || !window.THREE) return;
+  if (!canvas) return;
   if (canvas._initialized) return;
   canvas._initialized = true;
+
+  const ctx = canvas.getContext('2d');
   const wrap = canvas.parentElement;
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-  camera.position.z = 6;
+  let W, H, animId;
+
   function resize() {
-    const w = wrap.offsetWidth || 800, h = wrap.offsetHeight || 600;
-    renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+    W = wrap.offsetWidth || 800;
+    H = wrap.offsetHeight || 600;
+    canvas.width  = W;
+    canvas.height = H;
   }
-  resize(); window.addEventListener('resize', resize);
-  function makePts(n, spread, color, size, opacity) {
-    const g = new THREE.BufferGeometry();
-    const p = new Float32Array(n * 3);
-    for (let i = 0; i < n * 3; i++) p[i] = (Math.random() - 0.5) * spread;
-    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    return new THREE.Points(g, new THREE.PointsMaterial({ color, size, transparent: true, opacity }));
+  resize();
+  const onResize = () => resize();
+  window.addEventListener('resize', onResize);
+
+  // Particles
+  const PCOLORS = ['#6366f1','#a855f7','#38bdf8','#10b981'];
+  const pts = Array.from({ length: 260 }, () => ({
+    x:  Math.random() * (W || 800),
+    y:  Math.random() * (H || 600),
+    vx: (Math.random() - 0.5) * 0.45,
+    vy: (Math.random() - 0.5) * 0.45,
+    r:  Math.random() * 1.4 + 0.4,
+    col: PCOLORS[Math.floor(Math.random() * PCOLORS.length)],
+    op: 0.25 + Math.random() * 0.55
+  }));
+
+  // Wireframe polygon shapes
+  const SCOLORS = ['#6366f1','#a855f7','#38bdf8','#34d399','#fbbf24'];
+  const SIDES   = [4, 3, 6, 8, 4, 3, 5, 4, 6];
+  const shapes  = Array.from({ length: 9 }, (_, i) => ({
+    x:   Math.random() * (W || 800),
+    y:   Math.random() * (H || 600),
+    r:   22 + Math.random() * 28,
+    sides: SIDES[i],
+    col:  SCOLORS[i % SCOLORS.length],
+    op:   0.07 + Math.random() * 0.11,
+    vx:  (Math.random() - 0.5) * 0.28,
+    vy:  (Math.random() - 0.5) * 0.28,
+    rot:  Math.random() * Math.PI * 2,
+    rs:  (Math.random() - 0.5) * 0.013
+  }));
+
+  function drawPoly(s) {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+    ctx.strokeStyle = s.col;
+    ctx.globalAlpha = s.op;
+    ctx.lineWidth   = 1.1;
+    ctx.beginPath();
+    for (let i = 0; i <= s.sides; i++) {
+      const a = (i / s.sides) * Math.PI * 2;
+      i === 0 ? ctx.moveTo(Math.cos(a) * s.r, Math.sin(a) * s.r)
+              : ctx.lineTo(Math.cos(a) * s.r, Math.sin(a) * s.r);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
-  const p1 = makePts(320, 24, 0x6366f1, 0.07, 0.75);
-  const p2 = makePts(180, 20, 0xa855f7, 0.045, 0.55);
-  const p3 = makePts(100, 18, 0x38bdf8, 0.035, 0.4);
-  scene.add(p1); scene.add(p2); scene.add(p3);
-  const shapes = [];
-  const geos = [new THREE.OctahedronGeometry(0.38), new THREE.TetrahedronGeometry(0.32), new THREE.IcosahedronGeometry(0.3), new THREE.BoxGeometry(0.42,0.42,0.42), new THREE.OctahedronGeometry(0.28)];
-  const cols = [0x6366f1, 0xa855f7, 0x38bdf8, 0x34d399, 0xfbbf24];
-  for (let i = 0; i < 9; i++) {
-    const m = new THREE.Mesh(geos[i % geos.length], new THREE.MeshBasicMaterial({ color: cols[i % cols.length], wireframe: true, transparent: true, opacity: 0.18 + Math.random() * 0.2 }));
-    m.position.set((Math.random()-0.5)*16, (Math.random()-0.5)*8, (Math.random()-0.5)*5-1);
-    m.userData = { rx:(Math.random()-0.5)*0.016, ry:(Math.random()-0.5)*0.018, baseY:m.position.y, fs:0.25+Math.random()*0.55, fa:0.25+Math.random()*0.45, ph:Math.random()*Math.PI*2 };
-    scene.add(m); shapes.push(m);
+
+  function wrap1d(v, size) {
+    if (v < 0) return size;
+    if (v > size) return 0;
+    return v;
   }
-  let t = 0, animId;
+
   function animate() {
-    animId = requestAnimationFrame(animate); t += 0.007;
-    p1.rotation.y = t*0.045; p1.rotation.x = Math.sin(t*0.25)*0.03;
-    p2.rotation.y = -t*0.065; p2.rotation.z = Math.cos(t*0.18)*0.025;
-    p3.rotation.x = t*0.03; p3.rotation.z = -t*0.04;
-    shapes.forEach(s => { s.rotation.x += s.userData.rx; s.rotation.y += s.userData.ry; s.position.y = s.userData.baseY + Math.sin(t*s.userData.fs+s.userData.ph)*s.userData.fa; });
-    renderer.render(scene, camera);
+    animId = requestAnimationFrame(animate);
+    ctx.clearRect(0, 0, W, H);
+
+    pts.forEach(p => {
+      p.x = wrap1d(p.x + p.vx, W);
+      p.y = wrap1d(p.y + p.vy, H);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle   = p.col;
+      ctx.globalAlpha = p.op;
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    shapes.forEach(s => {
+      s.x   = wrap1d(s.x + s.vx, W + s.r * 2) - s.r;
+      s.y   = wrap1d(s.y + s.vy, H + s.r * 2) - s.r;
+      s.rot += s.rs;
+      drawPoly(s);
+    });
   }
   animate();
-  canvas._cleanup = () => { cancelAnimationFrame(animId); window.removeEventListener('resize', resize); renderer.dispose(); };
+
+  canvas._cleanup = () => {
+    cancelAnimationFrame(animId);
+    window.removeEventListener('resize', onResize);
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1558,6 +1633,7 @@ function navigate(view) {
   if (view === 'admin' && !isAdmin()) {
     navigate('home'); return;
   }
+
   VIEWS.forEach(v => {
     const el = document.getElementById(`view-${v}`);
     const nav = document.getElementById(`nav-${v}`);
@@ -1646,7 +1722,7 @@ document.addEventListener('click', e => {
 
 // ═══════════════════════════════════════════════════════════════════
 // AUTH: LOGIN
-// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
 async function doLogin(e) {
   e.preventDefault();
   const form  = document.getElementById('login-form');
@@ -1692,7 +1768,7 @@ async function doLogin(e) {
 
 // ═══════════════════════════════════════════════════════════════════
 // AUTH: REGISTER
-// ═══════════════
+// ═══════════════════════════════════════════════════════════════════
 function setRole(role) {
   document.getElementById('reg-role').value = role;
   document.getElementById('role-buyer-btn').classList.toggle('active', role === 'buyer');
@@ -1937,6 +2013,7 @@ function setStarRating(n) {
     s.classList.toggle('lit', i < n);
   });
 }
+
 function buildReviewsHTML(reviews, productId, isVerified) {
   const avg = reviews.length ? reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length : 0;
   const count = reviews.length;
@@ -1978,6 +2055,7 @@ function buildReviewsHTML(reviews, productId, isVerified) {
     ${reviewsList}
     ${writeBox}`;
 }
+
 async function loadAndRenderReviews(productId) {
   const sec = document.getElementById('product-reviews-section');
   if (!sec) return;
@@ -1985,9 +2063,10 @@ async function loadAndRenderReviews(productId) {
   try {
     const snap = await db.collection('reviews')
       .where('productId', '==', productId)
+      .orderBy('createdAt', 'desc')
       .get();
-    const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
     let isVerified = false;
     if (curUser) {
       const ordSnap = await db.collection('orders')
@@ -1998,6 +2077,7 @@ async function loadAndRenderReviews(productId) {
         const items = doc.data().items || [];
         return items.some(it => (it.id || it.productId) === productId);
       });
+      // prevent double review
       if (isVerified && reviews.some(r => r.buyerId === curUser.uid)) isVerified = false;
     }
     sec.innerHTML = buildReviewsHTML(reviews, productId, isVerified);
@@ -2024,6 +2104,7 @@ async function submitReview(productId) {
       comment,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    // update product aggregate rating
     const allSnap = await db.collection('reviews').where('productId', '==', productId).get();
     const allRatings = allSnap.docs.map(d => d.data().rating || 0);
     const newAvg = allRatings.reduce((s, r) => s + r, 0) / allRatings.length;
@@ -2040,6 +2121,7 @@ async function submitReview(productId) {
     if (btn) { btn.disabled = false; btn.textContent = 'Submit Review'; }
   }
 }
+
 // ═══════════════════════════════════════════════════════════════════
 // CART RENDER
 // ═══════════════════════════════════════════════════════════════════
@@ -2186,7 +2268,7 @@ function handleProof(e) {
 
 function onPayMethodChange() {
   const sel = document.getElementById('pay-method-select');
-      if (sel) sel.style.borderColor = sel.value ? 'var(--primary)' : 'var(--border)';
+  if (sel) sel.style.borderColor = sel.value ? 'var(--primary)' : 'var(--border)';
 }
 
 async function submitOrder() {
@@ -2194,12 +2276,12 @@ async function submitOrder() {
   const payRef    = document.getElementById('pay-ref-input')?.value.trim();
   if (!payMethod) { showAlert('checkout-alert', 'danger', 'Please select a payment method.'); return; }
   if (!payRef)    { showAlert('checkout-alert', 'danger', 'Please enter your transaction reference number.'); return; }
-    if (!proofB64) {
-          showAlert('checkout-alert', 'danger', t('noProof'));
-              const proofArea = document.querySelector('#checkout-modal .file-upload');
-                  if (proofArea) { proofArea.style.borderColor = 'var(--danger)'; setTimeout(() => { proofArea.style.borderColor = ''; }, 3000); }
-                      return;
-                        }
+  if (!proofB64)  {
+    showAlert('checkout-alert', 'danger', t('noProof'));
+    const proofArea = document.getElementById('proof-drop');
+    if (proofArea) { proofArea.style.borderColor = 'var(--danger)'; setTimeout(() => { proofArea.style.borderColor = ''; }, 3000); }
+    return;
+  }
 
   const btn = document.getElementById('submit-order-btn');
   btn.disabled = true;
@@ -2225,7 +2307,7 @@ async function submitOrder() {
       to_name:  curUserData?.name || curUser.email,
       order_id: orderRef.id,
       total:    total,
-       items:    checkoutItems.map(p => p.name).join(', '),
+      items:    checkoutItems.map(p => p.name).join(', '),
       pay_method: payMethod,
       ref_num:  payRef
     });
@@ -2241,7 +2323,8 @@ async function submitOrder() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ORDERSL// ═══════════════════════════════════════════════════════════════════
+// ORDERS
+// ═══════════════════════════════════════════════════════════════════
 async function loadOrders() {
   if (!curUser) return;
   const info   = document.getElementById('orders-info');
@@ -2257,43 +2340,44 @@ async function loadOrders() {
     if (info) info.style.display = 'none';
     if (wrap) wrap.classList.remove('hidden');
     if (!snap.docs.length) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`;
       return;
     }
-        // For approved orders, fetch download URLs from each product
-            const rows = await Promise.all(snap.docs.map(async d => {
-                  const o = d.data();
-                        const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
-                              const badge = statusBadge(o.status);
-                                    const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
-                                          let dlCell = '—';
-                                                if (o.status === 'approved' && o.items && o.items.length) {
-                                                        try {
-                                                                  const dlLinks = [];
-                                                                            for (const item of o.items) {
-                                                                                        const pdSnap = await db.collection('products').doc(item.id).get();
-                                                                                                    if (pdSnap.exists && pdSnap.data().downloadUrl) {
-                                                                                                                  dlLinks.push({ name: sanitize(item.name), url: pdSnap.data().downloadUrl });
-                                                                                                                              }
-                                                                                                                                        }
-                                                                                                                                                  if (dlLinks.length === 1) {
-                                                                                                                                                              dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>`;
-                                                                                                                                                                        } else if (dlLinks.length > 1) {
-                                                                                                                                                                                    dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ');
-                                                                                                                                                                                              }
-                                                                                                                                                                                                      } catch {}
-                                                                                                                                                                                                            }
-                                                                                                                                                                                                                  return `<tr>
-                                                                                                                                                                                                                          <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
-                                                                                                                                                                                                                                  <td>${date}</td>
-                                                                                                                                                                                                                                          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
-                                                                                                                                                                                                                                                  <td>EGP ${Number(o.total||0).toLocaleString()}</td>
-                                                                                                                                                                                                                                                          <td>${badge}</td>
-                                                                                                                                                                                                                                                                  <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image" aria-hidden="true"></i></button>` : '—'}</td>
-                                                                                                                                                                                                                                                                          <td>${dlCell}</td>
-                                                                                                                                                                                                                                                                                </tr>`;
-                                                                                                                                                                                                                                                                                    }));
-                                                                                                                                                                                                                                                                                        tbody.innerHTML = rows.join('');
+    // For approved orders, fetch download URLs from each product
+    const rows = await Promise.all(snap.docs.map(async d => {
+      const o = d.data();
+      const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
+      const badge = statusBadge(o.status);
+      const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
+      // Build download cell
+      let dlCell = '—';
+      if (o.status === 'approved' && o.items && o.items.length) {
+        try {
+          const dlLinks = [];
+          for (const item of o.items) {
+            const pdSnap = await db.collection('products').doc(item.id).get();
+            if (pdSnap.exists && pdSnap.data().downloadUrl) {
+              dlLinks.push({ name: sanitize(item.name), url: pdSnap.data().downloadUrl });
+            }
+          }
+          if (dlLinks.length === 1) {
+            dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>`;
+          } else if (dlLinks.length > 1) {
+            dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ');
+          }
+        } catch {}
+      }
+      return `<tr>
+        <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
+        <td>${date}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
+        <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+        <td>${badge}</td>
+        <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image" aria-hidden="true"></i></button>` : '—'}</td>
+        <td>${dlCell}</td>
+      </tr>`;
+    }));
+    tbody.innerHTML = rows.join('');
   } catch (err) {
     if (info) { info.className = 'alert alert-danger'; info.style.display = 'block'; info.textContent = sanitize(err.message); }
   }
@@ -2487,7 +2571,7 @@ async function submitProduct(e) {
     toast(t('productSaved'), 'success');
     await loadProducts();
     if (curUserData?.role === 'seller') loadSellerDashboard();
-        if (isAdmin()) loadAdminProducts();
+    if (isAdmin()) loadAdminProducts();
   } catch (err) {
     showAlert('prod-modal-alert', 'danger', sanitize(err.message));
   }
@@ -2584,7 +2668,7 @@ async function loadAdminProducts() {
         <td>EGP ${Number(p.price||0).toLocaleString()}</td>
         <td>${statusBadge(p.status||'pending')}</td>
         <td style="display:flex;gap:0.3rem;flex-wrap:wrap;">
-                    <button class="btn btn-sm btn-primary" onclick="adminEditProduct('${d.id}')" title="Edit"><i class="fa-solid fa-pen"></i> Edit</button>
+          <button class="btn btn-sm btn-primary" onclick="adminEditProduct('${d.id}')" title="Edit"><i class="fa-solid fa-pen"></i> Edit</button>
           ${p.status!=='approved' ? `<button class="btn btn-sm btn-success" onclick="updateProductStatus('${d.id}','approved')">Approve</button>` : ''}
           ${p.status!=='rejected' ? `<button class="btn btn-sm btn-danger" onclick="updateProductStatus('${d.id}','rejected')">Reject</button>` : ''}
           <button class="btn btn-sm btn-outline" onclick="deleteProduct('${d.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -2596,22 +2680,22 @@ async function loadAdminProducts() {
 
 async function adminEditProduct(productId) {
   try {
-      const snap = await db.collection('products').doc(productId).get();
-          if (!snap.exists) { toast('Product not found.', 'danger'); return; }
-              const p = snap.data();
-                  document.getElementById('product-form').reset();
-                      document.getElementById('prod-modal-alert').style.display = 'none';
-                          document.getElementById('edit-product-id').value = productId;
-                              document.getElementById('add-product-title').textContent = 'Edit Product';
-                                  document.getElementById('prod-submit-btn').textContent = 'Update';
-                                      document.getElementById('prod-name').value     = p.name          || '';
-                                          document.getElementById('prod-desc').value     = p.description   || '';
-                                              document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
-                                                  document.getElementById('prod-price').value    = p.price         || '';
-                                                      document.getElementById('prod-cat').value      = p.category      || '';
-                                                          document.getElementById('prod-img').value      = p.imageUrl      || '';
-                                                              document.getElementById('prod-emoji').value     = p.emoji || '';
-    document.getElementById('prod-download').value = p.downloadUrl || '';
+    const snap = await db.collection('products').doc(productId).get();
+    if (!snap.exists) { toast('Product not found.', 'danger'); return; }
+    const p = snap.data();
+    document.getElementById('product-form').reset();
+    document.getElementById('prod-modal-alert').style.display = 'none';
+    document.getElementById('edit-product-id').value = productId;
+    document.getElementById('add-product-title').textContent = 'Edit Product';
+    document.getElementById('prod-submit-btn').textContent = 'Update';
+    document.getElementById('prod-name').value     = p.name          || '';
+    document.getElementById('prod-desc').value     = p.description   || '';
+    document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
+    document.getElementById('prod-price').value    = p.price         || '';
+    document.getElementById('prod-cat').value      = p.category      || '';
+    document.getElementById('prod-img').value      = p.imageUrl      || '';
+    document.getElementById('prod-emoji').value    = p.emoji         || '';
+    document.getElementById('prod-download').value = p.downloadUrl   || '';
     openModal('add-product-modal');
   } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
@@ -2704,29 +2788,38 @@ async function updateOrderStatus(orderId, status) {
               if (pdSnap.exists && pdSnap.data().downloadUrl) {
                 dlUrls.push(pdSnap.data().downloadUrl);
               }
-            } catch {}
+            } catch(e) { console.warn('Could not fetch product download URL:', e); }
           }
-          // If multiple products, join with newlines; else just the URL
           if (dlUrls.length === 1) {
             downloadLink = dlUrls[0];
           } else if (dlUrls.length > 1) {
-                  downloadLink = dlUrls.join(' | ');
+            downloadLink = dlUrls.join('\n\n');
           }
         }
-        sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
-          to_email:      o.buyerEmail,
-          to_name:       o.buyerName || o.buyerEmail,
-          order_id:      orderId,
-          items:         (o.items || []).map(i => i.name).join(', '),
-          total:         o.total || 0,
-          download_link: downloadLink
-        });
+        try {
+          await sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
+            to_email:      o.buyerEmail,
+            to_name:       o.buyerName || o.buyerEmail,
+            order_id:      orderId,
+            items:         (o.items || []).map(i => i.name).join(', '),
+            total:         o.total || 0,
+            download_link: downloadLink
+          });
+          toast('Notification email sent to buyer.', 'success');
+        } catch(emailErr) {
+          console.error('Failed to send order email:', emailErr);
+          toast('Order updated but email notification failed. Check console.', 'danger');
+        }
       }
-    } catch(emailErr) { console.error('Order email error:', emailErr); toast('Order updated, but email failed. Check EmailJS settings.', 'danger'); }
+    } catch(err) {
+      console.error('Error preparing order email:', err);
+      toast('Order updated but could not send email notification.', 'danger');
+    }
     loadAdminOrders();
     try { loadSellerOrders(); } catch {}
   } catch(err) { toast(sanitize(err.message), 'danger'); }
 }
+
 async function updateProductStatus(productId, status) {
   try {
     await db.collection('products').doc(productId).update({ status });
@@ -2788,6 +2881,10 @@ document.querySelectorAll('.nav-link, .sidebar-link').forEach(el => {
       <span onclick="navigate('register')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Start Selling</span>
       <span onclick="navigate('cart')" style="color:var(--text-muted);font-size:0.85rem;cursor:pointer;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Cart</span>
       <a href="mailto:support@digitalmarketstore.shop" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Contact</a>
+    </div>
+    <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
+      <a href="terms.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Terms of Service</a>
+      <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Privacy Policy</a>
     </div>
     <p style="color:var(--text-muted);font-size:0.8rem;">
       &copy; <span id="footer-year"></span> DigitalMarket. All rights reserved.
