@@ -411,7 +411,7 @@
     <span class="nav-link active" id="nav-home" onclick="navigate('home')" role="button" tabindex="0">
       <i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="home">Home</span>
     </span>
-    <span class="nav-link" id="nav-products" onclick="navigate('home')" role="button" tabindex="0">
+    <span class="nav-link" id="nav-products" onclick="navigate('home');setTimeout(()=>document.getElementById('products-section')?.scrollIntoView({behavior:'smooth'}),100)" role="button" tabindex="0">
       <i class="fa-solid fa-grid-2" aria-hidden="true"></i> <span data-i18n="products">Products</span>
     </span>
     <span class="nav-link" id="nav-cart" onclick="navigate('cart')" role="button" tabindex="0">
