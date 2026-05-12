@@ -870,6 +870,9 @@
             <tbody id="admin-orders-tbody"></tbody>
           </table>
         </div>
+        <div id="admin-orders-load-more" style="text-align:center;margin-top:0.75rem;display:none;">
+          <button class="btn btn-outline btn-sm" onclick="loadAdminOrders(true)">Load More</button>
+        </div>
       </div>
 
       <!-- Products tab -->
@@ -1514,6 +1517,24 @@ function addCurrentToCart() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// WISHLIST (localStorage)
+// ═══════════════════════════════════════════════════════════════════
+const WISHLIST_KEY = 'dms_wishlist_v1';
+function loadWishlist() {
+  try { const r = localStorage.getItem(WISHLIST_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+function saveWishlist(list) { localStorage.setItem(WISHLIST_KEY, JSON.stringify(list)); }
+function isWishlisted(id) { return loadWishlist().includes(id); }
+function toggleWishlist(id, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  const list = loadWishlist();
+  const idx = list.indexOf(id);
+  if (idx === -1) { list.push(id); saveWishlist(list); toast('Added to wishlist ♥', 'success'); }
+  else            { list.splice(idx, 1); saveWishlist(list); toast('Removed from wishlist', 'info'); }
+  renderProducts(); // refresh heart icons
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // TOAST NOTIFICATIONS
 // ═══════════════════════════════════════════════════════════════════
 const icons = { success: 'fa-circle-check', danger: 'fa-circle-xmark', info: 'fa-circle-info', warning: 'fa-triangle-exclamation' };
@@ -1673,6 +1694,12 @@ function navigate(view) {
     if (nav) nav.classList.toggle('active', v === view);
   });
 
+  // Clean up canvas animation when navigating away from home
+  if (view !== 'home') {
+    const canvas = document.getElementById('hero-canvas');
+    if (canvas?._cleanup) { canvas._cleanup(); canvas._initialized = false; }
+  }
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
   if (view === 'home')   setTimeout(initHeroCanvas, 80);
@@ -1722,6 +1749,19 @@ function updateHeaderForUser() {
     if (sellerLink) sellerLink.classList.remove('hidden');
     if (navSeller)  navSeller.classList.remove('hidden');
   }
+  // Email verification banner for unverified sellers
+  const existingBanner = document.getElementById('email-verify-banner');
+  if (existingBanner) existingBanner.remove();
+  if (role === 'seller' && curUser && !curUser.emailVerified) {
+    const banner = document.createElement('div');
+    banner.id = 'email-verify-banner';
+    banner.style.cssText = 'background:#7c3aed;color:#fff;text-align:center;padding:0.55rem 1rem;font-size:0.85rem;position:sticky;top:0;z-index:999;display:flex;align-items:center;justify-content:center;gap:0.75rem;';
+    banner.innerHTML = `<i class="fa-solid fa-envelope-circle-check"></i> <span>Please verify your email to list products.</span>
+      <button onclick="resendVerificationEmail()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:0.2rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.8rem;">Resend Email</button>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:1rem;margin-left:0.25rem;">✕</button>`;
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
   if (isAdmin()) {
     if (adminLink) adminLink.classList.remove('hidden');
     if (navAdmin)  navAdmin.classList.remove('hidden');
@@ -1734,6 +1774,14 @@ function updateHeaderForGuest() {
   document.getElementById('nav-orders')?.classList.add('hidden');
   document.getElementById('nav-seller')?.classList.add('hidden');
   document.getElementById('nav-admin')?.classList.add('hidden');
+}
+
+async function resendVerificationEmail() {
+  if (!curUser) return;
+  try {
+    await curUser.sendEmailVerification();
+    toast('Verification email sent! Check your inbox.', 'success');
+  } catch(e) { toast('Could not send email: ' + sanitize(e.message), 'danger'); }
 }
 
 function toggleUserMenu() {
@@ -1875,7 +1923,8 @@ async function doRegister(e) {
       disabled:  false
     });
 
-    toast(t('registerOk'), 'success');
+    try { await cred.user.sendEmailVerification(); } catch(ev) { console.warn('Verification email failed:', ev); }
+    toast(t('registerOk') + ' Please check your email to verify your account.', 'success');
     navigate('home');
   } catch (err) {
     const msg = err.code === 'auth/email-already-in-use' ? t('emailTaken') : sanitize(err.message);
@@ -2011,7 +2060,11 @@ function renderProducts() {
   grid.innerHTML = list.map(p => `
     <div class="product-card" onclick="openProductDetail('${sanitize(p.id)}')" role="listitem" tabindex="0"
          onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')"
-         aria-label="${sanitize(p.name)} - EGP ${Number(p.price||0).toLocaleString()}">
+         aria-label="${sanitize(p.name)} - EGP ${Number(p.price||0).toLocaleString()}" style="position:relative;">
+      <button onclick="toggleWishlist('${sanitize(p.id)}',event)" aria-label="Wishlist" title="Wishlist"
+        style="position:absolute;top:0.5rem;right:0.5rem;background:rgba(0,0,0,0.35);border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:2;color:${isWishlisted(p.id)?'#f43f5e':'#fff'};">
+        ${isWishlisted(p.id) ? '♥' : '♡'}
+      </button>
       <div class="product-img">
         ${p.imageUrl
           ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:3rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
@@ -2096,7 +2149,24 @@ function setStarRating(n) {
   });
 }
 
-function buildReviewsHTML(reviews, productId, isVerified) {
+let _reviewsCache = { reviews: [], productId: null, isVerified: false };
+
+function sortReviews(reviews, order) {
+  const arr = [...reviews];
+  if (order === 'newest')  return arr.sort((a,b) => { const ta=a.createdAt?.toDate?a.createdAt.toDate():new Date(0),tb=b.createdAt?.toDate?b.createdAt.toDate():new Date(0); return tb-ta; });
+  if (order === 'highest') return arr.sort((a,b) => (b.rating||0)-(a.rating||0));
+  if (order === 'lowest')  return arr.sort((a,b) => (a.rating||0)-(b.rating||0));
+  return arr;
+}
+
+function applyReviewSort(order) {
+  const sec = document.getElementById('product-reviews-section');
+  if (!sec || !_reviewsCache.productId) return;
+  const sorted = sortReviews(_reviewsCache.reviews, order);
+  sec.innerHTML = buildReviewsHTML(sorted, _reviewsCache.productId, _reviewsCache.isVerified, order);
+}
+
+function buildReviewsHTML(reviews, productId, isVerified, sortOrder='newest') {
   const avg = reviews.length ? reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length : 0;
   const count = reviews.length;
   const reviewsList = count
@@ -2114,6 +2184,16 @@ function buildReviewsHTML(reviews, productId, isVerified) {
         </div>`;
       }).join('')
     : `<p style="color:var(--text-muted);font-size:0.85rem;">No reviews yet. Be the first to review this product!</p>`;
+
+  const sortBar = count >= 2 ? `
+    <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap;">
+      ${['newest','highest','lowest'].map(o =>
+        `<button onclick="applyReviewSort('${o}')"
+          style="font-size:0.75rem;padding:0.15rem 0.6rem;border-radius:20px;border:1px solid var(--border);cursor:pointer;
+                 background:${sortOrder===o?'var(--primary)':'var(--bg3)'};color:${sortOrder===o?'#fff':'var(--text)'};font-weight:${sortOrder===o?'600':'400'};"
+        >${o === 'newest' ? '🕐 Newest' : o === 'highest' ? '⭐ Highest' : '⬇ Lowest'}</button>`
+      ).join('')}
+    </div>` : '';
 
   const writeBox = isVerified
     ? `<div class="review-write-box" id="review-write-box">
@@ -2134,6 +2214,7 @@ function buildReviewsHTML(reviews, productId, isVerified) {
       <strong style="font-size:0.95rem;">Reviews</strong>
       ${count ? `<span style="color:var(--text-muted);font-size:0.82rem;">${starsHtml(avg)} ${avg.toFixed(1)} · ${count} review${count !== 1 ? 's' : ''}</span>` : ''}
     </div>
+    ${sortBar}
     ${reviewsList}
     ${writeBox}`;
 }
@@ -2146,12 +2227,7 @@ async function loadAndRenderReviews(productId) {
     const snap = await db.collection('reviews')
       .where('productId', '==', productId)
       .get();
-    const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => {
-        const ta = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-        const tb = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-        return tb - ta;
-      });
+    const rawReviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     let isVerified = false;
     if (curUser) {
@@ -2164,9 +2240,12 @@ async function loadAndRenderReviews(productId) {
         return items.some(it => (it.id || it.productId) === productId);
       });
       // prevent double review
-      if (isVerified && reviews.some(r => r.buyerId === curUser.uid)) isVerified = false;
+      if (isVerified && rawReviews.some(r => r.buyerId === curUser.uid)) isVerified = false;
     }
-    sec.innerHTML = buildReviewsHTML(reviews, productId, isVerified);
+    // Cache for sort buttons
+    _reviewsCache = { reviews: rawReviews, productId, isVerified };
+    const reviews = sortReviews(rawReviews, 'newest');
+    sec.innerHTML = buildReviewsHTML(reviews, productId, isVerified, 'newest');
   } catch (e) {
     sec.innerHTML = `<p style="color:var(--text-muted);font-size:0.85rem;">Could not load reviews.</p>`;
     console.error('loadAndRenderReviews error', e);
@@ -2552,6 +2631,14 @@ function statusBadge(status) {
   return `<span class="badge ${map[status] || 'badge-primary'}">${sanitize(t(status) || status)}</span>`;
 }
 
+function orderAgeBadge(createdAt) {
+  if (!createdAt?.toDate) return '';
+  const days = Math.floor((Date.now() - createdAt.toDate().getTime()) / 86400000);
+  if (days < 2) return '';
+  const color = days >= 7 ? 'var(--danger)' : 'var(--warning,#f59e0b)';
+  return `<span title="${days} days old" style="margin-left:0.3rem;font-size:0.68rem;background:${color};color:#fff;padding:0.1rem 0.35rem;border-radius:10px;font-weight:600;">${days}d</span>`;
+}
+
 async function viewProof(orderId) {
   const snap = await db.collection('orders').doc(orderId).get();
   if (!snap.exists || !snap.data().proof) return;
@@ -2635,7 +2722,7 @@ async function loadSellerOrders() {
         <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
         <td>${myItems.map(i => sanitize(i.name)).join(', ')}</td>
         <td>EGP ${myTotal.toLocaleString()}</td>
-        <td>${statusBadge(o.status)}</td>
+        <td>${statusBadge(o.status)}${o.status==='pending' ? orderAgeBadge(o.createdAt) : ''}</td>
         <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
         <td>
           ${o.status==='pending' ? `
@@ -2663,6 +2750,7 @@ async function loadSellerSettings() {
 
 async function saveSellerSettings(e) {
   e.preventDefault();
+  if (!window.confirm('Save payment information? Make sure the details are correct — buyers will use these to pay you.')) return;
   const btn = e.submitter;
   btn.disabled = true;
   try {
@@ -2725,6 +2813,12 @@ async function submitProduct(e) {
   else if (!/^https?:\/\//i.test(dlUrl)) { setInvalid('prod-download', 'Must be a valid https:// URL.'); valid = false; }
   if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
   if (!valid) return;
+
+  // Block unverified sellers from listing products
+  if (curUser && !curUser.emailVerified) {
+    toast('Please verify your email address before listing products.', 'danger');
+    return;
+  }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>';
@@ -2816,41 +2910,53 @@ async function loadAdminDashboard() {
   } catch {}
 }
 
-async function loadAdminOrders() {
+const ADMIN_ORDERS_PAGE = 20;
+let _adminOrdersCursor = null;
+
+function _renderOrderRow(d) {
+  const o = d.data();
+  const names = (o.items||[]).map(i => sanitize(i.name||'')).filter(Boolean).join(', ') || sanitize(o.productName||'—');
+  const payBadge = o.paymentMethod ? `<span style="font-size:0.7rem;background:var(--bg3);padding:0.1rem 0.35rem;border-radius:4px;">${sanitize(o.paymentMethod)}</span>` : '';
+  const refNum  = o.referenceNum ? `<div style="font-size:0.72rem;color:var(--text-muted);">Ref: ${sanitize(o.referenceNum)}</div>` : '';
+  return `<tr>
+    <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
+    <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
+    <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+    <td>${statusBadge(o.status)}${o.status==='pending' ? orderAgeBadge(o.createdAt) : ''}</td>
+    <td>${payBadge}${refNum}</td>
+    <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
+    <td>
+      ${o.status==='pending' ? `
+        <div style="display:flex;gap:0.3rem;">
+          <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')" title="Approve">✓</button>
+          <button class="btn btn-sm btn-danger"  onclick="updateOrderStatus('${d.id}','rejected')" title="Reject">✗</button>
+        </div>
+      ` : '—'}
+    </td>
+  </tr>`;
+}
+
+async function loadAdminOrders(loadMore = false) {
   const tbody = document.getElementById('admin-orders-tbody');
+  const loadMoreBtn = document.getElementById('admin-orders-load-more');
+  if (!loadMore) { _adminOrdersCursor = null; tbody.innerHTML = ''; }
   try {
-    const raw = await db.collection('orders').get();
-    const snap = { docs: raw.docs.sort((a,b) => {
-      const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
-      const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
-      return tb - ta;
-    }) };
-    if (!snap.docs.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`; return; }
-    tbody.innerHTML = snap.docs.map(d => {
-      const o = d.data();
-      const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
-      const names = (o.items||[]).map(i => sanitize(i.name||'')).filter(Boolean).join(', ') || sanitize(o.productName||'—');
-      const payBadge = o.paymentMethod ? `<span style="font-size:0.7rem;background:var(--bg3);padding:0.1rem 0.35rem;border-radius:4px;">${sanitize(o.paymentMethod)}</span>` : '';
-      const refNum  = o.referenceNum ? `<div style="font-size:0.72rem;color:var(--text-muted);">Ref: ${sanitize(o.referenceNum)}</div>` : '';
-      return `<tr>
-        <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
-        <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
-        <td>EGP ${Number(o.total||0).toLocaleString()}</td>
-        <td>${statusBadge(o.status)}</td>
-        <td>${payBadge}${refNum}</td>
-        <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
-        <td>
-          ${o.status==='pending' ? `
-            <div style="display:flex;gap:0.3rem;">
-              <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')" title="Approve">✓</button>
-              <button class="btn btn-sm btn-danger"  onclick="updateOrderStatus('${d.id}','rejected')" title="Reject">✗</button>
-            </div>
-          ` : '—'}
-        </td>
-      </tr>`;
-    }).join('');
-  } catch(err) { tbody.innerHTML = `<tr><td colspan="8" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
+    let q = db.collection('orders').orderBy('createdAt', 'desc').limit(ADMIN_ORDERS_PAGE);
+    if (loadMore && _adminOrdersCursor) q = q.startAfter(_adminOrdersCursor);
+    const snap = await q.get();
+    if (!snap.docs.length && !loadMore) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No orders yet.</td></tr>`;
+      if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+      return;
+    }
+    tbody.insertAdjacentHTML('beforeend', snap.docs.map(_renderOrderRow).join(''));
+    _adminOrdersCursor = snap.docs[snap.docs.length - 1];
+    if (loadMoreBtn) loadMoreBtn.style.display = snap.docs.length < ADMIN_ORDERS_PAGE ? 'none' : 'block';
+  } catch(err) {
+    tbody.innerHTML += `<tr><td colspan="8" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`;
+    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+  }
 }
 
 async function loadAdminProducts() {
@@ -2973,7 +3079,23 @@ async function saveAdminSettings(e) {
 
 async function updateOrderStatus(orderId, status) {
   try {
-    await db.collection('orders').doc(orderId).update({ status });
+    // Self-approve guard: buyer cannot approve their own order
+    if (status === 'approved' && !isAdmin()) {
+      const orderSnap = await db.collection('orders').doc(orderId).get();
+      if (orderSnap.exists && orderSnap.data().buyerId === curUser?.uid) {
+        toast('You cannot approve your own order.', 'danger');
+        return;
+      }
+    }
+    // Rejection reason prompt
+    let rejectionReason = '';
+    if (status === 'rejected') {
+      rejectionReason = window.prompt('Optional: Enter a reason for rejection (shown to buyer):', '') || '';
+    }
+    await db.collection('orders').doc(orderId).update({
+      status,
+      ...(rejectionReason ? { rejectionReason: sanitize(rejectionReason) } : {})
+    });
     // Increment purchaseCount on each product when order is approved
     if (status === 'approved') {
       try {
@@ -3020,7 +3142,8 @@ async function updateOrderStatus(orderId, status) {
             order_id:      orderId,
             items:         (o.items || []).map(i => i.name).join(', '),
             total:         o.total || 0,
-            download_link: downloadLink
+            download_link: downloadLink,
+            ...(rejectionReason ? { rejection_reason: rejectionReason } : {})
           });
           toast('Notification email sent to buyer.', 'success');
         } catch(emailErr) {
@@ -3106,6 +3229,17 @@ if ('serviceWorker' in navigator) {
 // Keyboard navigation for nav links
 document.querySelectorAll('.nav-link, .sidebar-link').forEach(el => {
   el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+});
+
+// Cart sync across tabs via localStorage storage event
+window.addEventListener('storage', e => {
+  if (e.key === CART_KEY) {
+    cart = loadCart();
+    updateCartBadge();
+    // Re-render cart modal if open
+    const cartModal = document.getElementById('cart-modal');
+    if (cartModal && cartModal.classList.contains('show')) renderCart();
+  }
 });
 </script>
 
