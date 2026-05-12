@@ -1091,7 +1091,8 @@
 // ═══════════════════════════════════════════════════════════════════
 
 // ⚠️  REPLACE these placeholders before deploying:
-const RECAPTCHA_SITE_KEY  = '6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz';   // Google reCAPTCHA v3
+const RECAPTCHA_SITE_KEY   = '6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz';   // Google reCAPTCHA v3
+const RECAPTCHA_VERIFY_URL = 'https://script.google.com/macros/s/AKfycbz4UsVRjLgEe-CNCbAk3jtYBGtFM9-eN35h5Rdq3m7EqQzpUSWTcVFZC5dplVAQMV-jxA/exec';
 
 // ── EmailJS Configuration ─────────────────────────────────────────
 // Sign up free at https://www.emailjs.com → Services → Add Service
@@ -1215,14 +1216,23 @@ function sanitize(str) {
 }
 
 /**
- * Get reCAPTCHA v3 token before sensitive actions.
+ * Get reCAPTCHA v3 token and verify server-side via Google Apps Script proxy.
+ * Returns true if human (score ≥ 0.5), false if bot, null if service unavailable.
  */
-async function getRecaptchaToken(action) {
+async function verifyRecaptcha(action) {
   try {
-    if (typeof grecaptcha === 'undefined') return null;
-    return await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
+    if (typeof grecaptcha === 'undefined') return null; // graceful degradation
+    const token = await grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
+    const resp  = await fetch(RECAPTCHA_VERIFY_URL, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ token, action })
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.success === true;
   } catch {
-    return null;
+    return null; // network error → allow through (don't block legitimate users)
   }
 }
 
@@ -1766,9 +1776,14 @@ async function doLogin(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Signing in…';
 
-  // reCAPTCHA v3
-  const token = await getRecaptchaToken('login');
-  // Note: token should be verified server-side. Here we proceed; add Cloud Function for full protection.
+  // reCAPTCHA v3 – server-side verified
+  const captchaOk = await verifyRecaptcha('login');
+  if (captchaOk === false) {
+    btn.disabled = false;
+    btn.textContent = t('login');
+    showAlert('login-alert', 'danger', 'Security check failed. Please try again.');
+    return;
+  }
 
   try {
     await auth.signInWithEmailAndPassword(email, pass);
@@ -1829,8 +1844,14 @@ async function doRegister(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Creating…';
 
-  // reCAPTCHA v3
-  await getRecaptchaToken('register');
+  // reCAPTCHA v3 – server-side verified
+  const captchaOk = await verifyRecaptcha('register');
+  if (captchaOk === false) {
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+    showAlert('reg-alert', 'danger', 'Security check failed. Please try again.');
+    return;
+  }
 
   const shopName       = role === 'seller' ? sanitize(document.getElementById('reg-shop').value.trim())     : '';
   const shopDesc       = role === 'seller' ? sanitize(document.getElementById('reg-shopdesc').value.trim()) : '';
