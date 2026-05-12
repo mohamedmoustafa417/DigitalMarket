@@ -1122,10 +1122,11 @@ function sendOrderEmail(eventType, params) {
   const downloadLink = params.download_link || (siteUrl + '/#orders');
 
   const subjects = {
-    order_submitted:  `DigitalMarket – Order Received #${params.order_id}`,
-    order_approved:   `✅ Your order is approved – Download ready! | DigitalMarket`,
-    order_rejected:   `Order Update – DigitalMarket`,
-    admin_new_order:  `[Admin] New Order EGP ${params.total} – ${params.items}`
+    order_submitted:   `DigitalMarket – Order Received #${params.order_id}`,
+    order_approved:    `✅ Your order is approved – Download ready! | DigitalMarket`,
+    order_rejected:    `Order Update – DigitalMarket`,
+    admin_new_order:   `[Admin] New Order EGP ${params.total} – ${params.items}`,
+    seller_new_order:  `[Seller] New Order EGP ${params.total} – ${params.items}`
   };
 
   // Template variables that match the EmailJS template fields exactly:
@@ -1164,6 +1165,8 @@ function sendOrderEmail(eventType, params) {
     basePayload.message = `Hello ${basePayload.to_name},\n\nUnfortunately your order could not be verified.\n\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\n\nPlease contact support if you believe this is an error.\n\nDigitalMarket Team`;
   } else if (eventType === 'admin_new_order') {
     basePayload.message = `New order received!\n\nBuyer: ${params.buyer_name || ''} (${params.buyer_email || ''})\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\nPayment: ${params.pay_method || ''} – Ref: ${params.ref_num || ''}\n\nLog in to approve or reject: ${siteUrl}`;
+  } else if (eventType === 'seller_new_order') {
+    basePayload.message = `Hello ${basePayload.to_name},\n\nA new order has been placed for your product(s)!\n\nBuyer: ${params.buyer_name || ''}\nOrder ID: ${basePayload.order_id}\nItems: ${basePayload.product_name}\nTotal: ${basePayload.amount_paid}\nPayment: ${params.pay_method || ''} – Ref: ${params.ref_num || ''}\n\nLog in to your Seller Dashboard to approve or reject:\n${siteUrl}`;
   }
 
   return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, basePayload)
@@ -2293,11 +2296,13 @@ async function submitOrder() {
 
   try {
     const total = checkoutItems.reduce((s, p) => s + Number(p.price || 0), 0);
+    const sellerIds = [...new Set(checkoutItems.map(p => p.sellerId || 'admin'))];
     const orderRef = await db.collection('orders').add({
       buyerId:       curUser.uid,
       buyerEmail:    sanitize(curUser.email || ''),
       buyerName:     sanitize(curUserData?.name || ''),
       items:         checkoutItems.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin' })),
+      sellerIds,
       total,
       proof:         proofB64,
       paymentMethod: payMethod,
@@ -2307,14 +2312,36 @@ async function submitOrder() {
     });
     // Send confirmation email to buyer
     sendOrderEmail('order_submitted', {
-      to_email: curUser.email,
-      to_name:  curUserData?.name || curUser.email,
-      order_id: orderRef.id,
-      total:    total,
-      items:    checkoutItems.map(p => p.name).join(', '),
+      to_email:   curUser.email,
+      to_name:    curUserData?.name || curUser.email,
+      order_id:   orderRef.id,
+      total,
+      items:      checkoutItems.map(p => p.name).join(', '),
       pay_method: payMethod,
-      ref_num:  payRef
+      ref_num:    payRef
     });
+    // Notify each unique seller
+    const uniqueSellerIds = sellerIds.filter(id => id !== 'admin');
+    for (const sid of uniqueSellerIds) {
+      try {
+        const sellerSnap = await db.collection('users').doc(sid).get();
+        if (sellerSnap.exists) {
+          const sd = sellerSnap.data();
+          const sellerItems = checkoutItems.filter(p => (p.sellerId || 'admin') === sid);
+          const sellerTotal = sellerItems.reduce((s, p) => s + Number(p.price || 0), 0);
+          sendOrderEmail('seller_new_order', {
+            to_email:   sd.email,
+            to_name:    sd.shopName || sd.name || 'Seller',
+            order_id:   orderRef.id,
+            total:      sellerTotal,
+            items:      sellerItems.map(p => p.name).join(', '),
+            pay_method: payMethod,
+            ref_num:    payRef,
+            buyer_name: curUserData?.name || curUser.email
+          });
+        }
+      } catch {}
+    }
     clearCart();
     closeModal('checkout-modal');
     toast(t('orderSent'), 'success');
@@ -2339,8 +2366,12 @@ async function loadOrders() {
   try {
     const snap = await db.collection('orders')
       .where('buyerId', '==', curUser.uid)
-      .orderBy('createdAt', 'desc')
       .get();
+    snap.docs.sort((a, b) => {
+      const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
+      const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
+      return tb - ta;
+    });
     if (info) info.style.display = 'none';
     if (wrap) wrap.classList.remove('hidden');
     if (!snap.docs.length) {
@@ -2445,8 +2476,15 @@ async function loadSellerOrders() {
   if (!curUser) return;
   const tbody = document.getElementById('seller-orders-tbody');
   try {
-    const snap = await db.collection('orders').orderBy('createdAt','desc').get();
-    const myOrders = snap.docs.filter(d => (d.data().items||[]).some(i => i.sellerId === curUser.uid));
+    const snap = await db.collection('orders')
+      .where('sellerIds', 'array-contains', curUser.uid)
+      .get();
+    const myOrders = snap.docs
+      .sort((a, b) => {
+        const ta = a.data().createdAt?.toDate ? a.data().createdAt.toDate() : new Date(0);
+        const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
+        return tb - ta;
+      });
     tbody.innerHTML = myOrders.map(d => {
       const o = d.data();
       const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
