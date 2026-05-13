@@ -42,6 +42,7 @@
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
@@ -51,7 +52,7 @@
     integrity="sha512-H+rglffZ6f5gF7UJgvH4Naa+fGCgjrHKMgoFOGmcPTRwR6oILo5R+gtzNrpDp7iMV3udbymBVjkeZGNz1Em4rQ=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <!-- Chart.js for analytics charts -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
   <!-- Sentry error tracking (free tier) -->
   <script src="https://browser.sentry-cdn.com/7.99.0/bundle.min.js" crossorigin="anonymous"></script>
   <script>
@@ -63,7 +64,12 @@
       });
     } catch(e) {}
   </script>
-  <!-- Google Analytics 4 -->
+  <!-- Google Analytics 4 – disabled immediately if user previously declined cookies -->
+  <script>
+    if (localStorage.getItem('dm_cookie_consent') === 'declined') {
+      window['ga-disable-G-1V97FVKRRJ'] = true;
+    }
+  </script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-1V97FVKRRJ"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -2787,6 +2793,12 @@ auth.onAuthStateChanged(async user => {
       curUserData = snap.exists ? snap.data() : {};
     } catch {
       curUserData = {};
+    }
+    // Immediately sign out banned / disabled accounts
+    if (curUserData.disabled === true) {
+      await auth.signOut();
+      toast('Your account has been suspended. Please contact support.', 'danger', 6000);
+      return;
     }
     updateHeaderForUser();
   } else {
@@ -5588,6 +5600,14 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-overlay.show').forEach(m => closeModal(m.id));
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// GLOBAL ERROR HANDLERS
+// ═══════════════════════════════════════════════════════════════════
+window.addEventListener('unhandledrejection', e => {
+  // Sentry auto-captures these, but also log to console in dev
+  if (location.hostname === 'localhost') console.error('Unhandled promise rejection:', e.reason);
 });
 
 // ═══════════════════════════════════════════════════════════════════
