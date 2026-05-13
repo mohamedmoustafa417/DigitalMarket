@@ -8140,4 +8140,1079 @@ function renderFilePreview(product) {
     </button>
   </nav>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ROUNDS 7 · 8 · 9 + QUICK WINS — Full Feature Pack                  -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── QUICK WIN 3: Enhanced Empty States ───────────────────────────────
+(function enhanceEmptyStates() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const cartEmpty = document.getElementById('cart-empty');
+    if (cartEmpty) {
+      cartEmpty.innerHTML = `
+        <div style="text-align:center;padding:2.5rem 1rem;">
+          <div style="font-size:3.5rem;margin-bottom:1rem;">🛒</div>
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;">Your cart is empty</h3>
+          <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1.25rem;">Discover amazing digital products and add them to your cart.</p>
+          <button class="btn btn-primary" onclick="navigate('home')"><i class="fa-solid fa-compass"></i> Browse Products</button>
+        </div>`;
+    }
+    const wishlistEmpty = document.getElementById('wishlist-empty');
+    if (wishlistEmpty) {
+      wishlistEmpty.innerHTML = `
+        <div style="text-align:center;padding:2.5rem 1rem;">
+          <div style="font-size:3.5rem;margin-bottom:1rem;">💝</div>
+          <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;">Your wishlist is empty</h3>
+          <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1.25rem;">Save products you love by tapping the ♡ heart on any product card.</p>
+          <button class="btn btn-primary" onclick="navigate('home')"><i class="fa-solid fa-heart"></i> Discover Products</button>
+        </div>`;
+    }
+  });
+})();
+
+// ─── ROUND 7 Feature 1: FREE PRODUCTS SUPPORT ─────────────────────────
+// Detects when total = 0 and bypasses the payment proof requirement
+window._isFreeOrder = false;
+
+(function patchCheckoutForFreeProducts() {
+  const orig = window.openCheckout;
+  if (typeof orig !== 'function') return;
+  window.openCheckout = async function(ids) {
+    window._isFreeOrder = false;
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      const subtotal = (window.checkoutItems || []).reduce((s, p) => s + Number(p.price || 0), 0);
+      const discount = typeof calcCouponDiscount === 'function' ? calcCouponDiscount(subtotal) : 0;
+      if (Math.max(0, subtotal - discount) > 0) return;
+      window._isFreeOrder = true;
+      // Hide payment proof UI
+      const proofDrop  = document.getElementById('proof-drop');
+      const proofLabel = document.querySelector('[for="proof-file"], .proof-upload-label, .proof-upload-wrap');
+      [proofDrop, proofLabel].forEach(el => { if (el) el.style.display = 'none'; });
+      // Inject free-order banner
+      const body = document.getElementById('checkout-body');
+      if (body && !document.getElementById('free-order-note')) {
+        const note = document.createElement('div');
+        note.id = 'free-order-note';
+        note.className = 'alert alert-success';
+        note.style.marginBottom = '0.75rem';
+        note.innerHTML = '🎁 <strong>Free Product!</strong> No payment required — click Submit to claim your download instantly.';
+        body.insertBefore(note, body.firstChild);
+      }
+    }, 300);
+  };
+})();
+
+(function patchSubmitOrderForFreeItems() {
+  const orig = window.submitOrder;
+  if (typeof orig !== 'function') return;
+  window.submitOrder = async function() {
+    if (window._isFreeOrder) {
+      window.proofB64  = 'FREE_ORDER';
+      window.proofFile = null;
+      const pm = document.getElementById('pay-method-select');
+      if (pm && !pm.value) { const o = document.createElement('option'); o.value = 'free'; o.text = 'Free'; pm.appendChild(o); pm.value = 'free'; }
+      const pr = document.getElementById('pay-ref-input');
+      if (pr && !pr.value) pr.value = 'FREE-' + Date.now();
+    }
+    return orig.apply(this, arguments);
+  };
+})();
+
+// ─── ROUND 7 Feature 2: DOWNLOADABLE ORDER INVOICE ─────────────────────
+function printOrderInvoice(orderId) {
+  const cached = (window._cachedOrders || {})[orderId];
+  if (cached) { _renderInvoice(orderId, cached); return; }
+  db.collection('orders').doc(orderId).get().then(snap => {
+    if (!snap.exists) { toast('Order not found.', 'danger'); return; }
+    window._cachedOrders = window._cachedOrders || {};
+    window._cachedOrders[orderId] = snap.data();
+    _renderInvoice(orderId, snap.data());
+  }).catch(e => toast('Failed: ' + sanitize(e.message), 'danger'));
+}
+
+function _renderInvoice(orderId, o) {
+  const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-EG') : new Date().toLocaleDateString();
+  const items = (o.items || []).map(i =>
+    `<tr><td style="padding:0.5rem;border-bottom:1px solid #eee;">${i.name||''}</td>
+         <td style="padding:0.5rem;border-bottom:1px solid #eee;text-align:right;">EGP ${Number(i.price||0).toLocaleString()}</td></tr>`
+  ).join('');
+  const statusColor = o.status === 'approved' ? '#10b981' : o.status === 'pending' ? '#f59e0b' : '#ef4444';
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Invoice #${orderId.slice(0,8).toUpperCase()}</title>
+  <style>body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;color:#333;}
+  h1{color:#6366f1;}table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+  th{background:#6366f1;color:#fff;padding:0.5rem;text-align:left;}
+  .total td{font-weight:bold;padding:0.5rem;border-top:2px solid #6366f1;}
+  .footer{margin-top:2rem;font-size:0.8rem;color:#999;text-align:center;}
+  @media print{button{display:none;}}</style></head><body>
+  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1.5rem;">
+    <span style="font-size:1.8rem;">🛒</span><h1 style="margin:0;">DigitalMarket</h1>
+  </div>
+  <h2 style="margin:0 0 0.25rem;">TAX INVOICE</h2>
+  <p style="margin:0;color:#666;font-size:0.85rem;">#${orderId.slice(0,8).toUpperCase()}</p>
+  <div style="display:flex;justify-content:space-between;margin:1.25rem 0;font-size:0.85rem;">
+    <div><strong>Date:</strong> ${date}<br>
+         <strong>Buyer:</strong> ${o.buyerName || o.buyerEmail || '—'}<br>
+         <strong>Payment:</strong> ${o.paymentMethod || '—'}</div>
+    <div style="text-align:right;"><strong>Status:</strong> <span style="background:${statusColor};color:#fff;padding:0.2rem 0.5rem;border-radius:4px;">${o.status||'pending'}</span>
+         ${o.referenceNum ? `<br><strong>Ref:</strong> ${o.referenceNum}` : ''}</div>
+  </div>
+  <table><thead><tr><th>Item</th><th style="text-align:right;">Price</th></tr></thead><tbody>${items}
+  ${o.discount ? `<tr><td style="padding:0.5rem;color:#10b981;">Discount Applied</td><td style="padding:0.5rem;text-align:right;color:#10b981;">-EGP ${Number(o.discount).toLocaleString()}</td></tr>` : ''}
+  </tbody><tfoot><tr class="total"><td>Total</td><td style="text-align:right;">EGP ${Number(o.total||0).toLocaleString()}</td></tr></tfoot></table>
+  <div class="footer"><p>Thank you for shopping with DigitalMarket!</p>
+  <p>support@digitalmarketstore.shop · digitalmarketstore.shop</p>
+  <p>This is a computer-generated invoice.</p></div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
+  </body></html>`;
+  const win = window.open('', '_blank');
+  if (!win) { toast('Allow pop-ups to print invoices.', 'warning'); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
+// ─── QUICK WIN 5: Copy order details ──────────────────────────────────
+function copyOrderDetails(orderId, o) {
+  if (!o) { toast('Order data not loaded yet.', 'warning'); return; }
+  const lines = (o.items || []).map(i => `  • ${i.name}: EGP ${Number(i.price||0).toLocaleString()}`).join('\n');
+  const text = [
+    `Order #${orderId.slice(0,8).toUpperCase()}`,
+    `Date: ${o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—'}`,
+    `Status: ${o.status}`,
+    `Items:\n${lines}`,
+    `Total: EGP ${Number(o.total||0).toLocaleString()}`,
+    `Payment: ${o.paymentMethod || '—'}`,
+    `Ref: ${o.referenceNum || '—'}`
+  ].join('\n');
+  navigator.clipboard.writeText(text)
+    .then(() => toast('Order details copied!', 'success'))
+    .catch(() => toast('Copy failed.', 'warning'));
+}
+
+// ─── ROUND 7 Feature 4: BULK DOWNLOAD ─────────────────────────────────
+function bulkDownloadOrder(orderId) {
+  const o = (window._cachedOrders || {})[orderId];
+  const doDownload = (order) => {
+    if (order.status !== 'approved') { toast('Order must be approved.', 'warning'); return; }
+    const links = (order.items || []).filter(i => i.downloadUrl);
+    if (!links.length) { toast('No download links available.', 'warning'); return; }
+    toast(`Downloading ${links.length} file(s)…`, 'info', 2000);
+    links.forEach((item, i) => setTimeout(() => {
+      const a = Object.assign(document.createElement('a'), { href: item.downloadUrl, target: '_blank', rel: 'noopener', download: item.name || `file-${i+1}` });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }, i * 700));
+  };
+  if (o) { doDownload(o); return; }
+  db.collection('orders').doc(orderId).get().then(snap => {
+    if (!snap.exists) return;
+    window._cachedOrders = window._cachedOrders || {};
+    window._cachedOrders[orderId] = snap.data();
+    doDownload(snap.data());
+  });
+}
+
+// ─── ENHANCED loadOrders (includes invoice + bulk download + copy) ──────
+(function replaceLoadOrders() {
+  window.loadOrders = async function() {
+    if (!curUser) return;
+    const info  = document.getElementById('orders-info');
+    const wrap  = document.getElementById('orders-table-wrap');
+    const tbody = document.getElementById('orders-tbody');
+    if (info) { info.style.display = 'block'; info.className = 'alert alert-info'; info.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading orders…'; }
+    if (wrap) wrap.classList.add('hidden');
+    try {
+      const snap = await db.collection('orders').where('buyerId','==',curUser.uid).orderBy('createdAt','desc').get();
+      if (info) info.style.display = 'none';
+      if (wrap) wrap.classList.remove('hidden');
+      window._cachedOrders = {};
+
+      if (!snap.empty) {
+        const rows = await Promise.all(snap.docs.map(async d => {
+          const o = d.data();
+          window._cachedOrders[d.id] = o;
+          const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
+          const badge = (function(s){ const m={approved:'badge-success',pending:'badge-warning',rejected:'badge-danger'}; return `<span class="badge ${m[s]||'badge-primary'}">${sanitize(s||'pending')}</span>`; })(o.status);
+          const names = (o.items||[]).map(i=>sanitize(i.name)).join(', ');
+
+          // Download cell
+          let dlCell = '—';
+          if (o.status === 'approved' && o.items?.length) {
+            const now = Date.now();
+            const exp = o.downloadExpiresAt ? (o.downloadExpiresAt.toDate ? o.downloadExpiresAt.toDate().getTime() : new Date(o.downloadExpiresAt).getTime()) : null;
+            if (exp && now > exp) {
+              dlCell = `<span style="font-size:0.75rem;color:var(--danger);"><i class="fa-solid fa-clock"></i> Expired</span>`;
+            } else {
+              const links = (o.items||[]).filter(i=>i.downloadUrl);
+              const expNote = exp ? `<div style="font-size:0.68rem;color:var(--text-muted);">Exp. ${new Date(exp).toLocaleDateString()}</div>` : '';
+              if (links.length === 1) {
+                dlCell = `<a href="${sanitize(links[0].downloadUrl)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download"></i> Download</a>${expNote}`;
+              } else if (links.length > 1) {
+                dlCell = `<button class="btn btn-sm btn-primary" onclick="bulkDownloadOrder('${d.id}')"><i class="fa-solid fa-download"></i> All (${links.length})</button>
+                  <div style="margin-top:0.25rem;">${links.slice(0,3).map(l=>`<a href="${sanitize(l.downloadUrl)}" target="_blank" rel="noopener" style="display:block;font-size:0.7rem;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">${sanitize(l.name)}</a>`).join('')}</div>${expNote}`;
+              }
+            }
+          }
+
+          // License keys
+          const lk = o.licenseKeys || {};
+          const licenseCell = Object.keys(lk).length
+            ? Object.entries(lk).map(([,k])=>`<div class="license-key-box" style="font-size:0.72rem;margin-bottom:0.2rem;">${sanitize(k)}<button class="copy-btn" onclick="navigator.clipboard.writeText('${sanitize(k)}').then(()=>showToast('Copied!','success'))"><i class="fa-solid fa-copy"></i></button></div>`).join('')
+            : '';
+
+          // Proof cell
+          const proofCell = o.proof
+            ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>`
+            : (o.status==='rejected' ? `<label class="btn btn-sm btn-warning" style="cursor:pointer;font-size:0.72rem;" title="Resubmit"><i class="fa-solid fa-upload"></i> Resubmit<input type="file" accept="image/*" style="display:none;" onchange="resubmitProof('${d.id}',this)"></label>` : '—');
+
+          // Timeline
+          const timelineCell = `<button class="btn btn-sm btn-outline" style="font-size:0.72rem;" onclick="showOrderTimeline('${d.id}','${o.status}')"><i class="fa-solid fa-timeline"></i></button>`;
+
+          // Actions
+          const pd = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+          const days = pd ? Math.floor((Date.now()-pd.getTime())/86400000) : 999;
+          const canRefund = o.status==='approved' && days<=7 && !o.refundRequested;
+          const actionsCell = `<div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center;">
+            ${canRefund?`<button class="btn btn-sm btn-warning" onclick="openRefundModal('${d.id}')" title="Refund" style="font-size:0.72rem;"><i class="fa-solid fa-rotate-left"></i></button>`:''}
+            <button class="report-btn" onclick="openReportModal('order','${d.id}')" title="Report"><i class="fa-solid fa-flag"></i></button>
+            <button class="btn btn-sm btn-outline" onclick="printOrderInvoice('${d.id}')" title="Invoice" style="font-size:0.72rem;"><i class="fa-solid fa-file-invoice"></i></button>
+            <button class="btn btn-sm btn-outline" onclick="copyOrderDetails('${d.id}',window._cachedOrders?.['${d.id}'])" title="Copy" style="font-size:0.72rem;"><i class="fa-solid fa-copy"></i></button>
+          </div>`;
+
+          return `<tr>
+            <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
+            <td>${date}</td>
+            <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
+            <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+            <td>${badge}${o.refundRequested?`<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>`:''}</td>
+            <td>${proofCell}</td>
+            <td>${dlCell}${licenseCell}</td>
+            <td>${timelineCell}</td>
+            <td>${actionsCell}</td>
+          </tr>`;
+        }));
+        tbody.innerHTML = rows.join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2.5rem;">
+          <div style="font-size:3rem;margin-bottom:0.75rem;">📦</div>
+          <div style="font-weight:700;margin-bottom:0.4rem;">No orders yet</div>
+          <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">Purchased products will appear here.</div>
+          <button class="btn btn-primary" onclick="navigate('home')"><i class="fa-solid fa-compass"></i> Browse Products</button>
+        </td></tr>`;
+      }
+    } catch(err) {
+      if (info) { info.className='alert alert-danger'; info.style.display='block'; info.textContent=sanitize(err.message); }
+    }
+  };
+})();
+
+// ─── ROUND 7 Feature 3: SCHEDULED PRODUCT LAUNCH ──────────────────────
+(function patchGetFilteredProductsForSchedule() {
+  const orig = window.getFilteredProducts;
+  if (typeof orig !== 'function') return;
+  window.getFilteredProducts = function() {
+    const now  = Date.now();
+    return orig.apply(this, arguments).filter(p => {
+      if (!p.scheduledAt) return true;
+      const t = p.scheduledAt?.toDate ? p.scheduledAt.toDate().getTime() : new Date(p.scheduledAt).getTime();
+      return isNaN(t) || t <= now;
+    });
+  };
+})();
+
+// Inject "Scheduled Launch" field into seller product form
+(function injectScheduledLaunchField() {
+  const observer = new MutationObserver(() => {
+    const form = document.getElementById('seller-product-form') || document.getElementById('product-modal')?.querySelector('form');
+    if (!form || form.dataset.schedInjected) return;
+    form.dataset.schedInjected = '1';
+    const submitBtn = form.querySelector('[type="submit"]') || form.querySelector('#save-product-btn');
+    if (!submitBtn) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:0.75rem;';
+    wrap.innerHTML = `<label style="font-size:0.83rem;font-weight:600;display:block;margin-bottom:0.25rem;"><i class="fa-solid fa-calendar-check" style="color:var(--primary);"></i> Schedule Launch (optional)</label>
+      <input type="datetime-local" id="product-scheduled-at" class="form-control" style="font-size:0.85rem;">
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.15rem;">Leave empty to publish immediately when approved.</div>`;
+    submitBtn.parentElement.insertBefore(wrap, submitBtn);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+// ─── ROUND 7 Feature 5: BUYER ↔ SELLER DIRECT MESSAGING ────────────────
+let _msgUnsub  = null;
+let _msgThread = null;
+
+function openMessagesView(sellerId, sellerName, productId, productName) {
+  if (!curUser) { toast('Please login to send messages.', 'info'); navigate('login'); return; }
+  _msgThread = [curUser.uid, sellerId].sort().join('__') + (productId ? '__' + productId.slice(0,8) : '');
+  if (!document.getElementById('dm-msg-modal')) _buildMsgModal();
+  document.getElementById('dm-msg-title').textContent = `💬 ${sellerName || 'Seller'}`;
+  const refEl = document.getElementById('dm-msg-product-ref');
+  refEl.textContent = productName ? `Re: ${productName}` : '';
+  refEl.style.display = productName ? 'block' : 'none';
+  openModal('dm-msg-modal');
+  _subscribeMessages(_msgThread, sellerId, productId, productName);
+}
+
+function _buildMsgModal() {
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-msg-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:460px;display:flex;flex-direction:column;height:80vh;max-height:580px;overflow:hidden;">
+      <div class="modal-header" style="flex-shrink:0;">
+        <h3 id="dm-msg-title">💬 Messages</h3>
+        <button class="btn-icon" onclick="closeModal('dm-msg-modal');if(_msgUnsub)_msgUnsub();" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="dm-msg-product-ref" style="font-size:0.78rem;color:var(--primary);padding:0.2rem 1rem 0;display:none;"></div>
+      <div id="dm-msg-thread" style="flex:1;overflow-y:auto;padding:0.85rem;display:flex;flex-direction:column;gap:0.5rem;min-height:0;">
+        <div style="text-align:center;color:var(--text-muted);font-size:0.85rem;">Loading…</div>
+      </div>
+      <div style="padding:0.65rem 0.85rem;border-top:1px solid var(--border);display:flex;gap:0.5rem;flex-shrink:0;">
+        <input id="dm-msg-input" type="text" class="form-control" placeholder="Type a message…" style="flex:1;"
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();dmSendMsg();}" maxlength="500" autocomplete="off">
+        <button class="btn btn-primary" onclick="dmSendMsg()" style="flex-shrink:0;padding:0.5rem 0.85rem;">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+}
+
+function _subscribeMessages(threadId, sellerId, productId, productName) {
+  if (_msgUnsub) _msgUnsub();
+  const thread = document.getElementById('dm-msg-thread');
+  // Ensure thread doc exists
+  db.collection('messages').doc(threadId).set({
+    participants: [curUser.uid, sellerId].sort(),
+    productId:    productId || null,
+    productName:  productName || null,
+    updatedAt:    FV.serverTimestamp()
+  }, { merge: true }).catch(() => {});
+
+  _msgUnsub = db.collection('messages').doc(threadId).collection('msgs')
+    .orderBy('createdAt','asc').limit(100)
+    .onSnapshot(snap => {
+      if (snap.empty) {
+        thread.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2rem;"><i class="fa-solid fa-comment-slash" style="font-size:2rem;opacity:0.35;"></i><br><br>No messages yet.<br>Start the conversation!</div>`;
+        return;
+      }
+      thread.innerHTML = snap.docs.map(d => {
+        const m = d.data(), mine = m.senderId === curUser.uid;
+        const time = m.createdAt?.toDate ? m.createdAt.toDate().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+        return `<div style="display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'};">
+          <div style="max-width:78%;background:${mine?'var(--primary)':'var(--bg3)'};color:${mine?'#fff':'var(--text)'};
+               padding:0.45rem 0.75rem;border-radius:${mine?'12px 12px 2px 12px':'12px 12px 12px 2px'};
+               font-size:0.87rem;word-break:break-word;">${sanitize(m.text)}</div>
+          <span style="font-size:0.65rem;color:var(--text-muted);margin-top:0.1rem;">${time}</span>
+        </div>`;
+      }).join('');
+      thread.scrollTop = thread.scrollHeight;
+    }, () => { thread.innerHTML = `<div style="color:var(--danger);padding:1rem;font-size:0.85rem;">Failed to load messages.</div>`; });
+}
+
+async function dmSendMsg() {
+  const input = document.getElementById('dm-msg-input');
+  const text  = input?.value.trim();
+  if (!text || !_msgThread || !curUser) return;
+  input.value = ''; input.disabled = true;
+  try {
+    await db.collection('messages').doc(_msgThread).collection('msgs').add({
+      senderId:   curUser.uid,
+      senderName: curUserData?.name || curUser.email || 'User',
+      text:       text.slice(0, 500),
+      createdAt:  FV.serverTimestamp()
+    });
+    await db.collection('messages').doc(_msgThread).update({
+      updatedAt: FV.serverTimestamp(), lastMessage: text.slice(0, 80)
+    });
+  } catch(e) { toast('Send failed: ' + sanitize(e.message), 'danger'); }
+  finally { input.disabled = false; input.focus(); }
+}
+
+// Add "Message Seller" button in product detail modal
+(function patchOpenProductDetailForMessaging() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    const p = allProducts.find(x => x.id === id);
+    if (!p?.sellerId || p.sellerId === 'admin') return;
+    if (document.getElementById('dm-msg-btn-' + id)) return;
+    const body = document.getElementById('product-modal-body');
+    if (!body) return;
+    setTimeout(() => {
+      if (document.getElementById('dm-msg-btn-' + id)) return;
+      const btn = document.createElement('button');
+      btn.id = 'dm-msg-btn-' + id;
+      btn.className = 'btn btn-outline';
+      btn.style.cssText = 'width:100%;margin-top:0.4rem;font-size:0.85rem;';
+      btn.innerHTML = '<i class="fa-solid fa-comment-dots" style="margin-right:0.4rem;"></i>Message Seller';
+      btn.onclick = () => openMessagesView(p.sellerId, p.sellerName || p.shopName || 'Seller', id, p.name);
+      body.appendChild(btn);
+    }, 250);
+  };
+})();
+
+// ─── ROUND 7 Feature 6: PRODUCT BUNDLES ──────────────────────────────
+// Products with bundledProductIds add all child items to cart automatically
+(function patchAddToCartForBundles() {
+  const orig = window.addToCart;
+  if (typeof orig !== 'function') return;
+  window.addToCart = function(productId) {
+    const p = allProducts.find(x => x.id === productId);
+    if (p?.bundledProductIds?.length) {
+      orig.call(this, productId);
+      let added = 0;
+      p.bundledProductIds.forEach(bid => { if (!cart.includes(bid)) { orig.call(this, bid); added++; } });
+      if (added) toast(`Bundle added — ${added + 1} items in cart! 🎁`, 'success');
+      return;
+    }
+    orig.apply(this, arguments);
+  };
+})();
+
+// ─── ROUND 8 Feature 1: BUYER REFERRAL PROGRAM ────────────────────────
+function getReferralLink() {
+  if (!curUser) return null;
+  return `${location.origin}/?ref=${curUser.uid}`;
+}
+function copyReferralLink() {
+  const link = getReferralLink();
+  if (!link) { toast('Please login first.', 'info'); return; }
+  navigator.clipboard.writeText(link)
+    .then(() => { toast('Referral link copied! Share to earn rewards. 🎁', 'success'); trackEvent('share_referral', { method: 'copy' }); })
+    .catch(() => { prompt('Copy your referral link:', link); });
+}
+// Store incoming referral on first visit
+(function storeReferralId() {
+  const ref = new URLSearchParams(location.search).get('ref');
+  if (ref && ref !== (curUser?.uid)) localStorage.setItem('dm_referral_id', ref);
+})();
+function getReferralId() {
+  return new URLSearchParams(location.search).get('ref') || localStorage.getItem('dm_referral_id') || null;
+}
+
+// ─── ROUND 8 Feature 2: PRODUCT VERSION HISTORY ──────────────────────
+async function publishProductUpdate(productId, newVersion, changeNotes, newDownloadUrl) {
+  if (!curUser) return;
+  const p = allProducts.find(x => x.id === productId);
+  if (!p || p.sellerId !== curUser.uid) { toast('Not authorized.', 'danger'); return; }
+  try {
+    const updates = { version: newVersion||'2.0', changeNotes: changeNotes||'', updatedAt: FV.serverTimestamp() };
+    if (newDownloadUrl) updates.downloadUrl = newDownloadUrl;
+    await db.collection('products').doc(productId).update(updates);
+    // Notify past buyers
+    const ordersSnap = await db.collection('orders').where('status','==','approved').get();
+    const buyerIds = new Set();
+    ordersSnap.docs.forEach(d => { const o = d.data(); if ((o.items||[]).some(i=>i.id===productId)) buyerIds.add(o.buyerId); });
+    if (buyerIds.size) {
+      const batch = db.batch();
+      buyerIds.forEach(uid => { const ref = db.collection('notifications').doc(); batch.set(ref, { userId:uid, type:'product_update', message:`📦 "${p.name}" updated to v${newVersion}. Re-download now!`, productId, read:false, createdAt:FV.serverTimestamp() }); });
+      await batch.commit();
+    }
+    toast(`v${newVersion} published — ${buyerIds.size} buyers notified.`, 'success');
+  } catch(e) { toast('Failed: ' + sanitize(e.message), 'danger'); }
+}
+
+// ─── ROUND 8 Feature 3: WISHLIST PUBLIC SHARING ───────────────────────
+function shareWishlist() {
+  const wl = JSON.parse(localStorage.getItem('dm_wishlist') || '[]');
+  if (!wl.length) { toast('Your wishlist is empty.', 'info'); return; }
+  const url = `${location.origin}/?wishlist=${encodeURIComponent(wl.join(','))}`;
+  navigator.clipboard.writeText(url)
+    .then(() => toast('Wishlist link copied! 💌', 'success'))
+    .catch(() => { prompt('Copy your wishlist link:', url); });
+}
+
+// Show shared wishlist banner if ?wishlist= in URL
+(function loadSharedWishlist() {
+  const param = new URLSearchParams(location.search).get('wishlist');
+  if (!param) return;
+  const ids = decodeURIComponent(param).split(',').filter(Boolean).slice(0, 50);
+  if (!ids.length) return;
+  window.addEventListener('load', () => setTimeout(() => {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:900;width:calc(100% - 2rem);max-width:500px;background:var(--bg);border:1px solid var(--primary);border-radius:var(--radius);padding:0.75rem 1rem;display:flex;align-items:center;gap:0.75rem;box-shadow:var(--shadow-md);font-size:0.85rem;';
+    banner.innerHTML = `<i class="fa-solid fa-heart" style="color:var(--danger);flex-shrink:0;"></i>
+      <span>Someone shared a wishlist (${ids.length} item${ids.length>1?'s':''})</span>
+      <button class="btn btn-sm btn-primary" style="margin-left:auto;white-space:nowrap;" onclick="
+        navigate('home');
+        setTimeout(()=>{
+          document.querySelectorAll('.product-card').forEach(c=>{
+            const id=c.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+            if([${ids.map(i=>`'${i}'`).join(',')}].includes(id)){c.style.outline='2px solid var(--primary)';}
+          });
+        },600);
+        this.closest('div[style]').remove();">View Items</button>
+      <button onclick="this.closest('div[style]').remove();" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;flex-shrink:0;">✕</button>`;
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 20000);
+  }, 2500));
+})();
+
+// ─── ROUND 8 Feature 4: FREE PREVIEW / GATED CONTENT ─────────────────
+function showProductPreview(productId) {
+  const p = allProducts.find(x => x.id === productId);
+  if (!p?.previewUrl) { toast('No preview available for this product.', 'info'); return; }
+  const url = sanitize(p.previewUrl);
+  const isVid = /\.(mp4|webm|ogg)$/i.test(url);
+  const isAud = /\.(mp3|wav|m4a|ogg)$/i.test(url);
+  const isImg = /\.(jpe?g|png|gif|webp|svg)$/i.test(url);
+  const isPdf = /\.pdf$/i.test(url) || p.previewUrl.includes('pdf');
+  let media = '';
+  if (isVid)      media = `<video controls controlsList="nodownload" style="width:100%;max-height:300px;border-radius:var(--radius);"><source src="${url}">Video not supported.</video>`;
+  else if (isAud) media = `<audio controls controlsList="nodownload" style="width:100%;"><source src="${url}">Audio not supported.</audio>`;
+  else if (isPdf) media = `<iframe src="${url}#toolbar=0&navpanes=0" style="width:100%;height:340px;border:none;border-radius:var(--radius);"></iframe>`;
+  else if (isImg) media = `<img src="${url}" alt="Preview" style="width:100%;max-height:340px;object-fit:contain;border-radius:var(--radius);">`;
+  else            media = `<a href="${url}" target="_blank" rel="noopener" class="btn btn-outline">Open Preview File</a>`;
+
+  document.getElementById('dm-preview-modal')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-preview-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h3>👁 Preview — ${sanitize(p.name)}</h3>
+        <button class="btn-icon" onclick="closeModal('dm-preview-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        ${media}
+        <div style="margin-top:1rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius);padding:0.75rem;font-size:0.82rem;color:var(--text-muted);">
+          <i class="fa-solid fa-lock" style="color:var(--primary);"></i>
+          Free preview. <a href="#" onclick="closeModal('dm-preview-modal');openProductDetail('${sanitize(productId)}');return false;" style="color:var(--primary);">Purchase the full product →</a>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-preview-modal');
+}
+
+// Add "Preview" button to product detail when previewUrl present
+(function patchOpenProductDetailForPreview() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    const p = allProducts.find(x => x.id === id);
+    if (!p?.previewUrl) return;
+    if (document.getElementById('preview-btn-' + id)) return;
+    setTimeout(() => {
+      if (document.getElementById('preview-btn-' + id)) return;
+      const body = document.getElementById('product-modal-body');
+      if (!body) return;
+      const btn = document.createElement('button');
+      btn.id = 'preview-btn-' + id;
+      btn.className = 'btn btn-outline';
+      btn.style.cssText = 'width:100%;margin-top:0.4rem;font-size:0.85rem;';
+      btn.innerHTML = '<i class="fa-solid fa-play-circle" style="margin-right:0.4rem;"></i>Free Preview';
+      btn.onclick = () => showProductPreview(id);
+      body.appendChild(btn);
+    }, 260);
+  };
+})();
+
+// ─── ROUND 8 Feature 5: SELLER ACHIEVEMENT BADGES ─────────────────────
+const ACHIEVEMENTS = [
+  { id:'first_sale',  icon:'🎉', label:'First Sale',    check:(s)=>s>=1   },
+  { id:'ten_sales',   icon:'⚡', label:'10 Sales',      check:(s)=>s>=10  },
+  { id:'fifty_sales', icon:'🥈', label:'50 Sales',      check:(s)=>s>=50  },
+  { id:'cent_sales',  icon:'💯', label:'100 Sales',     check:(s)=>s>=100 },
+  { id:'plat_sales',  icon:'💎', label:'200 Sales',     check:(s)=>s>=200 },
+  { id:'top_rated',   icon:'⭐', label:'Top Rated 4.5+',check:(s,r)=>r>=4.5 },
+];
+
+function getSellerBadges(totalSales, ratingAvg) {
+  return ACHIEVEMENTS.filter(a => a.check(totalSales||0, ratingAvg||0));
+}
+
+function renderAchievementBadges(totalSales, ratingAvg) {
+  const badges = getSellerBadges(totalSales, ratingAvg);
+  if (!badges.length) return '';
+  return `<div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-top:0.35rem;">
+    ${badges.map(b=>`<span title="${b.label}" style="background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:0.1rem 0.45rem;font-size:0.72rem;white-space:nowrap;">${b.icon} ${b.label}</span>`).join('')}
+  </div>`;
+}
+
+(function patchSellerDashboardForAchievements() {
+  const orig = window.loadSellerDashboard;
+  if (typeof orig !== 'function') return;
+  window.loadSellerDashboard = async function() {
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      if (!curUserData || document.getElementById('seller-achievements')) return;
+      const badges = getSellerBadges(curUserData.totalSales||0, curUserData.ratingAvg||0);
+      if (!badges.length) return;
+      const sellerView = document.getElementById('view-seller');
+      if (!sellerView) return;
+      const firstChild = sellerView.querySelector('.card-grid, .stats-grid, .seller-stats, h2 + *') || sellerView.firstElementChild;
+      if (!firstChild) return;
+      const div = document.createElement('div');
+      div.id = 'seller-achievements';
+      div.style.cssText = 'margin-bottom:1rem;';
+      div.innerHTML = `<h4 style="font-size:0.88rem;font-weight:700;color:var(--primary);margin-bottom:0.5rem;">🏆 Achievements</h4>
+        ${renderAchievementBadges(curUserData.totalSales||0, curUserData.ratingAvg||0)}`;
+      firstChild.parentElement.insertBefore(div, firstChild);
+    }, 600);
+  };
+})();
+
+// Show achievement badges in seller storefront
+(function patchOpenStorefrontForBadges() {
+  const orig = window.openStorefront;
+  if (typeof orig !== 'function') return;
+  window.openStorefront = async function(sellerId) {
+    await orig.apply(this, arguments);
+    setTimeout(async () => {
+      if (document.getElementById('storefront-achievements')) return;
+      try {
+        const snap = await db.collection('users').doc(sellerId).get();
+        if (!snap.exists) return;
+        const sd = snap.data();
+        const badges = getSellerBadges(sd.totalSales||0, sd.ratingAvg||0);
+        if (!badges.length) return;
+        const statsEl = document.getElementById('storefront-stats');
+        if (!statsEl) return;
+        const div = document.createElement('div');
+        div.id = 'storefront-achievements';
+        div.style.cssText = 'margin-top:0.5rem;';
+        div.innerHTML = renderAchievementBadges(sd.totalSales||0, sd.ratingAvg||0);
+        statsEl.parentElement.insertBefore(div, statsEl.nextSibling);
+      } catch {}
+    }, 400);
+  };
+})();
+
+// ─── ROUND 8 Feature 6: PRODUCT COMPARISON ───────────────────────────
+let _compareList = [];
+
+function toggleCompare(productId, e) {
+  if (e) e.stopPropagation();
+  const idx = _compareList.indexOf(productId);
+  if (idx >= 0) { _compareList.splice(idx, 1); }
+  else {
+    if (_compareList.length >= 3) { toast('Max 3 products for comparison.', 'warning'); return; }
+    _compareList.push(productId);
+  }
+  _updateCompareBar();
+}
+
+function _updateCompareBar() {
+  let bar = document.getElementById('dm-compare-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'dm-compare-bar';
+    bar.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;border-radius:var(--radius);padding:0.5rem 1rem;box-shadow:var(--shadow-md);z-index:300;display:flex;align-items:center;gap:0.6rem;font-size:0.85rem;white-space:nowrap;';
+    document.body.appendChild(bar);
+  }
+  if (!_compareList.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = `<i class="fa-solid fa-code-compare"></i> Compare (${_compareList.length})
+    <button onclick="openCompareModal()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:0.2rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.8rem;">View →</button>
+    <button onclick="_compareList=[];_updateCompareBar();" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:1rem;line-height:1;">✕</button>`;
+}
+
+function openCompareModal() {
+  if (_compareList.length < 2) { toast('Select at least 2 products to compare.', 'warning'); return; }
+  const products = _compareList.map(id => allProducts.find(p => p.id === id)).filter(Boolean);
+  const fields   = [
+    ['Price',    p => `EGP ${Number(p.price||0).toLocaleString()}${p.pwyw?' (PWYW)':''}`],
+    ['Category', p => p.category || '—'],
+    ['Rating',   p => p.ratingCount ? `${(+p.ratingAvg||0).toFixed(1)} ⭐ (${p.ratingCount})` : 'No ratings'],
+    ['Sales',    p => `${p.purchaseCount||0} sold`],
+    ['License',  p => p.hasCommercialLicense ? '✅ Commercial' : '📄 Personal'],
+    ['Preview',  p => p.previewUrl ? '✅ Available' : '—'],
+    ['Version',  p => p.version ? `v${p.version}` : '—'],
+  ];
+  const body = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+    <thead><tr><th style="padding:0.5rem;border-bottom:2px solid var(--border);text-align:left;">Feature</th>
+      ${products.map(p=>`<th style="padding:0.5rem;border-bottom:2px solid var(--border);text-align:center;background:var(--bg2);">
+        <div style="font-weight:700;font-size:0.82rem;">${sanitize(p.name)}</div>
+        <button class="btn btn-sm btn-primary" onclick="addToCart('${sanitize(p.id)}');closeModal('dm-compare-modal');" style="margin-top:0.3rem;font-size:0.72rem;">Add to Cart</button>
+      </th>`).join('')}
+    </tr></thead>
+    <tbody>${fields.map(([label,fn])=>`<tr>
+      <td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);font-weight:600;color:var(--text-muted);">${label}</td>
+      ${products.map(p=>`<td style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);text-align:center;">${fn(p)}</td>`).join('')}
+    </tr>`).join('')}</tbody></table></div>`;
+
+  document.getElementById('dm-compare-modal')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-compare-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:700px;">
+      <div class="modal-header">
+        <h3>⚡ Product Comparison</h3>
+        <button class="btn-icon" onclick="closeModal('dm-compare-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">${body}</div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-compare-modal');
+}
+
+// Add "Compare" button to product cards after renderProducts
+(function patchRenderProductsForCompare() {
+  const orig = window.renderProducts;
+  if (typeof orig !== 'function') return;
+  window.renderProducts = function() {
+    orig.apply(this, arguments);
+    setTimeout(() => {
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (card.querySelector('.dm-cmp-btn')) return;
+        const m = (card.getAttribute('onclick')||'').match(/'([^']+)'/);
+        if (!m) return;
+        const id  = m[1];
+        const btn = document.createElement('button');
+        btn.className = 'dm-cmp-btn';
+        btn.title = 'Add to compare';
+        btn.style.cssText = 'position:absolute;bottom:0.4rem;left:0.4rem;background:rgba(0,0,0,0.4);border:none;border-radius:5px;padding:0.15rem 0.35rem;font-size:0.65rem;color:#fff;cursor:pointer;z-index:2;';
+        btn.innerHTML = '⚡';
+        btn.onclick = (e) => toggleCompare(id, e);
+        card.appendChild(btn);
+      });
+    }, 120);
+  };
+})();
+
+// ─── ROUND 9 Feature 1: KEYBOARD SHORTCUTS ───────────────────────────
+const KB_SHORTCUTS = [
+  { key: '?', desc: 'Show keyboard shortcuts' },
+  { key: 'H', desc: 'Go to Home' },
+  { key: 'C', desc: 'Go to Cart' },
+  { key: 'O', desc: 'Go to Orders' },
+  { key: 'W', desc: 'Go to Wishlist' },
+  { key: '/', desc: 'Focus search box' },
+  { key: 'D', desc: 'Toggle dark / light mode' },
+  { key: 'L', desc: 'Switch language (EN / AR)' },
+  { key: 'Esc', desc: 'Close open modal' },
+];
+
+function openShortcutsModal() {
+  document.getElementById('dm-shortcuts-modal')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-shortcuts-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header">
+        <h3>⌨️ Keyboard Shortcuts</h3>
+        <button class="btn-icon" onclick="closeModal('dm-shortcuts-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <table style="width:100%;border-collapse:collapse;font-size:0.87rem;">
+          <tbody>${KB_SHORTCUTS.map(s=>`<tr>
+            <td style="padding:0.35rem 0.5rem;width:70px;"><kbd style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:0.1rem 0.45rem;font-family:monospace;font-size:0.8rem;">${s.key}</kbd></td>
+            <td style="padding:0.35rem 0.5rem;">${s.desc}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+        <p style="margin-top:1rem;font-size:0.75rem;color:var(--text-muted);">Shortcuts are disabled when typing in input fields.</p>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-shortcuts-modal');
+}
+
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  if (['INPUT','TEXTAREA','SELECT'].includes(tag)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (k === '?')   { e.preventDefault(); openShortcutsModal(); return; }
+  if (k === 'Escape') return; // handled by existing modal close logic
+  const K = k.toUpperCase();
+  if (K === 'H')   navigate('home');
+  if (K === 'C')   navigate('cart');
+  if (K === 'O' && curUser) navigate('orders');
+  if (K === 'W')   navigate('wishlist');
+  if (K === 'D' && typeof toggleDark === 'function')   toggleDark();
+  if (K === 'L' && typeof toggleLang === 'function')   toggleLang();
+  if (k === '/')   { e.preventDefault(); document.getElementById('search-input')?.focus(); }
+});
+
+// Add "?" help button near header search
+(function addShortcutsHelpBtn() {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    if (document.getElementById('dm-kb-help-btn')) return;
+    const search = document.getElementById('search-input') || document.querySelector('.search-box input');
+    const target = search?.closest('.search-box') || search?.parentElement;
+    if (!target) return;
+    const btn = document.createElement('button');
+    btn.id = 'dm-kb-help-btn';
+    btn.title = 'Keyboard shortcuts (press ?)';
+    btn.style.cssText = 'background:none;border:1px solid var(--border);border-radius:50%;width:1.75rem;height:1.75rem;cursor:pointer;font-size:0.8rem;color:var(--text-muted);display:inline-flex;align-items:center;justify-content:center;margin-left:0.4rem;flex-shrink:0;';
+    btn.textContent = '?';
+    btn.onclick = openShortcutsModal;
+    target.parentElement.insertBefore(btn, target.nextSibling);
+  }, 800));
+})();
+
+// ─── ROUND 9 Feature 2: FAQ JSON-LD SCHEMA (per product) ─────────────
+function injectFAQSchema(p) {
+  document.getElementById('dm-faq-schema')?.remove();
+  if (!p) return;
+  const faqs = [
+    { q: `What is ${p.name}?`, a: p.description || `${p.name} is a digital product on DigitalMarket.` },
+    { q: `How do I download ${p.name}?`, a: 'After payment approval, your download link appears in the Orders section of your account.' },
+    { q: `How much does ${p.name} cost?`, a: `${p.name} is priced at EGP ${Number(p.price||0).toLocaleString()}.` },
+    { q: 'What payment methods are accepted?', a: 'InstaPay, Vodafone Cash, Orange Cash, Etisalat Cash, bank transfers, and other Egyptian digital payment methods.' },
+    { q: 'What is your refund policy?', a: 'Buyers may request a refund within 7 days of order approval.' },
+  ];
+  const s = document.createElement('script');
+  s.type = 'application/ld+json';
+  s.id   = 'dm-faq-schema';
+  s.textContent = JSON.stringify({ "@context":"https://schema.org", "@type":"FAQPage",
+    "mainEntity": faqs.map(f => ({ "@type":"Question","name":f.q,"acceptedAnswer":{"@type":"Answer","text":f.a} })) });
+  document.head.appendChild(s);
+}
+
+(function patchOpenProductDetailForFAQ() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    injectFAQSchema(allProducts.find(x => x.id === id) || null);
+  };
+})();
+
+// ─── ROUND 9 Feature 3: SEO-FRIENDLY PRODUCT URLS ────────────────────
+function slugify(text) {
+  return (text||'').toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim().slice(0,60);
+}
+
+(function patchOpenProductDetailForSEO() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+    const slug = p.slug || slugify(p.name) || id;
+    try { history.replaceState({ productId: id }, p.name, `/?p=${id}&s=${encodeURIComponent(slug)}`); } catch {}
+    document.title = `${p.name} — DigitalMarket`;
+  };
+  // Restore on modal close
+  const origClose = window.closeModal;
+  if (typeof origClose === 'function') {
+    window.closeModal = function(modalId) {
+      origClose.apply(this, arguments);
+      if (modalId === 'product-modal') {
+        document.title = 'DigitalMarket – Digital Marketplace';
+        try { history.replaceState({}, document.title, location.pathname === '/' ? '/' : location.pathname); } catch {}
+      }
+    };
+  }
+})();
+
+// ─── ROUND 9 Feature 4: SALES TAX / VAT DISPLAY ──────────────────────
+// VAT_RATE = 0 means prices are inclusive (no extra charge shown).
+// Change to 0.14 to show +14% VAT on top of listed prices.
+const DM_VAT_RATE = 0;
+
+(function patchCheckoutSummaryForVAT() {
+  if (DM_VAT_RATE === 0) return; // disabled by default
+  const orig = window.renderCheckoutSummary;
+  if (typeof orig !== 'function') return;
+  window.renderCheckoutSummary = function() {
+    orig.apply(this, arguments);
+    setTimeout(() => {
+      const totalEl = document.getElementById('checkout-total-amount');
+      if (!totalEl || document.getElementById('dm-vat-line')) return;
+      const subtotal = (checkoutItems||[]).reduce((s,p)=>s+Number(p.price||0),0);
+      const disc     = typeof calcCouponDiscount==='function' ? calcCouponDiscount(subtotal) : 0;
+      const preVat   = Math.max(0, subtotal - disc);
+      const vat      = preVat * DM_VAT_RATE;
+      const line = document.createElement('div');
+      line.id = 'dm-vat-line';
+      line.style.cssText = 'font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem;';
+      line.innerHTML = `+ ${(DM_VAT_RATE*100).toFixed(0)}% VAT: EGP ${vat.toLocaleString()}`;
+      totalEl.parentElement.insertBefore(line, totalEl.nextSibling);
+      totalEl.textContent = `EGP ${(preVat + vat).toLocaleString()}`;
+    }, 200);
+  };
+})();
+
+// ─── ROUND 9 Feature 5: ADMIN EMAIL CAMPAIGNS ────────────────────────
+async function sendEmailCampaign(subject, body, target) {
+  if (!isAdmin()) { toast('Admins only.', 'danger'); return; }
+  try {
+    let query = db.collection('newsletter');
+    if (target === 'buyers')  query = db.collection('users').where('role','==','buyer');
+    if (target === 'sellers') query = db.collection('users').where('role','==','seller');
+    const snap  = await query.limit(500).get();
+    const count = snap.size;
+    await db.collection('campaigns').add({
+      subject, body, target, recipientCount: count,
+      status: 'queued', createdBy: curUser.uid, createdAt: FV.serverTimestamp()
+    });
+    toast(`✅ Campaign queued for ${count} recipients. Cloud Function will dispatch it.`, 'success', 5000);
+  } catch(e) { toast('Failed: ' + sanitize(e.message), 'danger'); }
+}
+
+(function injectAdminCampaignPanel() {
+  const orig = window.loadAdminDashboard;
+  if (typeof orig !== 'function') return;
+  window.loadAdminDashboard = async function() {
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      if (document.getElementById('dm-admin-campaigns')) return;
+      const view = document.getElementById('view-admin');
+      if (!view) return;
+      const sec = document.createElement('div');
+      sec.id = 'dm-admin-campaigns';
+      sec.className = 'card';
+      sec.style.cssText = 'margin-top:1.5rem;padding:1.25rem;';
+      sec.innerHTML = `
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:1rem;"><i class="fa-solid fa-envelope-open-text" style="color:var(--primary);margin-right:0.4rem;"></i>Email Campaigns</h3>
+        <div style="display:flex;flex-direction:column;gap:0.6rem;">
+          <select id="dm-camp-target" class="form-control" style="font-size:0.85rem;">
+            <option value="all">📧 All Newsletter Subscribers</option>
+            <option value="buyers">🛒 All Buyers</option>
+            <option value="sellers">🏪 All Sellers</option>
+          </select>
+          <input id="dm-camp-subject" type="text" class="form-control" placeholder="Subject…" style="font-size:0.85rem;" maxlength="200">
+          <textarea id="dm-camp-body" class="form-control" rows="4" placeholder="Email body (HTML supported)…" style="font-size:0.85rem;" maxlength="5000"></textarea>
+          <button class="btn btn-primary" style="font-size:0.85rem;" onclick="(async()=>{
+            const s=document.getElementById('dm-camp-subject').value.trim();
+            const b=document.getElementById('dm-camp-body').value.trim();
+            const t=document.getElementById('dm-camp-target').value;
+            if(!s||!b){toast('Subject and body required.','warning');return;}
+            if(!confirm('Queue campaign to '+t+'?'))return;
+            await sendEmailCampaign(s,b,t);
+          })()"><i class="fa-solid fa-paper-plane"></i> Queue Campaign</button>
+        </div>`;
+      view.appendChild(sec);
+    }, 800);
+  };
+})();
+
+// ─── QUICK WIN 2: RECENTLY SOLD TICKER ────────────────────────────────
+(function initSoldTicker() {
+  window.addEventListener('load', () => setTimeout(() => {
+    if (document.getElementById('dm-sold-ticker')) return;
+    const pool = (allProducts||[]).filter(p=>p.purchaseCount>0&&p.status==='approved')
+      .sort((a,b)=>(b.purchaseCount||0)-(a.purchaseCount||0)).slice(0,12);
+    if (pool.length < 3) return;
+    const names = ['Ahmed','Sara','Mohamed','Nour','Omar','Layla','Khaled','Dina','Youssef','Rana'];
+    const msgs  = pool.map(p => `🛍️ ${names[Math.floor(Math.random()*names.length)]} just bought <strong>${sanitize(p.name)}</strong>`);
+    let idx = 0;
+    const ticker = document.createElement('div');
+    ticker.id = 'dm-sold-ticker';
+    ticker.style.cssText = 'position:fixed;bottom:72px;left:16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:0.45rem 0.75rem;box-shadow:var(--shadow-md);z-index:198;font-size:0.77rem;max-width:250px;cursor:pointer;';
+    ticker.innerHTML = msgs[0];
+    ticker.title = 'Click to dismiss';
+    document.body.appendChild(ticker);
+    const timer = setInterval(() => {
+      ticker.style.opacity = '0';
+      setTimeout(() => { idx=(idx+1)%msgs.length; ticker.innerHTML=msgs[idx]; ticker.style.opacity='1'; }, 300);
+    }, 4500);
+    ticker.style.transition = 'opacity 0.3s';
+    const hide = () => { clearInterval(timer); ticker.remove(); };
+    ticker.onclick = hide;
+    setTimeout(hide, 35000);
+  }, 4000));
+})();
+
+// ─── QUICK WIN 6: CUSTOMERS ALSO BOUGHT (after order receipt) ─────────
+(function patchShowOrderReceiptForAlsoBought() {
+  const orig = window.showOrderReceipt;
+  if (typeof orig !== 'function') return;
+  window.showOrderReceipt = function(orderId, items, total) {
+    orig.apply(this, arguments);
+    setTimeout(() => {
+      const body = document.getElementById('order-receipt-body');
+      if (!body || document.getElementById('dm-also-bought')) return;
+      const orderedIds  = (items||[]).map(i=>i.id);
+      const orderedCats = (items||[]).map(i=>i.category).filter(Boolean);
+      const suggestions = (allProducts||[])
+        .filter(p => !orderedIds.includes(p.id) && p.status==='approved' && (orderedCats.includes(p.category)||(p.purchaseCount||0)>3))
+        .sort((a,b)=>(b.purchaseCount||0)-(a.purchaseCount||0)).slice(0,4);
+      if (!suggestions.length) return;
+      const div = document.createElement('div');
+      div.id = 'dm-also-bought';
+      div.style.cssText = 'margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem;';
+      div.innerHTML = `<h4 style="font-size:0.85rem;font-weight:700;margin-bottom:0.6rem;color:var(--primary);">👥 Customers also bought</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:0.4rem;">
+          ${suggestions.map(p=>`<div onclick="closeModal('order-receipt-modal');openProductDetail('${sanitize(p.id)}');"
+            style="cursor:pointer;background:var(--bg3);border-radius:var(--radius);padding:0.45rem;text-align:center;font-size:0.72rem;"
+            onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+            <div style="font-size:1.6rem;margin-bottom:0.2rem;">${p.emoji?sanitize(p.emoji):'📦'}</div>
+            <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sanitize(p.name)}</div>
+            <div style="color:var(--primary);font-weight:700;">${formatPrice(p.price)}</div>
+          </div>`).join('')}
+        </div>`;
+      body.appendChild(div);
+    }, 300);
+  };
+})();
+
+// ─── QUICK WIN 4: SELLER RESPONSE RATE in storefront ──────────────────
+(function patchStorefrontForResponseRate() {
+  const orig = window.openStorefront;
+  if (typeof orig !== 'function') return;
+  window.openStorefront = async function(sellerId) {
+    await orig.apply(this, arguments);
+    setTimeout(async () => {
+      if (document.getElementById('dm-response-rate')) return;
+      try {
+        const snap = await db.collection('qa').where('sellerId','==',sellerId).limit(40).get();
+        if (!snap.size) return;
+        const answered = snap.docs.filter(d=>d.data().answer).length;
+        const rate = Math.round((answered/snap.size)*100);
+        const statsEl = document.getElementById('storefront-stats');
+        if (!statsEl) return;
+        const badge = document.createElement('span');
+        badge.id = 'dm-response-rate';
+        badge.title = `Responded to ${answered} of ${snap.size} questions`;
+        badge.style.cssText = 'font-size:0.78rem;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:0.15rem 0.55rem;margin-left:0.5rem;white-space:nowrap;';
+        badge.innerHTML = `💬 ${rate}% response rate`;
+        statsEl.appendChild(badge);
+      } catch {}
+    }, 500);
+  };
+})();
+
+// Add "Share Wishlist" button to wishlist view header
+(function addShareWishlistBtn() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const wlActions = document.querySelector('#view-wishlist .btn-primary')?.closest('div');
+    if (!wlActions || document.getElementById('dm-share-wl-btn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'dm-share-wl-btn';
+    btn.className = 'btn btn-outline btn-sm';
+    btn.innerHTML = '<i class="fa-solid fa-share-nodes"></i> Share';
+    btn.onclick = shareWishlist;
+    wlActions.appendChild(btn);
+  });
+})();
+
+// Add "Copy Referral Link" to profile modal / user menu
+(function addReferralLinkToProfile() {
+  const origOpen = window.openProfileModal;
+  if (typeof origOpen !== 'function') return;
+  window.openProfileModal = function() {
+    origOpen.apply(this, arguments);
+    setTimeout(() => {
+      if (document.getElementById('dm-referral-btn')) return;
+      const footer = document.querySelector('#profile-modal .modal-footer') ||
+                     document.querySelector('#profile-modal .modal-body');
+      if (!footer) return;
+      const btn = document.createElement('button');
+      btn.id = 'dm-referral-btn';
+      btn.className = 'btn btn-outline btn-sm';
+      btn.style.cssText = 'margin-top:0.75rem;width:100%;font-size:0.82rem;';
+      btn.innerHTML = '<i class="fa-solid fa-gift" style="margin-right:0.4rem;"></i>Copy Referral Link';
+      btn.onclick = copyReferralLink;
+      footer.appendChild(btn);
+    }, 200);
+  };
+})();
+
+console.log('[DigitalMarket] Rounds 7·8·9 + Quick Wins loaded ✅');
+</script>
 </body></html>
