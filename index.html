@@ -10,6 +10,17 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://digitalmarketstore.shop/">
   <meta property="og:image" content="https://digitalmarketstore.shop/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="ar_EG">
+  <meta property="og:site_name" content="DigitalMarket">
+  <!-- Twitter / X Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@DigitalMarketEG">
+  <meta name="twitter:title" content="DigitalMarket – Digital Marketplace">
+  <meta name="twitter:description" content="Buy and sell digital products securely on DigitalMarket.">
+  <meta name="twitter:image" content="https://digitalmarketstore.shop/og-image.png">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#6366f1">
@@ -22,15 +33,19 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self';">
   <title>DigitalMarket – Digital Marketplace</title>
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
+    crossorigin="anonymous" referrerpolicy="no-referrer">
   <!-- DOMPurify for XSS sanitization -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"
+    integrity="sha512-H+rglffZ6f5gF7UJgvH4Naa+fGCgjrHKMgoFOGmcPTRwR6oILo5R+gtzNrpDp7iMV3udbymBVjkeZGNz1Em4rQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <!-- Chart.js for analytics charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Sentry error tracking (free tier) -->
@@ -43,6 +58,14 @@
         environment: location.hostname === 'localhost' ? 'development' : 'production'
       });
     } catch(e) {}
+  </script>
+  <!-- Google Analytics 4 – replace GA_MEASUREMENT_ID (e.g. G-XXXXXXXXXX) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'GA_MEASUREMENT_ID', { anonymize_ip: true, cookie_flags: 'SameSite=None;Secure' });
   </script>
   <!-- Google reCAPTCHA v3 – replace YOUR_RECAPTCHA_SITE_KEY -->
   <script src="https://www.google.com/recaptcha/api.js?render=6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz" async defer></script>
@@ -409,6 +432,90 @@
     .related-card-name { font-size:0.78rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .related-card-price { font-size:0.72rem; color:var(--primary); font-weight:700; }
 
+    /* ── Light mode ── */
+    body.light-mode {
+      --bg:#f8fafc; --bg2:#ffffff; --bg3:#f1f5f9; --text:#0f172a; --text-muted:#64748b;
+      --border:#e2e8f0; --shadow:0 4px 24px rgba(0,0,0,0.08);
+    }
+    body.light-mode ::-webkit-scrollbar-track { background:#f1f5f9; }
+    body.light-mode ::-webkit-scrollbar-thumb { background:#cbd5e1; }
+
+    /* ── Prefers-reduced-motion ── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+    }
+
+    /* ── Skip nav link (accessibility) ── */
+    .skip-link { position:absolute; top:-40px; left:0; background:var(--primary); color:#fff; padding:0.5rem 1rem; z-index:10000; border-radius:0 0 8px 0; font-weight:600; font-size:0.875rem; text-decoration:none; transition:top 0.2s; }
+    .skip-link:focus { top:0; }
+
+    /* ── Offline banner ── */
+    #offline-banner { display:none; position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); background:#1e293b; color:#f1f5f9; padding:0.55rem 1.2rem; border-radius:999px; font-size:0.82rem; z-index:9998; box-shadow:0 4px 20px rgba(0,0,0,0.4); border:1px solid var(--border); gap:0.5rem; align-items:center; }
+    #offline-banner.show { display:flex; }
+
+    /* ── Search autocomplete ── */
+    .search-bar { position:relative; }
+    .autocomplete-dropdown { position:absolute; top:100%; left:0; right:0; background:var(--bg2); border:1px solid var(--border); border-radius:0 0 var(--radius) var(--radius); z-index:200; max-height:260px; overflow-y:auto; box-shadow:var(--shadow); display:none; }
+    .autocomplete-dropdown.show { display:block; }
+    .autocomplete-item { padding:0.55rem 0.85rem; font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:0.6rem; border-bottom:1px solid var(--border); }
+    .autocomplete-item:last-child { border-bottom:none; }
+    .autocomplete-item:hover, .autocomplete-item.active { background:rgba(99,102,241,0.1); }
+    .autocomplete-item img { width:32px; height:32px; border-radius:4px; object-fit:cover; flex-shrink:0; }
+    .autocomplete-item-info { flex:1; min-width:0; }
+    .autocomplete-item-name { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .autocomplete-item-price { font-size:0.75rem; color:var(--primary); }
+
+    /* ── Trending section ── */
+    .trending-section { margin-bottom:2rem; }
+    .trending-section h3 { font-size:1rem; font-weight:700; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem; }
+    .trending-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:0.75rem; }
+    .trending-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; cursor:pointer; transition:all var(--transition); position:relative; }
+    .trending-card:hover { border-color:var(--primary); transform:translateY(-3px); box-shadow:0 8px 24px rgba(99,102,241,0.2); }
+    .trending-rank { position:absolute; top:0.4rem; left:0.4rem; background:rgba(0,0,0,0.7); color:#fff; font-size:0.65rem; font-weight:800; padding:0.1rem 0.4rem; border-radius:4px; z-index:2; }
+    .trending-img { width:100%; aspect-ratio:4/3; background:var(--bg3); display:flex; align-items:center; justify-content:center; font-size:2rem; }
+    .trending-img img { width:100%; height:100%; object-fit:cover; }
+    .trending-body { padding:0.5rem 0.65rem 0.65rem; }
+    .trending-name { font-size:0.8rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .trending-meta { display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem; }
+    .trending-price { font-size:0.75rem; color:var(--primary); font-weight:700; }
+    .trending-sales { font-size:0.68rem; color:var(--text-muted); }
+
+    /* ── Verified seller badge ── */
+    .verified-badge { display:inline-flex; align-items:center; gap:0.2rem; font-size:0.68rem; background:rgba(34,197,94,0.15); color:var(--success); border:1px solid rgba(34,197,94,0.3); padding:0.1rem 0.4rem; border-radius:6px; font-weight:700; vertical-align:middle; margin-left:0.3rem; }
+
+    /* ── Flash sale banner ── */
+    .flash-sale-banner { background:linear-gradient(135deg,#ef4444,#dc2626); color:#fff; border-radius:var(--radius); padding:0.75rem 1rem; margin-bottom:1.25rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+    .flash-sale-timer { display:flex; gap:0.4rem; align-items:center; }
+    .timer-unit { background:rgba(0,0,0,0.25); border-radius:6px; padding:0.2rem 0.5rem; text-align:center; min-width:38px; }
+    .timer-unit .num { font-size:1.2rem; font-weight:800; line-height:1; display:block; }
+    .timer-unit .lbl { font-size:0.55rem; text-transform:uppercase; opacity:0.8; }
+    .timer-sep { font-size:1.2rem; font-weight:800; opacity:0.7; }
+
+    /* ── Product image gallery ── */
+    .img-gallery { display:flex; gap:0.4rem; margin-top:0.5rem; flex-wrap:wrap; }
+    .img-thumb { width:56px; height:56px; border-radius:6px; border:2px solid var(--border); object-fit:cover; cursor:pointer; transition:border-color 0.15s; }
+    .img-thumb.active, .img-thumb:hover { border-color:var(--primary); }
+    .img-thumb-placeholder { width:56px; height:56px; border-radius:6px; border:2px dashed var(--border); display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:var(--text-muted); background:var(--bg3); cursor:pointer; }
+
+    /* ── Review reply ── */
+    .review-reply { background:rgba(99,102,241,0.07); border-left:3px solid var(--primary); border-radius:0 8px 8px 0; padding:0.5rem 0.75rem; margin-top:0.5rem; font-size:0.82rem; }
+    .review-reply-author { font-weight:700; font-size:0.75rem; color:var(--primary); margin-bottom:0.2rem; }
+    .review-reply-form { display:none; margin-top:0.5rem; }
+    .review-reply-form.show { display:block; }
+
+    /* ── Review helpfulness ── */
+    .helpful-row { display:flex; align-items:center; gap:0.75rem; margin-top:0.5rem; font-size:0.78rem; color:var(--text-muted); }
+    .helpful-btn { background:none; border:1px solid var(--border); border-radius:6px; padding:0.15rem 0.5rem; cursor:pointer; font-size:0.75rem; color:var(--text-muted); transition:all 0.15s; display:inline-flex; align-items:center; gap:0.25rem; }
+    .helpful-btn:hover, .helpful-btn.voted { background:rgba(99,102,241,0.12); border-color:var(--primary); color:var(--primary); }
+
+    /* ── Proof resubmit ── */
+    .proof-resubmit-form { display:none; margin-top:0.5rem; padding:0.75rem; background:var(--bg3); border-radius:var(--radius); border:1px solid var(--border); }
+    .proof-resubmit-form.show { display:block; }
+
+    /* ── Video embed ── */
+    .product-video-wrap { position:relative; width:100%; padding-top:56.25%; border-radius:var(--radius); overflow:hidden; margin-bottom:1rem; }
+    .product-video-wrap iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:none; }
+
     /* ── Responsive ── */
     @media(max-width: 640px) {
       .header-inner { flex-wrap: wrap; }
@@ -423,6 +530,9 @@
 </head>
 <body>
 
+<!-- Skip to main content – screen reader / keyboard nav -->
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
 <noscript>
   <div style="background:#ef4444;color:#fff;padding:1rem 1.5rem;text-align:center;font-family:sans-serif;font-size:0.95rem;position:fixed;top:0;left:0;right:0;z-index:99999;">
     <strong>JavaScript is required</strong> to use DigitalMarket. Please enable JavaScript in your browser settings and reload the page.
@@ -431,6 +541,11 @@
 
 <!-- Toast container -->
 <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Offline indicator -->
+<div id="offline-banner" role="status" aria-live="polite">
+  <i class="fa-solid fa-wifi-slash"></i> You're offline — some features may be unavailable
+</div>
 
 <!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
 <header role="banner">
@@ -441,11 +556,19 @@
     </a>
 
     <div class="search-bar" role="search">
-      <input type="search" id="search-input" placeholder="Search products…" aria-label="Search products" autocomplete="off">
+      <input type="search" id="search-input" placeholder="Search products…" aria-label="Search products"
+        autocomplete="off" oninput="showAutocomplete(this.value)" onkeydown="handleAutocompleteKey(event)"
+        onfocus="showAutocomplete(this.value)" onblur="setTimeout(hideAutocomplete,200)">
       <button onclick="doSearch()" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+      <div class="autocomplete-dropdown" id="autocomplete-dropdown" role="listbox" aria-label="Search suggestions"></div>
     </div>
 
     <div class="header-actions">
+      <!-- Dark/Light mode toggle -->
+      <button class="btn-icon" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle theme">
+        <i class="fa-solid fa-moon" id="theme-icon"></i>
+      </button>
+
       <!-- Language toggle -->
       <button class="btn-icon" id="lang-btn" onclick="toggleLang()" aria-label="Switch language" title="عربي / English">
         <i class="fa-solid fa-language"></i>
@@ -498,7 +621,7 @@
 </header>
 
 <!-- ═══════════════════════════════ NAV ═══════════════════════════════ -->
-<nav class="main-nav" aria-label="Main navigation">
+<nav class="main-nav" id="main-content" aria-label="Main navigation">
   <div class="nav-inner">
     <span class="nav-link active" id="nav-home" onclick="navigate('home')" role="button" tabindex="0">
       <i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="home">Home</span>
@@ -557,6 +680,28 @@
         <button class="btn btn-outline btn-lg" onclick="navigate('register')" id="sell-btn" data-i18n="startSelling">Start Selling</button>
       </div>
     </div>
+  </div>
+
+  <!-- Flash Sale Banner (shown when active flash sale exists) -->
+  <div id="flash-sale-banner" class="flash-sale-banner hidden">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;opacity:0.85;margin-bottom:0.1rem;">⚡ Flash Sale</div>
+      <div id="flash-sale-label" style="font-weight:700;font-size:1rem;">Limited Time Offer</div>
+    </div>
+    <div class="flash-sale-timer" id="flash-sale-timer" aria-live="polite">
+      <div class="timer-unit"><span class="num" id="fs-hours">00</span><span class="lbl">hrs</span></div>
+      <span class="timer-sep">:</span>
+      <div class="timer-unit"><span class="num" id="fs-mins">00</span><span class="lbl">min</span></div>
+      <span class="timer-sep">:</span>
+      <div class="timer-unit"><span class="num" id="fs-secs">00</span><span class="lbl">sec</span></div>
+    </div>
+    <div id="flash-sale-code" style="background:rgba(255,255,255,0.2);border-radius:6px;padding:0.3rem 0.7rem;font-family:monospace;font-weight:800;font-size:0.95rem;cursor:pointer;" onclick="copyFlashCode()" title="Click to copy"></div>
+  </div>
+
+  <!-- Trending products section -->
+  <div class="trending-section hidden" id="trending-section">
+    <h3><span aria-hidden="true">🔥</span> Trending This Week</h3>
+    <div class="trending-grid" id="trending-grid"></div>
   </div>
 
   <div id="products-section">
@@ -638,6 +783,16 @@
 
       <button type="submit" class="btn btn-primary btn-full btn-lg" id="login-btn" data-i18n="loginBtn">Login</button>
     </form>
+
+    <div style="display:flex;align-items:center;gap:0.75rem;margin:1rem 0;">
+      <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+      <span style="font-size:0.78rem;color:var(--text-muted);">or</span>
+      <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+    </div>
+    <button type="button" class="btn btn-outline btn-full" onclick="doGoogleSignIn()" style="gap:0.5rem;font-size:0.9rem;">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+      Continue with Google
+    </button>
 
     <p class="recaptcha-note">
       Protected by reCAPTCHA –
@@ -750,6 +905,16 @@
       <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy</a> &
       <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Terms</a>
     </p>
+
+    <div style="display:flex;align-items:center;gap:0.75rem;margin:1rem 0;">
+      <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+      <span style="font-size:0.78rem;color:var(--text-muted);">or</span>
+      <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+    </div>
+    <button type="button" class="btn btn-outline btn-full" onclick="doGoogleSignIn()" style="gap:0.5rem;font-size:0.9rem;margin-bottom:0.75rem;">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+      Sign up with Google
+    </button>
 
     <div class="divider"><span data-i18n="haveAccount">Already have an account?</span></div>
     <button class="btn btn-outline btn-full" onclick="navigate('login')" data-i18n="loginBtn">Login</button>
@@ -985,6 +1150,9 @@
       <div class="sidebar-link" id="al-coupons" onclick="adminTab('coupons')" role="button" tabindex="0">
         <i class="fa-solid fa-tag" aria-hidden="true"></i> <span>Coupons</span>
       </div>
+      <div class="sidebar-link" id="al-announcements" onclick="adminTab('announcements')" role="button" tabindex="0">
+        <i class="fa-solid fa-bullhorn" aria-hidden="true"></i> <span>Announcements</span>
+      </div>
     </aside>
     <div>
       <div class="stats-row">
@@ -992,6 +1160,12 @@
         <div class="stat-card"><div class="stat-number" id="a-stat-products">0</div><div class="stat-label" data-i18n="totalProducts">Products</div></div>
         <div class="stat-card"><div class="stat-number" id="a-stat-users">0</div><div class="stat-label" data-i18n="users">Users</div></div>
         <div class="stat-card"><div class="stat-number" id="a-stat-revenue">0</div><div class="stat-label" data-i18n="totalRevenue">Revenue (EGP)</div></div>
+      </div>
+
+      <!-- Admin Revenue Chart -->
+      <div class="chart-wrap hidden" id="admin-chart-wrap">
+        <h4><i class="fa-solid fa-chart-bar" style="color:var(--primary);margin-right:0.4rem;"></i> Platform Revenue — Last 6 Months</h4>
+        <canvas id="admin-revenue-chart" height="80"></canvas>
       </div>
 
       <!-- Orders tab -->
@@ -1070,7 +1244,7 @@
             <thead>
               <tr>
                 <th data-i18n="name">Name</th><th>Email</th><th data-i18n="role">Role</th>
-                <th data-i18n="joined">Joined</th><th>Role</th><th>Ban</th>
+                <th data-i18n="joined">Joined</th><th>Verified</th><th>Ban</th>
               </tr>
             </thead>
             <tbody id="admin-users-tbody"></tbody>
@@ -1156,6 +1330,30 @@
         </div>
       </div>
 
+      <!-- Announcements tab -->
+      <div id="admin-tab-announcements" class="hidden">
+        <h3 style="margin-bottom:1.2rem;"><i class="fa-solid fa-bullhorn" style="color:var(--primary);margin-right:0.5rem;"></i>Send Announcement</h3>
+        <div class="auth-card" style="max-width:600px;margin:0 0 1.5rem;">
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">Broadcast a notification to ALL registered users. Use for platform news, maintenance, or promotions.</p>
+          <div class="form-group">
+            <label class="form-label" for="announcement-title-input">Title <span class="req">*</span></label>
+            <input class="form-control" type="text" id="announcement-title-input" placeholder="e.g. New features available!" maxlength="100">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="announcement-msg-input">Message <span class="req">*</span></label>
+            <textarea class="form-control" id="announcement-msg-input" rows="3" maxlength="500" placeholder="Write your announcement here…" style="resize:vertical;"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="sendAdminAnnouncement()"><i class="fa-solid fa-paper-plane"></i> Send to All Users</button>
+        </div>
+        <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.75rem;color:var(--text-muted);">Recent Announcements</h4>
+        <div class="table-wrap">
+          <table id="admin-announcements-table">
+            <thead><tr><th>Title</th><th>Message</th><th>Sent At</th><th>Actions</th></tr></thead>
+            <tbody id="admin-announcements-tbody"><tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
@@ -1226,8 +1424,20 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="prod-img">Image URL (optional)</label>
+          <label class="form-label" for="prod-img">Main Image URL <small style="color:var(--text-muted);font-weight:400;">(optional)</small></label>
           <input class="form-control" type="url" id="prod-img" placeholder="https://…">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Extra Images <small style="color:var(--text-muted);font-weight:400;">(optional – up to 2 more)</small></label>
+          <div style="display:flex;gap:0.5rem;flex-direction:column;">
+            <input class="form-control" type="url" id="prod-img2" placeholder="Image 2 URL https://…">
+            <input class="form-control" type="url" id="prod-img3" placeholder="Image 3 URL https://…">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="prod-video">Video Preview URL <small style="color:var(--text-muted);font-weight:400;">(YouTube/Vimeo – optional)</small></label>
+          <input class="form-control" type="url" id="prod-video" placeholder="https://www.youtube.com/watch?v=… or https://vimeo.com/…">
+          <small style="color:var(--text-muted);font-size:0.75rem;">Embedded in the product page. Strongly increases conversions.</small>
         </div>
         <div class="form-group">
           <label class="form-label" for="prod-emoji">Product Emoji (optional)</label>
@@ -1783,6 +1993,8 @@ function addToCart(productId) {
     cart.push(productId);
     saveCart();
     toast(t('addToCart') + ' ✓', 'success');
+    const p = allProducts.find(x => x.id === productId);
+    if (p) trackEvent('add_to_cart', { item_id: productId, item_name: p.name, value: p.price });
   }
 }
 
@@ -2143,6 +2355,7 @@ async function doLogin(e) {
     await auth.signInWithEmailAndPassword(email, pass);
     clearLoginAttempts();
     toast(t('loginOk'), 'success');
+    trackEvent('login', { method: 'email' });
     navigate('home');
   } catch (err) {
     const attempts = recordFailedAttempt();
@@ -2231,6 +2444,7 @@ async function doRegister(e) {
 
     try { await cred.user.sendEmailVerification(); } catch(ev) { console.warn('Verification email failed:', ev); }
     toast(t('registerOk') + ' Please check your email to verify your account.', 'success');
+    trackEvent('sign_up', { method: 'email', role: assignedRole });
     navigate('home');
   } catch (err) {
     const msg = err.code === 'auth/email-already-in-use' ? t('emailTaken') : sanitize(err.message);
@@ -2438,16 +2652,49 @@ function openProductDetail(id) {
   const p = allProducts.find(x => x.id === id);
   if (!p) return;
   currentProductId = id;
+
+  // Increment view count fire-and-forget
+  try { db.collection('products').doc(id).update({ viewCount: firebase.firestore.FieldValue.increment(1) }); } catch(e){}
+  trackEvent('view_item', { item_id: id, item_name: p.name, value: p.price });
+
   const body = document.getElementById('product-modal-body');
+
+  // Image gallery
+  const images = [p.imageUrl, p.imageUrl2, p.imageUrl3].filter(Boolean);
+  let galleryHtml = '';
+  if (images.length > 0) {
+    galleryHtml = `<div id="img-main-wrap" style="text-align:center;margin-bottom:0.5rem;">
+      <img id="img-main" src="${sanitize(images[0])}" alt="${sanitize(p.name)}" style="max-width:100%;max-height:220px;border-radius:var(--radius);object-fit:cover;" loading="lazy" onerror="this.style.display='none';">
+    </div>`;
+    if (images.length > 1) {
+      galleryHtml += `<div class="img-gallery">${images.map((u,i) =>
+        `<img class="img-thumb${i===0?' active':''}" src="${sanitize(u)}" alt="Image ${i+1}" onclick="switchProductImg('${sanitize(u)}',this)" loading="lazy">`
+      ).join('')}</div>`;
+    }
+  } else {
+    galleryHtml = `<div style="height:120px;background:var(--bg3);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:4rem;margin-bottom:1rem;">
+      ${p.emoji ? sanitize(p.emoji) : '<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>'}
+    </div>`;
+  }
+
+  // Video embed
+  let videoHtml = '';
+  if (p.videoUrl) {
+    const embedUrl = getYouTubeEmbedUrl(p.videoUrl) || getVimeoEmbedUrl(p.videoUrl);
+    if (embedUrl) {
+      videoHtml = `<div class="product-video-wrap" style="margin-bottom:1rem;">
+        <iframe src="${sanitize(embedUrl)}" frameborder="0" allow="autoplay;encrypted-media" allowfullscreen loading="lazy" title="Product video preview"></iframe>
+      </div>`;
+    }
+  }
+
+  // Verified seller badge
+  const verifiedBadge = p.sellerVerified
+    ? `<span class="verified-badge" style="margin-left:0.35rem;">✓ Verified</span>` : '';
+
   body.innerHTML = `
-    <div style="text-align:center;margin-bottom:1rem;">
-      ${p.imageUrl
-        ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" style="max-width:100%;max-height:220px;border-radius:var(--radius);object-fit:cover;" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-        : ''}
-      <div style="height:120px;background:var(--bg3);border-radius:var(--radius);display:${p.imageUrl?'none':'flex'};align-items:center;justify-content:center;font-size:4rem;">
-        ${p.emoji ? sanitize(p.emoji) : '<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>'}
-      </div>
-    </div>
+    ${galleryHtml}
+    ${videoHtml}
     <h3 style="margin-bottom:0.5rem;">${sanitize(p.name)}</h3>
     <div style="margin-bottom:0.75rem;color:var(--text-muted);font-size:0.9rem;">${sanitize(p.description || '')}</div>
     ${p.descriptionAr ? `<div style="margin-bottom:1rem;color:var(--text-muted);font-size:0.9rem;direction:rtl;text-align:right;font-family:var(--font-ar);">${sanitize(p.descriptionAr)}</div>` : ''}
@@ -2461,7 +2708,7 @@ function openProductDetail(id) {
         style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.82rem;padding:0;text-decoration:underline;"
         title="See all products by this seller">
         ${sanitize(p.sellerName)}
-      </button>
+      </button>${verifiedBadge}
     </div>` : ''}
     ${(p.tags||[]).length ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;">
       ${p.tags.map(tag => `<button onclick="filterByTag('${sanitize(tag)}')" style="background:var(--bg3);border:none;color:var(--text-muted);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:20px;cursor:pointer;">#${sanitize(tag)}</button>`).join('')}
@@ -2475,15 +2722,19 @@ function openProductDetail(id) {
   `;
   const addBtn = document.getElementById('add-to-cart-btn');
   if (addBtn) addBtn.textContent = cart.includes(id) ? '✓ In Cart' : t('addToCart');
-  // Track recently viewed
   trackRecentlyViewed(id);
-  // Inject JSON-LD structured data for SEO
   injectProductJsonLd(p);
-  // Update OG meta for deep-linking
   updateOGMeta(p.name, p.description || '', p.imageUrl || '');
   openModal('product-modal');
   loadAndRenderReviews(id);
   renderRelatedProducts(p);
+}
+
+function switchProductImg(url, thumbEl) {
+  const main = document.getElementById('img-main');
+  if (main) main.src = url;
+  document.querySelectorAll('.img-thumb').forEach(t => t.classList.remove('active'));
+  if (thumbEl) thumbEl.classList.add('active');
 }
 
 function buyNow() {
@@ -2537,11 +2788,28 @@ function applyReviewSort(order) {
 function buildReviewsHTML(reviews, productId, isVerified, sortOrder='newest') {
   const avg = reviews.length ? reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length : 0;
   const count = reviews.length;
+  const isSeller = curUserData?.role === 'seller';
   const reviewsList = count
     ? reviews.map(r => {
         const dateStr = r.createdAt
           ? new Date(r.createdAt.toDate ? r.createdAt.toDate() : r.createdAt).toLocaleDateString()
           : '';
+        const helpfulCount = r.helpfulCount || 0;
+        const helpfulHtml = `<div class="helpful-row">
+          <span style="font-size:0.75rem;color:var(--text-muted);">Helpful?</span>
+          <button class="helpful-btn" onclick="voteHelpful('${r.id}','yes')" title="Yes"><i class="fa-solid fa-thumbs-up"></i> ${helpfulCount > 0 ? helpfulCount : ''}</button>
+          <button class="helpful-btn" onclick="voteHelpful('${r.id}','no')" title="No"><i class="fa-solid fa-thumbs-down"></i></button>
+        </div>`;
+        const replyHtml = r.sellerReply
+          ? `<div class="review-reply"><span class="review-reply-author"><i class="fa-solid fa-store"></i> Seller Reply</span>${sanitize(r.sellerReply)}</div>`
+          : (isSeller && curUserData?.uid === r.sellerId || isAdmin())
+            ? `<div id="reply-form-${r.id}" class="hidden review-reply-form">
+                <textarea id="reply-text-${r.id}" rows="2" class="form-control" placeholder="Write your reply…" style="font-size:0.82rem;margin-bottom:0.4rem;"></textarea>
+                <button class="btn btn-sm btn-primary" onclick="submitSellerReply('${r.id}','${productId}')">Post Reply</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleReplyForm('${r.id}')">Cancel</button>
+              </div>
+              <button class="btn btn-sm btn-outline" id="reply-btn-${r.id}" onclick="toggleReplyForm('${r.id}')" style="font-size:0.73rem;margin-top:0.3rem;"><i class="fa-solid fa-reply"></i> Reply</button>`
+            : '';
         return `
         <div class="review-card">
           <div class="review-header">
@@ -2549,6 +2817,8 @@ function buildReviewsHTML(reviews, productId, isVerified, sortOrder='newest') {
             <span class="review-meta">${starsHtml(r.rating || 0)} ${dateStr}</span>
           </div>
           <div class="review-text">${sanitize(r.comment || '')}</div>
+          ${helpfulHtml}
+          ${replyHtml}
         </div>`;
       }).join('')
     : `<p style="color:var(--text-muted);font-size:0.85rem;">No reviews yet. Be the first to review this product!</p>`;
@@ -2902,9 +3172,13 @@ async function submitOrder() {
       proof:         proofStorageUrl,
       paymentMethod: payMethod,
       referenceNum:  sanitize(payRef),
+      referredBy:    getReferralId() || null,
       status:        'pending',
       createdAt:     FV.serverTimestamp()
     });
+    // GA4 purchase event
+    trackEvent('purchase', { transaction_id: orderRef.id, value: total, currency: 'EGP',
+      items: checkoutItems.map(p => ({ item_id: p.id, item_name: p.name, price: p.price })) });
     // Send confirmation email to buyer
     sendOrderEmail('order_submitted', {
       to_email:   curUser.email,
@@ -2996,23 +3270,39 @@ async function loadOrders() {
       const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
       const badge = statusBadge(o.status);
       const names = (o.items || []).map(i => sanitize(i.name)).join(', ');
-      // Build download cell — use URL stored on order item at checkout time (no extra reads)
+      // Build download cell — check expiry if set
       let dlCell = '—';
       if (o.status === 'approved' && o.items && o.items.length) {
-        const dlLinks = o.items.filter(i => i.downloadUrl).map(i => ({ name: sanitize(i.name), url: i.downloadUrl }));
-        if (dlLinks.length === 1) {
-          dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>`;
-        } else if (dlLinks.length > 1) {
-          dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ');
+        const now = Date.now();
+        const expiresAt = o.downloadExpiresAt ? (o.downloadExpiresAt.toDate ? o.downloadExpiresAt.toDate().getTime() : new Date(o.downloadExpiresAt).getTime()) : null;
+        if (expiresAt && now > expiresAt) {
+          dlCell = `<span style="font-size:0.75rem;color:var(--danger);"><i class="fa-solid fa-clock"></i> Expired</span>`;
+        } else {
+          const dlLinks = o.items.filter(i => i.downloadUrl).map(i => ({ name: sanitize(i.name), url: i.downloadUrl }));
+          const expiryNote = expiresAt ? `<div style="font-size:0.68rem;color:var(--text-muted);">Expires ${new Date(expiresAt).toLocaleDateString()}</div>` : '';
+          if (dlLinks.length === 1) {
+            dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>${expiryNote}`;
+          } else if (dlLinks.length > 1) {
+            dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ') + expiryNote;
+          }
         }
       }
+      // Proof resubmit for rejected orders
+      const proofCell = o.proof
+        ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image" aria-hidden="true"></i></button>`
+        : (o.status === 'rejected'
+          ? `<label class="btn btn-sm btn-warning" style="cursor:pointer;font-size:0.72rem;" title="Resubmit payment proof">
+               <i class="fa-solid fa-upload"></i> Resubmit
+               <input type="file" accept="image/*" style="display:none;" onchange="resubmitProof('${d.id}',this)">
+             </label>`
+          : '—');
       return `<tr>
         <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
         <td>${date}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
         <td>EGP ${Number(o.total||0).toLocaleString()}</td>
         <td>${badge}</td>
-        <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image" aria-hidden="true"></i></button>` : '—'}</td>
+        <td>${proofCell}</td>
         <td>${dlCell}</td>
       </tr>`;
     }));
@@ -3229,6 +3519,9 @@ async function submitProduct(e, isDraft = false) {
   const tagsRaw   = document.getElementById('prod-tags').value.trim();
   const tags      = tagsRaw ? tagsRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).slice(0,10) : [];
   const sampleUrl = (document.getElementById('prod-sample')?.value || '').trim();
+  const imgUrl2   = (document.getElementById('prod-img2')?.value || '').trim();
+  const imgUrl3   = (document.getElementById('prod-img3')?.value || '').trim();
+  const videoUrl  = (document.getElementById('prod-video')?.value || '').trim();
   const btn       = isDraft ? document.getElementById('prod-draft-btn') : document.getElementById('prod-submit-btn');
 
   // Drafts only need name; full validation for submissions
@@ -3262,12 +3555,16 @@ async function submitProduct(e, isDraft = false) {
     price:         isNaN(price) ? 0 : price,
     category:      sanitize(cat),
     imageUrl:      imgUrl,
+    imageUrl2:     imgUrl2,
+    imageUrl3:     imgUrl3,
+    videoUrl:      videoUrl,
     emoji:         emoji,
     downloadUrl:   dlUrl,
     sampleUrl:     sampleUrl,
     tags,
     sellerId:      curUser.uid,
     sellerName:    sanitize(curUserData?.shopName || curUserData?.name || ''),
+    sellerVerified: curUserData?.verified === true,
     updatedAt:     FV.serverTimestamp()
   };
 
@@ -3324,7 +3621,7 @@ async function deleteProduct(id) {
 // ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function adminTab(tab) {
-  ['orders','products','users','settings','coupons'].forEach(t => {
+  ['orders','products','users','settings','coupons','announcements'].forEach(t => {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
@@ -3332,10 +3629,11 @@ function adminTab(tab) {
     startAdminOrdersListener(); // real-time updates
   } else {
     stopAdminOrdersListener();  // stop listener when leaving orders tab
-    if (tab === 'products') loadAdminProducts();
-    if (tab === 'users')    loadAdminUsers();
-    if (tab === 'settings') loadAdminSettings();
-    if (tab === 'coupons')  loadAdminCoupons();
+    if (tab === 'products')      loadAdminProducts();
+    if (tab === 'users')         loadAdminUsers();
+    if (tab === 'settings')      loadAdminSettings();
+    if (tab === 'coupons')       loadAdminCoupons();
+    if (tab === 'announcements') loadAdminAnnouncements();
   }
 }
 
@@ -3354,6 +3652,7 @@ async function loadAdminDashboard() {
       .reduce((s, d) => s + Number(d.data().total || 0), 0);
     document.getElementById('a-stat-orders').textContent  = snap.size;
     document.getElementById('a-stat-revenue').textContent = revenue.toLocaleString();
+    loadAdminChart(snap.docs);
   }
   if (productsRes.status === 'fulfilled') {
     document.getElementById('a-stat-products').textContent = productsRes.value.size;
@@ -3468,6 +3767,9 @@ async function adminEditProduct(productId) {
     document.getElementById('prod-download').value = p.downloadUrl   || '';
     document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
     document.getElementById('prod-sample').value   = p.sampleUrl     || '';
+    if (document.getElementById('prod-img2'))  document.getElementById('prod-img2').value  = p.imageUrl2 || '';
+    if (document.getElementById('prod-img3'))  document.getElementById('prod-img3').value  = p.imageUrl3 || '';
+    if (document.getElementById('prod-video')) document.getElementById('prod-video').value = p.videoUrl  || '';
     openModal('add-product-modal');
   } catch(err) { toast(err.message, 'danger'); }
 }
@@ -3480,11 +3782,17 @@ async function loadAdminUsers() {
       const u = d.data();
       const date = u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : '—';
       const isBanned = u.disabled === true;
+      const isVerified = u.verified === true;
       return `<tr style="${isBanned?'opacity:0.55;':''}">
-        <td>${sanitize(u.name||'')}${isBanned?` <span style="font-size:0.65rem;background:var(--danger);color:#fff;padding:0.1rem 0.35rem;border-radius:4px;font-weight:600;">BANNED</span>`:''}  </td>
+        <td>${sanitize(u.name||'')}${isBanned?` <span style="font-size:0.65rem;background:var(--danger);color:#fff;padding:0.1rem 0.35rem;border-radius:4px;font-weight:600;">BANNED</span>`:''}${isVerified?' <span class="verified-badge">✓ Verified</span>':''}</td>
         <td>${sanitize(u.email||'')}</td>
         <td><span class="badge badge-primary">${sanitize(u.role||'buyer')}</span></td>
         <td>${date}</td>
+        <td>
+          <button class="btn btn-sm ${isVerified?'btn-outline':'btn-success'}" onclick="toggleVerifiedSeller('${d.id}',${isVerified})" style="font-size:0.75rem;">
+            ${isVerified ? '<i class="fa-solid fa-circle-check"></i> Verified' : '<i class="fa-regular fa-circle"></i> Verify'}
+          </button>
+        </td>
         <td>
           <select onchange="updateUserRole('${d.id}',this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.8rem;">
             <option value="buyer"  ${u.role==='buyer'  ?'selected':''}>Buyer</option>
@@ -3499,7 +3807,7 @@ async function loadAdminUsers() {
         </td>
       </tr>`;
     }).join('');
-  } catch(err) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function updateUserRole(uid, role) {
@@ -3565,8 +3873,16 @@ async function updateOrderStatus(orderId, status) {
     if (status === 'rejected') {
       rejectionReason = window.prompt('Optional: Enter a reason for rejection (shown to buyer):', '') || '';
     }
+    // Add download expiry (30 days from approval) on approval
+    const expiryUpdate = {};
+    if (status === 'approved') {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      expiryUpdate.downloadExpiresAt = firebase.firestore.Timestamp.fromDate(expiresAt);
+    }
     await db.collection('orders').doc(orderId).update({
       status,
+      ...expiryUpdate,
       ...(rejectionReason ? { rejectionReason: sanitize(rejectionReason) } : {})
     });
     // Increment purchaseCount on each product when order is approved
@@ -4584,14 +4900,43 @@ async function toggleBanUser(uid, currentDisabled) {
 // ═══════════════════════════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════════════════════
+let _focusTrapListener = null;
+let _focusTrapEl = null;
+let _prevFocus = null;
+
+function trapFocus(el) {
+  _focusTrapEl = el;
+  _prevFocus = document.activeElement;
+  const focusable = el.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
+  if (!focusable.length) return;
+  const first = focusable[0]; const last = focusable[focusable.length - 1];
+  first.focus();
+  if (_focusTrapListener) el.removeEventListener('keydown', _focusTrapListener);
+  _focusTrapListener = e => {
+    if (e.key !== 'Tab') return;
+    if (e.shiftKey) { if (document.activeElement === first) { e.preventDefault(); last.focus(); } }
+    else            { if (document.activeElement === last)  { e.preventDefault(); first.focus(); } }
+  };
+  el.addEventListener('keydown', _focusTrapListener);
+}
+
+function releaseFocusTrap() {
+  if (_focusTrapEl && _focusTrapListener) {
+    _focusTrapEl.removeEventListener('keydown', _focusTrapListener);
+  }
+  _focusTrapEl = null; _focusTrapListener = null;
+  if (_prevFocus && _prevFocus.focus) try { _prevFocus.focus(); } catch(e) {}
+}
+
 function openModal(id) {
   const m = document.getElementById(id);
-  if (m) { m.classList.add('show'); document.body.style.overflow = 'hidden'; }
+  if (m) { m.classList.add('show'); document.body.style.overflow = 'hidden'; trapFocus(m); }
 }
 
 function closeModal(id) {
   const m = document.getElementById(id);
   if (m) { m.classList.remove('show'); document.body.style.overflow = ''; }
+  releaseFocusTrap();
   if (id === 'product-modal') {
     resetOGMeta();
     document.getElementById('product-jsonld')?.remove();
@@ -4640,6 +4985,464 @@ window.addEventListener('storage', e => {
     if (cartView && cartView.classList.contains('active')) renderCart();
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// LIGHT / DARK THEME TOGGLE
+// ═══════════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const icon = document.getElementById('theme-icon');
+  if (icon) { icon.className = isLight ? 'fa-solid fa-sun' : 'fa-solid fa-moon'; }
+}
+// Restore saved theme on load
+(function() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') {
+    document.body.classList.add('light-mode');
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.className = 'fa-solid fa-sun';
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════════
+// OFFLINE DETECTION
+// ═══════════════════════════════════════════════════════════════════
+function updateOnlineBanner() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  if (!navigator.onLine) { banner.classList.add('show'); }
+  else { banner.classList.remove('show'); }
+}
+window.addEventListener('online',  updateOnlineBanner);
+window.addEventListener('offline', updateOnlineBanner);
+updateOnlineBanner();
+
+// ═══════════════════════════════════════════════════════════════════
+// GA4 EVENT TRACKING
+// ═══════════════════════════════════════════════════════════════════
+function trackEvent(name, params = {}) {
+  try { if (typeof gtag === 'function') gtag('event', name, params); } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SEARCH AUTOCOMPLETE
+// ═══════════════════════════════════════════════════════════════════
+let _acSelected = -1;
+function showAutocomplete(query) {
+  const dd = document.getElementById('autocomplete-dropdown');
+  if (!dd) return;
+  const q = (query || '').toLowerCase().trim();
+  if (!q || q.length < 2) { hideAutocomplete(); return; }
+  const matches = allProducts.filter(p => p.status === 'approved' &&
+    (p.name.toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q) || (p.tags||[]).some(t => t.includes(q)))
+  ).slice(0, 7);
+  if (!matches.length) { hideAutocomplete(); return; }
+  _acSelected = -1;
+  dd.innerHTML = matches.map((p, i) => `
+    <div class="autocomplete-item" role="option" id="ac-item-${i}" onclick="selectAutocomplete('${p.id}')">
+      ${p.imageUrl ? `<img class="autocomplete-item img" src="${sanitize(p.imageUrl)}" alt="" loading="lazy">` : `<span style="font-size:1.2rem;">${p.emoji||'📦'}</span>`}
+      <div class="autocomplete-item-info">
+        <div>${sanitize(p.name)}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);">EGP ${Number(p.price||0).toLocaleString()} · ${sanitize(p.category||'')}</div>
+      </div>
+    </div>`).join('');
+  dd.classList.add('open');
+}
+function hideAutocomplete() {
+  const dd = document.getElementById('autocomplete-dropdown');
+  if (dd) dd.classList.remove('open');
+  _acSelected = -1;
+}
+function handleAutocompleteKey(e) {
+  const dd = document.getElementById('autocomplete-dropdown');
+  if (!dd || !dd.classList.contains('open')) return;
+  const items = dd.querySelectorAll('.autocomplete-item');
+  if (!items.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _acSelected = Math.min(_acSelected + 1, items.length - 1);
+    items.forEach((it, i) => it.classList.toggle('active', i === _acSelected));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _acSelected = Math.max(_acSelected - 1, -1);
+    items.forEach((it, i) => it.classList.toggle('active', i === _acSelected));
+  } else if (e.key === 'Enter' && _acSelected >= 0) {
+    e.preventDefault();
+    items[_acSelected].click();
+  } else if (e.key === 'Escape') {
+    hideAutocomplete();
+  }
+}
+function selectAutocomplete(productId) {
+  hideAutocomplete();
+  const inp = document.getElementById('search-input');
+  const p = allProducts.find(x => x.id === productId);
+  if (p && inp) inp.value = p.name;
+  openProductDetail(productId);
+  trackEvent('search', { search_term: inp?.value || '' });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GOOGLE SIGN-IN (OAuth)
+// ═══════════════════════════════════════════════════════════════════
+async function doGoogleSignIn() {
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await auth.signInWithPopup(provider);
+    const user = result.user;
+    // Check if user doc exists
+    const snap = await db.collection('users').doc(user.uid).get();
+    if (!snap.exists) {
+      await db.collection('users').doc(user.uid).set({
+        name: user.displayName || '',
+        email: user.email || '',
+        role: 'buyer',
+        disabled: false,
+        createdAt: FV.serverTimestamp()
+      });
+    }
+    closeModal('login-modal');
+    closeModal('register-modal');
+    toast(`Welcome, ${user.displayName || user.email}!`, 'success');
+    trackEvent('login', { method: 'google' });
+  } catch(e) {
+    if (e.code !== 'auth/popup-closed-by-user') toast('Google sign-in failed: ' + sanitize(e.message), 'danger');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TRENDING PRODUCTS
+// ═══════════════════════════════════════════════════════════════════
+async function loadTrendingProducts() {
+  try {
+    const snap = await db.collection('products')
+      .where('status', '==', 'approved')
+      .orderBy('viewCount', 'desc')
+      .limit(6)
+      .get();
+    if (!snap.docs.length) return;
+    const grid = document.getElementById('trending-grid');
+    const section = document.getElementById('trending-section');
+    if (!grid || !section) return;
+    grid.innerHTML = snap.docs.map((d, i) => {
+      const p = d.data();
+      return `<div class="trending-card" onclick="openProductDetail('${d.id}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')openProductDetail('${d.id}')">
+        <div class="trending-rank">#${i+1}</div>
+        ${p.imageUrl ? `<img class="trending-img" src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy">` : `<div class="trending-img" style="background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:2rem;">${p.emoji||'📦'}</div>`}
+        <div class="trending-body">
+          <div class="trending-name">${sanitize(p.name)}</div>
+          <div class="trending-meta">${sanitize(p.category||'')} · ${p.viewCount||0} views</div>
+          <div class="trending-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+        </div>
+      </div>`;
+    }).join('');
+    section.classList.remove('hidden');
+  } catch(e) { console.warn('loadTrendingProducts:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FLASH SALE
+// ═══════════════════════════════════════════════════════════════════
+let _flashSaleTimer = null;
+async function checkFlashSale() {
+  try {
+    const snap = await db.collection('settings').doc('flashSale').get();
+    if (!snap.exists) return;
+    const d = snap.data();
+    if (!d.active) return;
+    const endsAt = d.endsAt?.toDate ? d.endsAt.toDate() : new Date(d.endsAt);
+    if (Date.now() > endsAt.getTime()) return;
+    const banner = document.getElementById('flash-sale-banner');
+    if (!banner) return;
+    const label = document.getElementById('flash-sale-label');
+    const code  = document.getElementById('flash-sale-code');
+    if (label) label.textContent = d.label || 'Limited Time Offer';
+    if (code) { code.textContent = d.couponCode || ''; code.title = 'Click to copy ' + (d.couponCode||''); }
+    banner.classList.remove('hidden');
+    startFlashSaleCountdown(endsAt);
+  } catch(e) { console.warn('checkFlashSale:', e); }
+}
+function startFlashSaleCountdown(endsAt) {
+  if (_flashSaleTimer) clearInterval(_flashSaleTimer);
+  function update() {
+    const diff = endsAt.getTime() - Date.now();
+    if (diff <= 0) {
+      clearInterval(_flashSaleTimer);
+      document.getElementById('flash-sale-banner')?.classList.add('hidden');
+      return;
+    }
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const pad = n => String(n).padStart(2, '0');
+    const hEl = document.getElementById('fs-hours');
+    const mEl = document.getElementById('fs-mins');
+    const sEl = document.getElementById('fs-secs');
+    if (hEl) hEl.textContent = pad(h);
+    if (mEl) mEl.textContent = pad(m);
+    if (sEl) sEl.textContent = pad(s);
+  }
+  update();
+  _flashSaleTimer = setInterval(update, 1000);
+}
+function copyFlashCode() {
+  const code = document.getElementById('flash-sale-code')?.textContent?.trim();
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => toast(`Coupon code "${code}" copied!`, 'success')).catch(() => {});
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VIDEO EMBED HELPERS
+// ═══════════════════════════════════════════════════════════════════
+function getYouTubeEmbedUrl(url) {
+  try {
+    const u = new URL(url);
+    let vid = '';
+    if (u.hostname.includes('youtube.com') && u.searchParams.get('v')) vid = u.searchParams.get('v');
+    else if (u.hostname === 'youtu.be') vid = u.pathname.slice(1);
+    if (vid) return `https://www.youtube-nocookie.com/embed/${vid}?rel=0`;
+  } catch(e) {}
+  return '';
+}
+function getVimeoEmbedUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('vimeo.com')) {
+      const vid = u.pathname.split('/').filter(Boolean)[0];
+      if (vid && /^\d+$/.test(vid)) return `https://player.vimeo.com/video/${vid}`;
+    }
+  } catch(e) {}
+  return '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// REVIEW HELPFULNESS & SELLER REPLY
+// ═══════════════════════════════════════════════════════════════════
+async function voteHelpful(reviewId, vote) {
+  if (!curUser) { toast('Please login to vote.', 'info'); return; }
+  try {
+    const voteKey = `helpful_${reviewId}`;
+    if (localStorage.getItem(voteKey)) { toast('You already voted on this review.', 'info'); return; }
+    const increment = vote === 'yes' ? 1 : 0;
+    if (increment > 0) await db.collection('reviews').doc(reviewId).update({ helpfulCount: FV.increment(1) });
+    localStorage.setItem(voteKey, vote);
+    toast('Thanks for your feedback!', 'success');
+    // Refresh reviews
+    if (_reviewsCache.productId) loadAndRenderReviews(_reviewsCache.productId);
+  } catch(e) { toast('Vote failed.', 'danger'); }
+}
+function toggleReplyForm(reviewId) {
+  const form = document.getElementById(`reply-form-${reviewId}`);
+  const btn  = document.getElementById(`reply-btn-${reviewId}`);
+  if (!form) return;
+  const isHidden = form.classList.toggle('hidden');
+  if (btn) btn.style.display = isHidden ? '' : 'none';
+}
+async function submitSellerReply(reviewId, productId) {
+  const text = document.getElementById(`reply-text-${reviewId}`)?.value?.trim();
+  if (!text) { toast('Please write a reply first.', 'warning'); return; }
+  try {
+    await db.collection('reviews').doc(reviewId).update({ sellerReply: sanitize(text) });
+    toast('Reply posted!', 'success');
+    loadAndRenderReviews(productId);
+  } catch(e) { toast('Failed to post reply.', 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SELLER VERIFIED BADGE TOGGLE (admin)
+// ═══════════════════════════════════════════════════════════════════
+async function toggleVerifiedSeller(uid, currentVerified) {
+  const action = currentVerified ? 'unverify' : 'verify';
+  if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} this seller?`)) return;
+  try {
+    await db.collection('users').doc(uid).update({ verified: !currentVerified });
+    toast(`Seller ${action}ed.`, 'success');
+    loadAdminUsers();
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN REVENUE CHART (platform-wide)
+// ═══════════════════════════════════════════════════════════════════
+let _adminChart = null;
+function loadAdminChart(orderDocs) {
+  const wrap = document.getElementById('admin-chart-wrap');
+  const canvas = document.getElementById('admin-revenue-chart');
+  if (!wrap || !canvas) return;
+  const now = new Date();
+  const months = [];
+  const revenues = new Array(6).fill(0);
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.toLocaleString('default', { month: 'short', year: '2-digit' }));
+  }
+  orderDocs.forEach(d => {
+    const o = d.data();
+    if (o.status !== 'approved' || !o.createdAt?.toDate) return;
+    const date = o.createdAt.toDate();
+    const diff = (now.getFullYear() - date.getFullYear()) * 12 + (now.getMonth() - date.getMonth());
+    if (diff >= 0 && diff < 6) revenues[5 - diff] += Number(o.total || 0);
+  });
+  wrap.classList.remove('hidden');
+  if (_adminChart) { _adminChart.destroy(); _adminChart = null; }
+  _adminChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{ label: 'Revenue (EGP)', data: revenues, backgroundColor: 'rgba(99,102,241,0.75)', borderRadius: 6, borderSkipped: false }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' EGP ' + ctx.raw.toLocaleString() } } },
+      scales: { y: { beginAtZero: true, ticks: { color: 'var(--text-muted)' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { ticks: { color: 'var(--text-muted)' }, grid: { display: false } } }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN ANNOUNCEMENTS
+// ═══════════════════════════════════════════════════════════════════
+async function sendAdminAnnouncement() {
+  const title = document.getElementById('announcement-title-input')?.value?.trim();
+  const msg   = document.getElementById('announcement-msg-input')?.value?.trim();
+  if (!title || !msg) { toast('Title and message are required.', 'warning'); return; }
+  if (!confirm(`Send announcement to ALL users?\n"${title}"`)) return;
+  try {
+    // Write one notification doc per user (batch)
+    const usersSnap = await db.collection('users').get();
+    const batches = [];
+    let batch = db.batch();
+    let count = 0;
+    usersSnap.docs.forEach(u => {
+      const ref = db.collection('notifications').doc();
+      batch.set(ref, {
+        userId:    u.id,
+        title:     sanitize(title),
+        message:   sanitize(msg),
+        type:      'announcement',
+        read:      false,
+        createdAt: FV.serverTimestamp()
+      });
+      count++;
+      if (count % 450 === 0) { batches.push(batch.commit()); batch = db.batch(); count = 0; }
+    });
+    if (count > 0) batches.push(batch.commit());
+    await Promise.all(batches);
+    // Archive announcement in a separate collection for the admin table
+    await db.collection('announcements').add({
+      title:     sanitize(title),
+      message:   sanitize(msg),
+      sentBy:    curUser?.uid,
+      sentAt:    FV.serverTimestamp(),
+      userCount: usersSnap.size
+    });
+    document.getElementById('announcement-title-input').value = '';
+    document.getElementById('announcement-msg-input').value   = '';
+    toast(`Announcement sent to ${usersSnap.size} users!`, 'success');
+    loadAdminAnnouncements();
+  } catch(e) { toast('Failed to send: ' + sanitize(e.message), 'danger'); }
+}
+
+async function loadAdminAnnouncements() {
+  const tbody = document.getElementById('admin-announcements-tbody');
+  if (!tbody) return;
+  try {
+    const snap = await db.collection('announcements').orderBy('sentAt', 'desc').limit(20).get();
+    if (!snap.docs.length) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">No announcements yet.</td></tr>`; return; }
+    tbody.innerHTML = snap.docs.map(d => {
+      const a = d.data();
+      const date = a.sentAt?.toDate ? a.sentAt.toDate().toLocaleString() : '—';
+      return `<tr>
+        <td>${sanitize(a.title||'')}</td>
+        <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sanitize(a.message||'')}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">${date}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteAnnouncement('${d.id}')"><i class="fa-solid fa-trash"></i></button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="color:var(--danger);">${sanitize(e.message)}</td></tr>`; }
+}
+
+async function deleteAnnouncement(id) {
+  if (!confirm('Delete this announcement record?')) return;
+  try {
+    await db.collection('announcements').doc(id).delete();
+    toast('Announcement deleted.', 'info');
+    loadAdminAnnouncements();
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PROOF RE-SUBMISSION (rejected orders)
+// ═══════════════════════════════════════════════════════════════════
+async function resubmitProof(orderId, input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast('Image must be < 5 MB.', 'warning'); return; }
+  try {
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const base64 = ev.target.result;
+      await db.collection('orders').doc(orderId).update({
+        proof:  base64,
+        status: 'pending',
+        proofResubmittedAt: FV.serverTimestamp()
+      });
+      toast('Proof resubmitted! Order is now pending review again.', 'success');
+      loadOrders();
+    };
+    reader.readAsDataURL(file);
+  } catch(e) { toast('Upload failed: ' + sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// REFERRAL TRACKING (?ref=)
+// ═══════════════════════════════════════════════════════════════════
+function parseReferralParam() {
+  try {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) { localStorage.setItem('dm_referral', sanitize(ref)); }
+  } catch(e) {}
+}
+function getReferralId() {
+  return localStorage.getItem('dm_referral') || '';
+}
+parseReferralParam();
+
+// ═══════════════════════════════════════════════════════════════════
+// SELLER PUBLIC STOREFRONT (#seller/shopName routing)
+// ═══════════════════════════════════════════════════════════════════
+function handleStorefrontRoute() {
+  const hash = window.location.hash;
+  const match = hash.match(/^#seller\/(.+)$/);
+  if (!match) return;
+  const shopSlug = decodeURIComponent(match[1]).toLowerCase();
+  // Wait for products to load then filter
+  const tryFilter = () => {
+    if (!allProducts.length) { setTimeout(tryFilter, 500); return; }
+    const seller = allProducts.find(p => (p.sellerName||'').toLowerCase().replace(/\s+/g,'-') === shopSlug);
+    if (seller) {
+      filterBySeller(seller.sellerId, seller.sellerName);
+      navigate('home');
+    } else {
+      navigate('home');
+      toast(`Seller "${shopSlug}" not found.`, 'info');
+    }
+  };
+  tryFilter();
+}
+window.addEventListener('hashchange', handleStorefrontRoute);
+handleStorefrontRoute();
+
+// ═══════════════════════════════════════════════════════════════════
+// STARTUP CALLS (trending, flash sale)
+// ═══════════════════════════════════════════════════════════════════
+// Delay slightly so product list loads first
+setTimeout(() => {
+  loadTrendingProducts();
+  checkFlashSale();
+}, 1500);
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
