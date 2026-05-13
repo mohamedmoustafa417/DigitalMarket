@@ -31,6 +31,19 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <!-- DOMPurify for XSS sanitization -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <!-- Chart.js for analytics charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Sentry error tracking (free tier) -->
+  <script src="https://browser.sentry-cdn.com/7.99.0/bundle.min.js" crossorigin="anonymous"></script>
+  <script>
+    try {
+      Sentry.init({
+        dsn: '', // Add your Sentry DSN here: https://sentry.io (free)
+        tracesSampleRate: 0.2,
+        environment: location.hostname === 'localhost' ? 'development' : 'production'
+      });
+    } catch(e) {}
+  </script>
   <!-- Google reCAPTCHA v3 – replace YOUR_RECAPTCHA_SITE_KEY -->
   <script src="https://www.google.com/recaptcha/api.js?render=6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz" async defer></script>
   <!-- Firebase 10 (compat layer – same API as v8, no code changes needed) -->
@@ -348,6 +361,54 @@
     /* ── Wishlist badge on nav ── */
     .wishlist-count { background:var(--danger); color:#fff; font-size:0.6rem; font-weight:700; border-radius:50%; width:15px; height:15px; display:inline-flex; align-items:center; justify-content:center; margin-left:2px; vertical-align:super; }
 
+    /* ── Notifications ── */
+    .notif-wrap { position:relative; }
+    .notif-badge { position:absolute; top:-4px; right:-4px; background:var(--danger); color:#fff; font-size:0.58rem; font-weight:700; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; pointer-events:none; }
+    .notif-dropdown { position:absolute; top:calc(100% + 0.5rem); right:0; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); min-width:300px; max-width:340px; box-shadow:var(--shadow); z-index:300; display:none; }
+    .notif-dropdown.show { display:block; }
+    .notif-header { display:flex; align-items:center; justify-content:space-between; padding:0.65rem 1rem; border-bottom:1px solid var(--border); }
+    .notif-list { max-height:320px; overflow-y:auto; }
+    .notif-item { padding:0.7rem 1rem; border-bottom:1px solid var(--border); cursor:pointer; transition:background var(--transition); font-size:0.82rem; line-height:1.45; }
+    .notif-item:last-child { border-bottom:none; }
+    .notif-item:hover { background:var(--bg3); }
+    .notif-item.unread { background:rgba(99,102,241,0.08); border-left:3px solid var(--primary); }
+    .notif-item .notif-time { font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem; }
+    .notif-empty { padding:1.5rem; text-align:center; color:var(--text-muted); font-size:0.85rem; }
+
+    /* ── Featured badge ── */
+    .featured-badge { position:absolute; top:0.5rem; left:0.5rem; background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:0.62rem; font-weight:700; padding:0.12rem 0.4rem; border-radius:4px; z-index:3; text-transform:uppercase; letter-spacing:0.06em; box-shadow:0 2px 6px rgba(245,158,11,0.4); }
+
+    /* ── Recently Viewed ── */
+    .recently-viewed { margin-top:2.5rem; }
+    .recently-viewed h3 { font-size:1rem; font-weight:700; margin-bottom:0.75rem; color:var(--text-muted); }
+    .rv-grid { display:flex; gap:0.75rem; overflow-x:auto; padding-bottom:0.5rem; scrollbar-width:thin; }
+    .rv-card { flex:0 0 140px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; overflow:hidden; cursor:pointer; transition:all var(--transition); }
+    .rv-card:hover { border-color:var(--primary); transform:translateY(-2px); }
+    .rv-card-img { width:100%; aspect-ratio:16/9; background:var(--bg3); display:flex; align-items:center; justify-content:center; font-size:1.6rem; }
+    .rv-card-img img { width:100%; height:100%; object-fit:cover; }
+    .rv-card-body { padding:0.5rem 0.6rem; }
+    .rv-card-name { font-size:0.78rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rv-card-price { font-size:0.72rem; color:var(--primary); font-weight:700; margin-top:0.15rem; }
+
+    /* ── Bulk select ── */
+    .bulk-check { width:15px; height:15px; cursor:pointer; accent-color:var(--primary); }
+    .bulk-toolbar { background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius); padding:0.5rem 1rem; margin-bottom:0.75rem; display:none; align-items:center; gap:0.75rem; font-size:0.85rem; flex-wrap:wrap; }
+    .bulk-toolbar.show { display:flex; }
+
+    /* ── Chart container ── */
+    .chart-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.5rem; }
+    .chart-wrap h4 { font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--text-muted); }
+
+    /* ── Related products ── */
+    .related-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:0.75rem; margin-top:0.75rem; }
+    .related-card { background:var(--bg3); border:1px solid var(--border); border-radius:10px; overflow:hidden; cursor:pointer; transition:all var(--transition); }
+    .related-card:hover { border-color:var(--primary); transform:translateY(-2px); }
+    .related-card-img { width:100%; aspect-ratio:16/9; background:var(--bg2); display:flex; align-items:center; justify-content:center; font-size:1.4rem; }
+    .related-card-img img { width:100%; height:100%; object-fit:cover; }
+    .related-card-body { padding:0.5rem 0.6rem; }
+    .related-card-name { font-size:0.78rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .related-card-price { font-size:0.72rem; color:var(--primary); font-weight:700; }
+
     /* ── Responsive ── */
     @media(max-width: 640px) {
       .header-inner { flex-wrap: wrap; }
@@ -389,6 +450,22 @@
       <button class="btn-icon" id="lang-btn" onclick="toggleLang()" aria-label="Switch language" title="عربي / English">
         <i class="fa-solid fa-language"></i>
       </button>
+
+      <!-- Notifications bell (visible when logged in) -->
+      <div class="notif-wrap hidden" id="notif-wrap">
+        <button class="btn-icon" id="notif-btn" onclick="toggleNotifMenu()" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+          <i class="fa-solid fa-bell"></i>
+          <span class="notif-badge hidden" id="notif-count">0</span>
+        </button>
+        <div class="notif-dropdown" id="notif-dropdown" role="menu">
+          <div class="notif-header">
+            <strong style="font-size:0.88rem;">Notifications</strong>
+            <button onclick="markAllNotifsRead()" style="background:none;border:none;color:var(--primary);font-size:0.78rem;cursor:pointer;padding:0;">Mark all read</button>
+          </div>
+          <div class="notif-list" id="notif-list"></div>
+          <div class="notif-empty hidden" id="notif-empty">No notifications yet</div>
+        </div>
+      </div>
 
       <!-- Cart -->
       <button class="btn-icon cart-btn" onclick="navigate('cart')" aria-label="Shopping cart" id="cart-btn-header">
@@ -512,6 +589,12 @@
       <button id="load-more-btn" onclick="loadMoreProducts()" class="btn btn-outline" style="display:none;gap:0.5rem;">
         <i class="fa-solid fa-chevron-down" aria-hidden="true"></i> Load More
       </button>
+    </div>
+
+    <!-- Recently Viewed -->
+    <div class="recently-viewed hidden" id="recently-viewed-section">
+      <h3><i class="fa-solid fa-clock-rotate-left" style="margin-right:0.4rem;"></i> Recently Viewed</h3>
+      <div class="rv-grid" id="rv-grid"></div>
     </div>
   </div>
 </main>
@@ -753,7 +836,10 @@
 <section id="view-wishlist" class="view" aria-label="Wishlist">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem;">
     <h2 style="font-size:1.3rem;font-weight:700;"><i class="fa-solid fa-heart" style="color:var(--danger);margin-right:0.4rem;"></i> My Wishlist</h2>
-    <button class="btn btn-outline btn-sm" onclick="clearWishlist()"><i class="fa-solid fa-trash"></i> Clear All</button>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+      <button class="btn btn-primary btn-sm" onclick="addAllWishlistToCart()"><i class="fa-solid fa-cart-plus"></i> Add All to Cart</button>
+      <button class="btn btn-outline btn-sm" onclick="clearWishlist()"><i class="fa-solid fa-trash"></i> Clear All</button>
+    </div>
   </div>
   <div id="wishlist-empty" class="empty-state hidden">
     <i class="fa-solid fa-heart-crack" aria-hidden="true"></i>
@@ -787,6 +873,12 @@
         <div class="stat-card"><div class="stat-number" id="s-stat-revenue">0</div><div class="stat-label" data-i18n="totalRevenue">Revenue (EGP)</div></div>
       </div>
 
+      <!-- Revenue Chart -->
+      <div class="chart-wrap hidden" id="seller-chart-wrap">
+        <h4><i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:0.4rem;"></i> Revenue — Last 6 Months</h4>
+        <canvas id="seller-revenue-chart" height="100"></canvas>
+      </div>
+
       <!-- Products tab -->
       <div id="seller-tab-products">
         <div class="flex items-center gap-2" style="justify-content:space-between;margin-bottom:1rem;">
@@ -817,7 +909,7 @@
       <!-- Orders tab -->
       <div id="seller-tab-orders" class="hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
-          <h3 data-i18n="sellerOrders">Orders</h3>
+          <h3 data-i18n="sellerOrders">Orders <span id="seller-orders-live" style="font-size:0.65rem;background:rgba(34,197,94,0.15);color:var(--success);border:1px solid rgba(34,197,94,0.3);padding:0.1rem 0.4rem;border-radius:8px;font-weight:600;margin-left:0.4rem;vertical-align:middle;display:none;">● LIVE</span></h3>
           <button class="btn btn-outline btn-sm" onclick="exportSellerOrdersCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
         </div>
         <div class="table-wrap">
@@ -942,10 +1034,20 @@
         <div style="margin-bottom:0.75rem;">
           <input type="search" id="admin-products-search" class="form-control" placeholder="Search by name or seller…" oninput="filterAdminProductsTable()" style="max-width:320px;">
         </div>
+        <!-- Bulk operation toolbar (shown when rows selected) -->
+        <div class="bulk-toolbar" id="bulk-products-toolbar">
+          <span id="bulk-products-count" style="font-weight:600;"></span>
+          <button class="btn btn-sm btn-success" onclick="bulkUpdateProductStatus('approved')"><i class="fa-solid fa-check"></i> Approve Selected</button>
+          <button class="btn btn-sm btn-danger" onclick="bulkUpdateProductStatus('rejected')"><i class="fa-solid fa-xmark"></i> Reject Selected</button>
+          <button class="btn btn-sm btn-outline" onclick="bulkToggleFeatured(true)"><i class="fa-solid fa-star"></i> Feature</button>
+          <button class="btn btn-sm btn-outline" onclick="bulkToggleFeatured(false)"><i class="fa-regular fa-star"></i> Unfeature</button>
+          <button class="btn btn-sm btn-outline" onclick="clearBulkSelection()" style="margin-left:auto;">✕ Clear</button>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th style="width:32px;"><input type="checkbox" class="bulk-check" id="bulk-select-all-products" onchange="toggleSelectAllProducts(this)"></th>
                 <th data-i18n="product">Product</th><th data-i18n="seller">Seller</th>
                 <th data-i18n="price">Price</th><th data-i18n="status">Status</th><th data-i18n="actions">Actions</th>
               </tr>
@@ -968,7 +1070,7 @@
             <thead>
               <tr>
                 <th data-i18n="name">Name</th><th>Email</th><th data-i18n="role">Role</th>
-                <th data-i18n="joined">Joined</th><th data-i18n="actions">Actions</th>
+                <th data-i18n="joined">Joined</th><th>Role</th><th>Ban</th>
               </tr>
             </thead>
             <tbody id="admin-users-tbody"></tbody>
@@ -1136,6 +1238,11 @@
           <label class="form-label" for="prod-download">Download Link <span class="req" aria-hidden="true">*</span></label>
           <input class="form-control" type="url" id="prod-download" required placeholder="https://drive.google.com/…">
           <div class="invalid-feedback">Download link required.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="prod-sample">Free Sample / Preview URL <small style="color:var(--text-muted);font-weight:400;">(optional)</small></label>
+          <input class="form-control" type="url" id="prod-sample" placeholder="https://… (visible to all buyers before purchase)">
+          <small style="color:var(--text-muted);font-size:0.75rem;">A free preview helps buyers decide. Use a reduced/watermarked version.</small>
         </div>
         <div class="form-group">
           <label class="form-label" for="prod-tags">Tags <small style="color:var(--text-muted);font-weight:400;">(comma-separated, optional)</small></label>
@@ -1950,6 +2057,9 @@ function updateHeaderForUser() {
     if (adminLink) adminLink.classList.remove('hidden');
     if (navAdmin)  navAdmin.classList.remove('hidden');
   }
+  // Show notification bell and start listener
+  document.getElementById('notif-wrap')?.classList.remove('hidden');
+  startNotifListener();
 }
 
 function updateHeaderForGuest() {
@@ -1959,6 +2069,9 @@ function updateHeaderForGuest() {
   document.getElementById('nav-seller')?.classList.add('hidden');
   document.getElementById('nav-admin')?.classList.add('hidden');
   document.getElementById('email-verify-banner')?.remove();
+  // Hide notification bell and stop listener
+  document.getElementById('notif-wrap')?.classList.add('hidden');
+  stopNotifListener();
 }
 
 async function resendVerificationEmail() {
@@ -2131,7 +2244,9 @@ async function doRegister(e) {
 // AUTH: LOGOUT
 // ═══════════════════════════════════════════════════════════════════
 async function doLogout() {
-  stopAdminOrdersListener(); // stop live Firestore listener before signing out
+  stopAdminOrdersListener();  // stop live admin orders listener
+  stopSellerOrdersListener(); // stop live seller orders listener
+  stopNotifListener();        // stop notifications listener
   await auth.signOut();
   curUserData = null;
   toast(t('logoutOk'), 'info');
@@ -2179,6 +2294,7 @@ async function loadProducts(append = false) {
     hasMoreProducts = snap.docs.length === PAGE_SIZE;
     // Server already returns in createdAt desc order — no client sort needed
     renderProducts();
+    renderRecentlyViewed(); // refresh recently viewed section with fresh product data
     if (loadMoreBtn) {
       loadMoreBtn.style.display = hasMoreProducts ? 'inline-flex' : 'none';
       loadMoreBtn.disabled = false;
@@ -2237,6 +2353,8 @@ function getFilteredProducts() {
     (Array.isArray(p.tags) && p.tags.some(tag => tag.toLowerCase().includes(searchQuery)))
   );
   const sort = document.getElementById('sort-select')?.value || 'newest';
+  // Default "newest": pin featured products to top, then sort by date
+  if (sort === 'newest')       list = [...list.filter(p=>p.featured), ...list.filter(p=>!p.featured)];
   if (sort === 'best-sellers') list.sort((a,b) => (b.purchaseCount||0) - (a.purchaseCount||0));
   if (sort === 'price-asc')   list.sort((a,b) => Number(a.price||0) - Number(b.price||0));
   if (sort === 'price-desc')  list.sort((a,b) => Number(b.price||0) - Number(a.price||0));
@@ -2292,6 +2410,7 @@ function renderProducts() {
         style="position:absolute;top:0.5rem;right:0.5rem;background:rgba(0,0,0,0.35);border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:2;color:${isWishlisted(p.id)?'#f43f5e':'#fff'};">
         ${isWishlisted(p.id) ? '♥' : '♡'}
       </button>
+      ${p.featured ? `<span class="featured-badge">★ Featured</span>` : ''}
       <div class="product-img">
         ${p.imageUrl
           ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:3rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
@@ -2347,14 +2466,24 @@ function openProductDetail(id) {
     ${(p.tags||[]).length ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;">
       ${p.tags.map(tag => `<button onclick="filterByTag('${sanitize(tag)}')" style="background:var(--bg3);border:none;color:var(--text-muted);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:20px;cursor:pointer;">#${sanitize(tag)}</button>`).join('')}
     </div>` : ''}
+    ${p.sampleUrl ? `<div style="margin-bottom:1rem;padding:0.75rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius);font-size:0.83rem;">
+      <i class="fa-solid fa-eye" style="color:var(--primary);margin-right:0.4rem;"></i>
+      <strong>Free Preview:</strong> <a href="${sanitize(p.sampleUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">View Sample →</a>
+    </div>` : ''}
     <div id="product-reviews-section" style="margin-top:1.25rem;"></div>
+    <div id="product-related-section" style="margin-top:1.5rem;"></div>
   `;
   const addBtn = document.getElementById('add-to-cart-btn');
   if (addBtn) addBtn.textContent = cart.includes(id) ? '✓ In Cart' : t('addToCart');
+  // Track recently viewed
+  trackRecentlyViewed(id);
+  // Inject JSON-LD structured data for SEO
+  injectProductJsonLd(p);
   // Update OG meta for deep-linking
   updateOGMeta(p.name, p.description || '', p.imageUrl || '');
   openModal('product-modal');
   loadAndRenderReviews(id);
+  renderRelatedProducts(p);
 }
 
 function buyNow() {
@@ -2921,7 +3050,12 @@ function sellerTab(tab) {
     document.getElementById(`seller-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`sl-${t}`)?.classList.toggle('active', t === tab);
   });
-  if (tab === 'orders')   loadSellerOrders();
+  if (tab === 'orders') {
+    stopSellerOrdersListener();  // stop any stale listener first
+    startSellerOrdersListener(); // start real-time listener
+  } else {
+    stopSellerOrdersListener();
+  }
   if (tab === 'settings') loadSellerSettings();
 }
 
@@ -2944,6 +3078,7 @@ async function loadSellerDashboard() {
     document.getElementById('s-stat-products').textContent = products.length;
     document.getElementById('s-stat-orders').textContent   = approvedOrders.length;
     document.getElementById('s-stat-revenue').textContent  = revenue.toLocaleString();
+    loadSellerChart(orderSnap.docs);
     const empty = document.getElementById('seller-products-empty');
     if (!products.length) {
       tbody.innerHTML = '';
@@ -2968,6 +3103,27 @@ async function loadSellerDashboard() {
   } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
+// Shared row renderer used by both loadSellerOrders and startSellerOrdersListener
+function _renderSellerOrderRow(d) {
+  const o = d.data();
+  const myItems = (o.items||[]).filter(i => i.sellerId === curUser?.uid);
+  const myTotal = myItems.reduce((s,i) => s + Number(i.price||0), 0);
+  return `<tr>
+    <td style="font-size:0.75rem;">${d.id.slice(0,8)}…</td>
+    <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
+    <td>${myItems.map(i => sanitize(i.name)).join(', ')}</td>
+    <td>EGP ${myTotal.toLocaleString()}</td>
+    <td>${statusBadge(o.status)}${o.status==='pending' ? orderAgeBadge(o.createdAt) : ''}</td>
+    <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
+    <td>
+      ${o.status==='pending' ? `
+        <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')">${t('approve')}</button>
+        <button class="btn btn-sm btn-danger" onclick="updateOrderStatus('${d.id}','rejected')">${t('reject')}</button>
+      ` : '—'}
+    </td>
+  </tr>`;
+}
+
 async function loadSellerOrders() {
   if (!curUser) return;
   const tbody = document.getElementById('seller-orders-tbody');
@@ -2981,26 +3137,11 @@ async function loadSellerOrders() {
         const tb = b.data().createdAt?.toDate ? b.data().createdAt.toDate() : new Date(0);
         return tb - ta;
       });
-    tbody.innerHTML = myOrders.map(d => {
-      const o = d.data();
-      const date = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
-      const myItems = (o.items||[]).filter(i => i.sellerId === curUser.uid);
-      const myTotal = myItems.reduce((s,i) => s + Number(i.price||0), 0);
-      return `<tr>
-        <td style="font-size:0.75rem;">${d.id.slice(0,8)}…</td>
-        <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
-        <td>${myItems.map(i => sanitize(i.name)).join(', ')}</td>
-        <td>EGP ${myTotal.toLocaleString()}</td>
-        <td>${statusBadge(o.status)}${o.status==='pending' ? orderAgeBadge(o.createdAt) : ''}</td>
-        <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
-        <td>
-          ${o.status==='pending' ? `
-            <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')">${t('approve')}</button>
-            <button class="btn btn-sm btn-danger" onclick="updateOrderStatus('${d.id}','rejected')">${t('reject')}</button>
-          ` : '—'}
-        </td>
-      </tr>`;
-    }).join('');
+    if (!myOrders.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No orders yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = myOrders.map(_renderSellerOrderRow).join('');
   } catch(err) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
@@ -3069,6 +3210,7 @@ async function openProductModal(isAdminContext = false, editId = null) {
     document.getElementById('prod-emoji').value    = p.emoji         || '';
     document.getElementById('prod-download').value = p.downloadUrl   || '';
     document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
+    document.getElementById('prod-sample').value   = p.sampleUrl     || '';
   }
   openModal('add-product-modal');
 }
@@ -3084,9 +3226,10 @@ async function submitProduct(e, isDraft = false) {
   const imgUrl  = document.getElementById('prod-img').value.trim();
   const emoji   = document.getElementById('prod-emoji').value.trim();
   const dlUrl   = document.getElementById('prod-download').value.trim();
-  const tagsRaw = document.getElementById('prod-tags').value.trim();
-  const tags    = tagsRaw ? tagsRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).slice(0,10) : [];
-  const btn     = isDraft ? document.getElementById('prod-draft-btn') : document.getElementById('prod-submit-btn');
+  const tagsRaw   = document.getElementById('prod-tags').value.trim();
+  const tags      = tagsRaw ? tagsRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).slice(0,10) : [];
+  const sampleUrl = (document.getElementById('prod-sample')?.value || '').trim();
+  const btn       = isDraft ? document.getElementById('prod-draft-btn') : document.getElementById('prod-submit-btn');
 
   // Drafts only need name; full validation for submissions
   if (!isDraft) {
@@ -3098,6 +3241,7 @@ async function submitProduct(e, isDraft = false) {
     if (!dlUrl)       { setInvalid('prod-download', 'Download URL is required.'); valid = false; }
     else if (!/^https?:\/\//i.test(dlUrl)) { setInvalid('prod-download', 'Must be a valid https:// URL.'); valid = false; }
     if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
+    if (sampleUrl && !/^https?:\/\//i.test(sampleUrl)) { setInvalid('prod-sample', 'Must be a valid https:// URL.'); valid = false; }
     if (!valid) return;
 
     // Block unverified sellers from listing products (admins are exempt)
@@ -3120,6 +3264,7 @@ async function submitProduct(e, isDraft = false) {
     imageUrl:      imgUrl,
     emoji:         emoji,
     downloadUrl:   dlUrl,
+    sampleUrl:     sampleUrl,
     tags,
     sellerId:      curUser.uid,
     sellerName:    sanitize(curUserData?.shopName || curUserData?.name || ''),
@@ -3279,7 +3424,11 @@ async function loadAdminProducts() {
     tbody.innerHTML = sorted.map(d => {
       const p = d.data();
       const editedFlag = p.editedAt ? `<span title="Seller edited after approval" style="margin-left:0.3rem;font-size:0.68rem;background:var(--warning);color:#fff;padding:0.1rem 0.35rem;border-radius:4px;font-weight:600;">✏ Edited</span>` : '';
-      return `<tr>
+      const featuredBtn = p.status === 'approved'
+        ? `<button class="btn btn-sm ${p.featured ? 'btn-warning' : 'btn-outline'}" onclick="toggleFeaturedProduct('${d.id}',${!!p.featured})" title="${p.featured?'Unfeature':'Feature'}"><i class="fa-solid fa-star"></i></button>`
+        : '';
+      return `<tr data-product-id="${d.id}">
+        <td><input type="checkbox" class="bulk-check product-bulk-check" value="${d.id}" onchange="onBulkCheckChange()"></td>
         <td>${sanitize(p.name)}${editedFlag}</td>
         <td>${sanitize(p.sellerName||'Admin')}</td>
         <td>EGP ${Number(p.price||0).toLocaleString()}</td>
@@ -3288,11 +3437,12 @@ async function loadAdminProducts() {
           <button class="btn btn-sm btn-primary" onclick="adminEditProduct('${d.id}')" title="Edit"><i class="fa-solid fa-pen"></i> Edit</button>
           ${p.status!=='approved' ? `<button class="btn btn-sm btn-success" onclick="updateProductStatus('${d.id}','approved')">Approve</button>` : ''}
           ${p.status!=='rejected' ? `<button class="btn btn-sm btn-danger" onclick="updateProductStatus('${d.id}','rejected')">Reject</button>` : ''}
+          ${featuredBtn}
           <button class="btn btn-sm btn-outline" onclick="deleteProduct('${d.id}')"><i class="fa-solid fa-trash"></i></button>
         </td>
       </tr>`;
     }).join('');
-  } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function adminEditProduct(productId) {
@@ -3317,6 +3467,7 @@ async function adminEditProduct(productId) {
     document.getElementById('prod-emoji').value    = p.emoji         || '';
     document.getElementById('prod-download').value = p.downloadUrl   || '';
     document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
+    document.getElementById('prod-sample').value   = p.sampleUrl     || '';
     openModal('add-product-modal');
   } catch(err) { toast(err.message, 'danger'); }
 }
@@ -3328,8 +3479,9 @@ async function loadAdminUsers() {
     tbody.innerHTML = snap.docs.map(d => {
       const u = d.data();
       const date = u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : '—';
-      return `<tr>
-        <td>${sanitize(u.name||'')}</td>
+      const isBanned = u.disabled === true;
+      return `<tr style="${isBanned?'opacity:0.55;':''}">
+        <td>${sanitize(u.name||'')}${isBanned?` <span style="font-size:0.65rem;background:var(--danger);color:#fff;padding:0.1rem 0.35rem;border-radius:4px;font-weight:600;">BANNED</span>`:''}  </td>
         <td>${sanitize(u.email||'')}</td>
         <td><span class="badge badge-primary">${sanitize(u.role||'buyer')}</span></td>
         <td>${date}</td>
@@ -3340,9 +3492,14 @@ async function loadAdminUsers() {
             <option value="admin"  ${u.role==='admin'  ?'selected':''}>Admin</option>
           </select>
         </td>
+        <td>
+          <button class="btn btn-sm ${isBanned?'btn-success':'btn-danger'}" onclick="toggleBanUser('${d.id}',${isBanned})">
+            ${isBanned ? '<i class="fa-solid fa-unlock"></i> Unban' : '<i class="fa-solid fa-ban"></i> Ban'}
+          </button>
+        </td>
       </tr>`;
     }).join('');
-  } catch(err) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
+  } catch(err) { tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger);padding:1rem;">${sanitize(err.message)}</td></tr>`; }
 }
 
 async function updateUserRole(uid, role) {
@@ -3986,6 +4143,445 @@ async function deleteCoupon(id, code) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// RECENTLY VIEWED PRODUCTS
+// ═══════════════════════════════════════════════════════════════════
+const RV_KEY = 'dm_recently_viewed';
+const RV_MAX = 10;
+
+function trackRecentlyViewed(productId) {
+  let rv = [];
+  try { rv = JSON.parse(localStorage.getItem(RV_KEY) || '[]'); } catch {}
+  rv = rv.filter(id => id !== productId); // deduplicate
+  rv.unshift(productId);                  // most recent first
+  if (rv.length > RV_MAX) rv = rv.slice(0, RV_MAX);
+  localStorage.setItem(RV_KEY, JSON.stringify(rv));
+  renderRecentlyViewed();
+}
+
+function renderRecentlyViewed() {
+  const section = document.getElementById('recently-viewed-section');
+  const grid    = document.getElementById('rv-grid');
+  if (!section || !grid) return;
+  let rv = [];
+  try { rv = JSON.parse(localStorage.getItem(RV_KEY) || '[]'); } catch {}
+  const items = rv.map(id => allProducts.find(p => p.id === id)).filter(Boolean);
+  // Hide unless at least 2 items (nothing interesting to "recommend" from 1 item)
+  if (items.length < 2) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  grid.innerHTML = items.map(p => `
+    <div class="rv-card" onclick="openProductDetail('${sanitize(p.id)}')" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')"
+         aria-label="${sanitize(p.name)} — EGP ${Number(p.price||0).toLocaleString()}">
+      <div class="rv-card-img">
+        ${p.imageUrl
+          ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:1.5rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
+          : p.emoji ? `<span style="font-size:1.5rem;">${sanitize(p.emoji)}</span>`
+                    : `<i class="fa-solid fa-file-arrow-down"></i>`}
+      </div>
+      <div class="rv-card-body">
+        <div class="rv-card-name">${sanitize(p.name)}</div>
+        <div class="rv-card-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RELATED PRODUCTS  (shown at bottom of product detail modal)
+// ═══════════════════════════════════════════════════════════════════
+function renderRelatedProducts(currentProduct) {
+  const section = document.getElementById('product-related-section');
+  if (!section) return;
+  const related = allProducts
+    .filter(p =>
+      p.id !== currentProduct.id &&
+      p.status === 'approved' &&
+      (p.category || '').toLowerCase() === (currentProduct.category || '').toLowerCase()
+    )
+    .sort(() => Math.random() - 0.5) // shuffle
+    .slice(0, 4);
+  if (!related.length) { section.innerHTML = ''; return; }
+  section.innerHTML = `
+    <h4 style="font-size:0.9rem;font-weight:700;color:var(--text-muted);margin-bottom:0.75rem;letter-spacing:0.04em;text-transform:uppercase;">
+      <i class="fa-solid fa-layer-group" style="margin-right:0.35rem;color:var(--primary);"></i>Related Products
+    </h4>
+    <div class="related-grid">
+      ${related.map(p => `
+        <div class="related-card" onclick="openProductDetail('${sanitize(p.id)}')" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')" aria-label="${sanitize(p.name)}">
+          <div class="related-card-img">
+            ${p.imageUrl
+              ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:2rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
+              : p.emoji ? `<span style="font-size:2rem;">${sanitize(p.emoji)}</span>`
+                        : `<i class="fa-solid fa-file-arrow-down"></i>`}
+          </div>
+          <div class="related-card-body">
+            <div class="related-card-name">${sanitize(p.name)}</div>
+            <div class="related-card-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// JSON-LD STRUCTURED DATA  (Product schema for SEO)
+// ═══════════════════════════════════════════════════════════════════
+function injectProductJsonLd(p) {
+  // Remove any existing product JSON-LD
+  document.getElementById('product-jsonld')?.remove();
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: p.name || '',
+    description: p.description || '',
+    image: p.imageUrl || '',
+    offers: {
+      '@type': 'Offer',
+      price: p.price || 0,
+      priceCurrency: 'EGP',
+      availability: 'https://schema.org/InStock',
+      seller: { '@type': 'Organization', name: p.sellerName || 'DigitalMarket' }
+    },
+    ...(p.ratingCount ? {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: +(p.ratingAvg||0).toFixed(1),
+        reviewCount: p.ratingCount
+      }
+    } : {})
+  };
+  const el = document.createElement('script');
+  el.id   = 'product-jsonld';
+  el.type = 'application/ld+json';
+  el.textContent = JSON.stringify(schema);
+  document.head.appendChild(el);
+}
+
+// JSON-LD cleanup happens in closeModal() which patches product-modal close below
+
+// ═══════════════════════════════════════════════════════════════════
+// IN-APP NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════
+let _notifListener = null;
+
+function toggleNotifMenu() {
+  const btn      = document.getElementById('notif-btn');
+  const dropdown = document.getElementById('notif-dropdown');
+  if (!dropdown) return;
+  const isOpen = dropdown.classList.toggle('show');
+  btn?.setAttribute('aria-expanded', String(isOpen));
+  if (isOpen) {
+    loadNotifications();
+    // Auto-close when clicking outside
+    setTimeout(() => document.addEventListener('click', _closeNotifOutside, { once: true }), 50);
+  }
+}
+
+function _closeNotifOutside(e) {
+  const wrap = document.getElementById('notif-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('notif-dropdown')?.classList.remove('show');
+    document.getElementById('notif-btn')?.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function startNotifListener() {
+  if (!curUser || _notifListener) return;
+  _notifListener = db.collection('notifications')
+    .where('userId', '==', curUser.uid)
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .onSnapshot(snap => {
+      const unread  = snap.docs.filter(d => !d.data().read).length;
+      const countEl = document.getElementById('notif-count');
+      if (countEl) {
+        if (unread > 0) { countEl.textContent = unread > 9 ? '9+' : unread; countEl.classList.remove('hidden'); }
+        else countEl.classList.add('hidden');
+      }
+      // Refresh dropdown list if currently open
+      const dropdown = document.getElementById('notif-dropdown');
+      if (dropdown?.classList.contains('show')) _renderNotifList(snap.docs);
+    }, err => console.warn('Notif listener error:', err));
+}
+
+function stopNotifListener() {
+  if (_notifListener) { _notifListener(); _notifListener = null; }
+}
+
+function loadNotifications() {
+  if (!curUser) return;
+  db.collection('notifications')
+    .where('userId', '==', curUser.uid)
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .get()
+    .then(snap => _renderNotifList(snap.docs))
+    .catch(() => {});
+}
+
+function _renderNotifList(docs) {
+  const list  = document.getElementById('notif-list');
+  const empty = document.getElementById('notif-empty');
+  if (!list) return;
+  if (!docs.length) {
+    list.innerHTML = '';
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+  list.innerHTML = docs.map(d => {
+    const n    = d.data();
+    const date = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString() : '';
+    return `<div class="notif-item${n.read ? '' : ' unread'}" onclick="markNotifRead('${d.id}',this)" role="button" tabindex="0">
+      <div style="font-size:0.83rem;font-weight:${n.read?'400':'600'};">${sanitize(n.message||'')}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;">${date}</div>
+    </div>`;
+  }).join('');
+}
+
+async function markNotifRead(notifId, el) {
+  if (!curUser) return;
+  try {
+    await db.collection('notifications').doc(notifId).update({ read: true });
+    el?.classList.remove('unread');
+    const titleEl = el?.querySelector('div');
+    if (titleEl) titleEl.style.fontWeight = '400';
+  } catch(e) { console.warn('markNotifRead error:', e); }
+}
+
+async function markAllNotifsRead() {
+  if (!curUser) return;
+  try {
+    const snap = await db.collection('notifications')
+      .where('userId', '==', curUser.uid)
+      .where('read', '==', false)
+      .get();
+    if (snap.empty) { toast('No unread notifications.', 'info'); return; }
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.update(d.ref, { read: true }));
+    await batch.commit();
+    document.querySelectorAll('.notif-item.unread').forEach(el => {
+      el.classList.remove('unread');
+      const div = el.querySelector('div');
+      if (div) div.style.fontWeight = '400';
+    });
+    document.getElementById('notif-count')?.classList.add('hidden');
+    toast('All notifications marked as read.', 'success');
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WISHLIST – ADD ALL TO CART
+// ═══════════════════════════════════════════════════════════════════
+function addAllWishlistToCart() {
+  const list = loadWishlist();
+  if (!list.length) { toast('Your wishlist is empty.', 'info'); return; }
+  const available = list.filter(id => allProducts.find(p => p.id === id && p.status === 'approved'));
+  if (!available.length) { toast('No available products to add.', 'warning'); return; }
+  let added = 0;
+  available.forEach(id => { if (!cart.includes(id)) { cart.push(id); added++; } });
+  saveCart(cart);
+  updateCartBadge();
+  if (added > 0) toast(`${added} item${added > 1 ? 's' : ''} added to cart!`, 'success');
+  else toast('All wishlist items are already in your cart.', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// REAL-TIME SELLER ORDERS LISTENER
+// ═══════════════════════════════════════════════════════════════════
+let _sellerOrdersListener = null;
+
+function startSellerOrdersListener() {
+  if (!curUser || _sellerOrdersListener) return;
+  const liveEl = document.getElementById('seller-orders-live');
+  if (liveEl) liveEl.style.display = 'inline';
+  _sellerOrdersListener = db.collection('orders')
+    .where('sellerIds', 'array-contains', curUser.uid)
+    .orderBy('createdAt', 'desc')
+    .limit(50)
+    .onSnapshot(snap => {
+      const tbody = document.getElementById('seller-orders-tbody');
+      if (!tbody) return;
+      if (!snap.docs.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No orders yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = snap.docs.map(_renderSellerOrderRow).join('');
+    }, err => {
+      console.warn('Seller orders listener error:', err);
+      if (liveEl) liveEl.style.display = 'none';
+      // Fall back to one-time fetch
+      loadSellerOrders();
+    });
+}
+
+function stopSellerOrdersListener() {
+  if (_sellerOrdersListener) { _sellerOrdersListener(); _sellerOrdersListener = null; }
+  const liveEl = document.getElementById('seller-orders-live');
+  if (liveEl) liveEl.style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SELLER REVENUE CHART  (Chart.js – last 6 months)
+// ═══════════════════════════════════════════════════════════════════
+let _sellerChart = null;
+
+function loadSellerChart(orderDocs) {
+  const wrap = document.getElementById('seller-chart-wrap');
+  const canvas = document.getElementById('seller-revenue-chart');
+  if (!wrap || !canvas || typeof Chart === 'undefined') return;
+
+  // Build month buckets: last 6 calendar months
+  const now    = new Date();
+  const labels = [];
+  const buckets = {};
+  for (let i = 5; i >= 0; i--) {
+    const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+    labels.push(label);
+    buckets[key] = 0;
+  }
+
+  // Sum revenue per month for approved orders
+  (orderDocs || []).forEach(d => {
+    const o = d.data();
+    if (o.status !== 'approved') return;
+    const date = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+    if (!date) return;
+    const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+    if (!(key in buckets)) return;
+    const myRevenue = (o.items||[])
+      .filter(i => i.sellerId === curUser?.uid)
+      .reduce((s,i) => s + Number(i.price||0), 0);
+    buckets[key] += myRevenue;
+  });
+
+  const data = Object.values(buckets);
+  const hasData = data.some(v => v > 0);
+  if (!hasData) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+
+  // Destroy previous chart instance to avoid canvas reuse error
+  if (_sellerChart) { _sellerChart.destroy(); _sellerChart = null; }
+
+  _sellerChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Revenue (EGP)',
+        data,
+        backgroundColor: 'rgba(99,102,241,0.55)',
+        borderColor: 'rgba(99,102,241,1)',
+        borderWidth: 1,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `EGP ${ctx.parsed.y.toLocaleString()}` } }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: {
+          ticks: { color: '#94a3b8', callback: v => 'EGP ' + v.toLocaleString() },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BULK PRODUCT OPERATIONS  (admin products table)
+// ═══════════════════════════════════════════════════════════════════
+function getSelectedProductIds() {
+  return [...document.querySelectorAll('.product-bulk-check:checked')].map(cb => cb.value);
+}
+
+function onBulkCheckChange() {
+  const ids     = getSelectedProductIds();
+  const toolbar = document.getElementById('bulk-products-toolbar');
+  const countEl = document.getElementById('bulk-products-count');
+  if (toolbar) toolbar.classList.toggle('show', ids.length > 0);
+  if (countEl) countEl.textContent = ids.length > 0 ? `${ids.length} selected` : '';
+  // Sync select-all checkbox state
+  const all = document.querySelectorAll('.product-bulk-check');
+  const selectAllCb = document.getElementById('bulk-select-all-products');
+  if (selectAllCb) {
+    selectAllCb.indeterminate = ids.length > 0 && ids.length < all.length;
+    selectAllCb.checked = ids.length > 0 && ids.length === all.length;
+  }
+}
+
+function toggleSelectAllProducts(cb) {
+  document.querySelectorAll('.product-bulk-check').forEach(el => { el.checked = cb.checked; });
+  onBulkCheckChange();
+}
+
+function clearBulkSelection() {
+  document.querySelectorAll('.product-bulk-check').forEach(el => { el.checked = false; });
+  const selectAllCb = document.getElementById('bulk-select-all-products');
+  if (selectAllCb) { selectAllCb.checked = false; selectAllCb.indeterminate = false; }
+  onBulkCheckChange();
+}
+
+async function bulkUpdateProductStatus(status) {
+  const ids = getSelectedProductIds();
+  if (!ids.length) { toast('No products selected.', 'warning'); return; }
+  if (!confirm(`${status === 'approved' ? 'Approve' : 'Reject'} ${ids.length} product(s)?`)) return;
+  try {
+    const batch = db.batch();
+    ids.forEach(id => batch.update(db.collection('products').doc(id), { status }));
+    await batch.commit();
+    toast(`${ids.length} product(s) ${status}.`, 'success');
+    clearBulkSelection();
+    loadAdminProducts();
+    await loadProducts();
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+async function bulkToggleFeatured(featured) {
+  const ids = getSelectedProductIds();
+  if (!ids.length) { toast('No products selected.', 'warning'); return; }
+  if (!confirm(`${featured ? 'Feature' : 'Unfeature'} ${ids.length} product(s)?`)) return;
+  try {
+    const batch = db.batch();
+    ids.forEach(id => batch.update(db.collection('products').doc(id), { featured }));
+    await batch.commit();
+    toast(`${ids.length} product(s) ${featured ? 'featured' : 'unfeatured'}.`, 'success');
+    clearBulkSelection();
+    loadAdminProducts();
+    await loadProducts();
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+async function toggleFeaturedProduct(productId, currentFeatured) {
+  try {
+    await db.collection('products').doc(productId).update({ featured: !currentFeatured });
+    toast(!currentFeatured ? 'Product featured! ⭐' : 'Product unfeatured.', 'success');
+    loadAdminProducts();
+    await loadProducts();
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BAN / UNBAN USER  (admin users table)
+// ═══════════════════════════════════════════════════════════════════
+async function toggleBanUser(uid, currentDisabled) {
+  const action = currentDisabled ? 'unban' : 'ban';
+  if (!confirm(`Are you sure you want to ${action} this user? ${currentDisabled ? 'They will regain access.' : 'They will be unable to buy or sell.'}`)) return;
+  try {
+    await db.collection('users').doc(uid).update({ disabled: !currentDisabled });
+    toast(`User ${action}ned successfully.`, 'success');
+    loadAdminUsers();
+  } catch(e) { toast(sanitize(e.message), 'danger'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════════════════════════
 function openModal(id) {
@@ -3996,7 +4592,10 @@ function openModal(id) {
 function closeModal(id) {
   const m = document.getElementById(id);
   if (m) { m.classList.remove('show'); document.body.style.overflow = ''; }
-  if (id === 'product-modal') resetOGMeta();
+  if (id === 'product-modal') {
+    resetOGMeta();
+    document.getElementById('product-jsonld')?.remove();
+  }
 }
 
 // Close modal on Escape key

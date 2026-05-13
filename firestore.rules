@@ -10,44 +10,52 @@ service cloud.firestore {
       return isSignedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    function isSeller() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller';
+    }
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
+    }
+    function isNotBanned() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('disabled', false) == false;
     }
 
     // ── Products ─────────────────────────────────────────────────────
     match /products/{productId} {
-      // Anyone can read approved products; sellers see their own; admins see all
       allow read: if resource.data.status == 'approved'
                   || isAdmin()
                   || (isSignedIn() && request.auth.uid == resource.data.sellerId);
 
-      // Any signed-in user can create (role checked in app logic)
-      allow create: if isSignedIn();
+      // Only verified sellers (not banned) can create; status must be pending or draft
+      allow create: if isSeller() && isNotBanned()
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.status in ['pending', 'draft'];
 
-      // Seller can update their own product; admin can update any
       allow update: if isAdmin()
-                    || (isSignedIn() && request.auth.uid == resource.data.sellerId);
+                    || (isSeller() && isNotBanned() && request.auth.uid == resource.data.sellerId);
 
-      // Seller can delete their own product; admin can delete any
       allow delete: if isAdmin()
-                    || (isSignedIn() && request.auth.uid == resource.data.sellerId);
+                    || (isSeller() && request.auth.uid == resource.data.sellerId);
     }
 
     // ── Orders ───────────────────────────────────────────────────────
     match /orders/{orderId} {
-      // Buyer, any involved seller, or admin can read
       allow read: if isSignedIn() && (
         request.auth.uid == resource.data.buyerId ||
         resource.data.sellerIds.hasAny([request.auth.uid]) ||
         isAdmin()
       );
 
-      // Any signed-in user can create an order
-      allow create: if isSignedIn();
+      // Only authenticated, non-banned buyers can create orders
+      allow create: if isSignedIn() && isNotBanned()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'pending';
 
-      // Only admin or an involved seller can update (approve/reject)
+      // Admin or involved seller can update; buyer cannot change their own order
       allow update: if isAdmin()
-                    || (isSignedIn() && resource.data.sellerIds.hasAny([request.auth.uid]));
+                    || (isSeller() && resource.data.sellerIds.hasAny([request.auth.uid]));
 
       allow delete: if isAdmin();
     }
@@ -55,32 +63,60 @@ service cloud.firestore {
     // ── Reviews ──────────────────────────────────────────────────────
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      // Only verified buyers can create reviews
+      allow create: if isSignedIn() && isNotBanned()
+                    && request.resource.data.buyerId == request.auth.uid;
       allow update, delete: if isAdmin()
                             || (isSignedIn() && request.auth.uid == resource.data.buyerId);
     }
 
     // ── Users ────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Users can read their own doc; sellers/buyers are readable by signed-in users
-      // for payment info display in checkout
+      // Any signed-in user can read (needed for seller payment info in checkout)
       allow read: if isSignedIn();
 
-      // Only the user themselves can create their own doc (on registration)
-      allow create: if isSelf(userId);
+      allow create: if isSelf(userId)
+                    && request.resource.data.role in ['buyer', 'seller'];
 
-      // Users can update their own doc BUT cannot change their own role
-      // Admins can update anything (including role changes)
+      // Users can update their own doc but CANNOT change role or disabled status
       allow update: if isAdmin()
-                    || (isSelf(userId) && !('role' in request.resource.data));
+                    || (isSelf(userId)
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                            .hasAny(['role', 'disabled']));
 
       allow delete: if isAdmin();
     }
 
     // ── Settings ─────────────────────────────────────────────────────
     match /settings/{doc} {
-      allow read: if isSignedIn();
+      allow read: if true;   // payment info needed for checkout (unauthenticated preview)
       allow write: if isAdmin();
     }
+
+    // ── Coupons ──────────────────────────────────────────────────────
+    match /coupons/{couponId} {
+      allow read: if true;   // needed for coupon validation at checkout
+      allow create, delete: if isAdmin();
+      // Allow increment of usageCount on redemption (buyers trigger this)
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['usageCount']));
+    }
+
+    // ── Notifications ────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      // Users can only read their own notifications
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Admin and sellers can create notifications for buyers
+      allow create: if isAdmin() || isSeller();
+      // Users can mark their own as read (update only 'read' field)
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      // Users can delete their own; admins can delete any
+      allow delete: if isAdmin()
+                    || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
   }
 }
