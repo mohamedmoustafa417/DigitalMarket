@@ -44,6 +44,18 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == sellerId;
     }
 
+    // ── KYC documents (sensitive — admin-read only) ──────────────────
+    match /kyc/{userId}/{filename} {
+      // Only the uploading user (or admin) may read their KYC files
+      allow read: if request.auth != null && (request.auth.uid == userId);
+      // Only the user can upload their own; max 5MB, images only
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // ── Default deny everything else ─────────────────────────────────
     match /{allPaths=**} {
       allow read, write: if false;

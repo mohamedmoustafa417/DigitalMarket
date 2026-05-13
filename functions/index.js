@@ -272,6 +272,127 @@ exports.onNewReview = onDocumentWritten(
 
 // ─── 5. generateSitemap (HTTPS Callable) ──────────────────────────────────
 
+// ─── 6. abandonedCartReminder ─────────────────────────────────────────
+// Daily check: emails users whose cart has been idle ≥ 24h and isn't notified yet.
+
+exports.abandonedCartReminder = onSchedule(
+  { schedule: 'every day 10:00', region: 'us-central1', timeZone: 'Africa/Cairo' },
+  async () => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const snap = await db.collection('abandonedCarts')
+      .where('notified', '==', false)
+      .limit(200)
+      .get();
+
+    let sent = 0;
+    for (const doc of snap.docs) {
+      const c = doc.data();
+      const updatedMs = c.updatedAt?.toMillis ? c.updatedAt.toMillis() : 0;
+      if (updatedMs > cutoff) continue; // too recent
+
+      if (c.email) {
+        await sendEmail({
+          to:      c.email,
+          subject: '🛒 You left something in your cart',
+          body:    `<p>Hi there,</p>
+                   <p>You left <strong>${(c.items||[]).length} item${(c.items||[]).length===1?'':'s'}</strong> in your cart at DigitalMarket.</p>
+                   <p>Use code <code>COMEBACK10</code> for 10% off — valid for 48 hours.</p>
+                   <p><a href="https://digitalmarketstore.shop/?utm_source=cart_recovery">Return to your cart →</a></p>`
+        });
+        sent++;
+      }
+      await doc.ref.update({ notified: true });
+    }
+    console.log(`[abandonedCartReminder] Sent ${sent} reminder(s).`);
+  }
+);
+
+// ─── 7. processEmailCampaigns ─────────────────────────────────────────
+// Picks up queued campaigns and dispatches via SendGrid (or your provider).
+
+exports.processEmailCampaigns = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-central1' },
+  async () => {
+    const queued = await db.collection('campaigns').where('status','==','queued').limit(5).get();
+    if (queued.empty) return;
+
+    for (const camp of queued.docs) {
+      const c = camp.data();
+      await camp.ref.update({ status: 'sending', startedAt: FieldValue.serverTimestamp() });
+
+      try {
+        let emails = [];
+        if (c.target === 'all') {
+          const s = await db.collection('newsletter').limit(2000).get();
+          emails = s.docs.map(d => d.data().email).filter(Boolean);
+        } else if (c.target === 'buyers' || c.target === 'sellers') {
+          const role = c.target.slice(0, -1);
+          const s = await db.collection('users').where('role','==',role).limit(2000).get();
+          emails = s.docs.map(d => d.data().email).filter(Boolean);
+        }
+
+        // Send in batches of 50
+        for (let i = 0; i < emails.length; i += 50) {
+          const batch = emails.slice(i, i + 50);
+          await Promise.all(batch.map(to => sendEmail({ to, subject: c.subject, body: c.body }).catch(() => {})));
+        }
+
+        await camp.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp(), actualRecipientCount: emails.length });
+        console.log(`[processEmailCampaigns] Sent campaign ${camp.id} to ${emails.length} recipients.`);
+      } catch (err) {
+        await camp.ref.update({ status: 'failed', error: String(err.message || err) });
+      }
+    }
+  }
+);
+
+// ─── 8. cleanupPresence ───────────────────────────────────────────────
+// Removes expired presence docs (TTL via expiresAt field).
+
+exports.cleanupPresence = onSchedule(
+  { schedule: 'every 5 minutes', region: 'us-central1' },
+  async () => {
+    const now = Date.now();
+    const snap = await db.collection('presence').where('expiresAt','<', now).limit(500).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    console.log(`[cleanupPresence] Removed ${snap.size} expired presence docs.`);
+  }
+);
+
+// ─── 9. onKYCApproval ─────────────────────────────────────────────────
+// Fires when admin approves/rejects a KYC request; mirrors decision to user doc.
+
+exports.onKYCApproval = onDocumentWritten(
+  { document: 'kycRequests/{reqId}', region: 'us-central1' },
+  async event => {
+    const before = event.data?.before?.data();
+    const after  = event.data?.after?.data();
+    if (!after || before?.status === after.status) return;
+    if (!after.userId) return;
+
+    const userRef = db.collection('users').doc(after.userId);
+    await userRef.update({
+      kycStatus: after.status,
+      kycRejectReason: after.rejectReason || '',
+      kycReviewedAt: FieldValue.serverTimestamp()
+    });
+
+    // Notify the user
+    await db.collection('notifications').add({
+      userId:    after.userId,
+      type:      'kyc_' + after.status,
+      message:   after.status === 'verified'
+        ? '🎉 Your identity has been verified! Higher payouts now unlocked.'
+        : `❌ KYC was rejected: ${after.rejectReason || 'please contact support'}`,
+      read:      false,
+      createdAt: FieldValue.serverTimestamp()
+    });
+  }
+);
+
 exports.generateSitemap = onCall(
   { region: 'us-central1', cors: ['https://digitalmarketstore.shop'] },
   async req => {

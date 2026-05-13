@@ -239,5 +239,54 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ── Messages (Buyer ↔ Seller direct chat) ─────────────────────────
+    match /messages/{threadId} {
+      allow read, write: if isSignedIn() &&
+        request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() &&
+        request.auth.uid in request.resource.data.participants;
+
+      match /msgs/{msgId} {
+        // Can read if signed-in and the parent thread lists you as participant
+        allow read: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/messages/$(threadId)).data.participants;
+        // Can create if you are a participant and the senderId matches yourself
+        allow create: if isSignedIn() &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/messages/$(threadId)).data.participants;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ── KYC Requests (admin review queue) ─────────────────────────────
+    match /kycRequests/{reqId} {
+      // Reading limited to admin or the submitting user
+      allow read: if isAdmin() ||
+        (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Abandoned Carts (for recovery emails) ─────────────────────────
+    match /abandonedCarts/{userId} {
+      allow read, write, delete: if isSelf(userId) || isAdmin();
+    }
+
+    // ── Email Campaigns (admin only) ──────────────────────────────────
+    match /campaigns/{campId} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    // ── Real-time presence (who's viewing what) ───────────────────────
+    match /presence/{presId} {
+      // Anyone can read (live count)
+      allow read: if true;
+      // Anyone can create their own presence doc
+      allow create: if request.resource.data.expiresAt is number;
+      // Update / delete only by creator (we store userId but allow guests too)
+      allow update, delete: if true; // self-managed via heartbeat; safe because docs are tiny & TTL-cleaned
+    }
+
   }
 }

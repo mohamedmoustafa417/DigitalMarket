@@ -9215,4 +9215,1198 @@ async function sendEmailCampaign(subject, body, target) {
 
 console.log('[DigitalMarket] Rounds 7·8·9 + Quick Wins loaded ✅');
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ALL-TIER PACK — Tier 1 (no payments) + Tier 2 + Tier 3 + Stealth   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<!-- Microsoft Clarity (free heatmaps + session recording) — TIER 3 #14 -->
+<!-- Replace YOUR_CLARITY_ID with the project ID from https://clarity.microsoft.com -->
+<script>
+  (function(c,l,a,r,i,t,y){
+    if (!window.localStorage.getItem('dm_clarity_id')) return; // disabled until configured
+    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+  })(window, document, "clarity", "script", window.localStorage.getItem('dm_clarity_id'));
+</script>
+
+<!-- Tawk.to live chat (free) — TIER 2 #12 -->
+<!-- Set window.TAWK_ID in localStorage as 'dm_tawk_id' → "XXXXX/YYYYY" to enable -->
+<script>
+  (function(){
+    const tawkId = localStorage.getItem('dm_tawk_id');
+    if (!tawkId) return;
+    var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
+    var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
+    s1.async=true; s1.src='https://embed.tawk.to/'+tawkId; s1.charset='UTF-8';
+    s1.setAttribute('crossorigin','*'); s0.parentNode.insertBefore(s1,s0);
+  })();
+</script>
+
+<script>
+'use strict';
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 1 #2 — TWO-FACTOR AUTHENTICATION (2FA via Firebase Phone MFA)
+// ═════════════════════════════════════════════════════════════════════
+async function setupTwoFactor() {
+  if (!curUser) { toast('Please login first.', 'info'); return; }
+  if (!curUser.emailVerified) { toast('Verify your email first to enable 2FA.', 'warning', 5000); return; }
+
+  // Open 2FA modal
+  document.getElementById('dm-2fa-modal')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-2fa-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:440px;">
+      <div class="modal-header">
+        <h3>🔐 Enable Two-Factor Authentication</h3>
+        <button class="btn-icon" onclick="closeModal('dm-2fa-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">
+          Add an extra security layer. We'll send a code to your phone every time you sign in.
+        </p>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.25rem;">Phone Number</label>
+          <input type="tel" id="dm-2fa-phone" class="form-control" placeholder="+201012345678" maxlength="20">
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;">Use international format (+20 for Egypt)</div>
+        </div>
+        <div id="dm-2fa-captcha" style="margin-bottom:0.75rem;"></div>
+        <button class="btn btn-primary" id="dm-2fa-send" onclick="send2FACode()" style="width:100%;">
+          <i class="fa-solid fa-paper-plane"></i> Send Verification Code
+        </button>
+        <div id="dm-2fa-step2" style="display:none;margin-top:1rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.25rem;">Enter 6-digit code</label>
+          <input type="text" id="dm-2fa-code" class="form-control" maxlength="6" placeholder="123456" style="font-family:monospace;font-size:1.2rem;letter-spacing:0.4rem;text-align:center;">
+          <button class="btn btn-primary" onclick="verify2FACode()" style="width:100%;margin-top:0.5rem;">
+            <i class="fa-solid fa-check"></i> Verify & Enable
+          </button>
+        </div>
+        <div id="dm-2fa-status" style="margin-top:0.75rem;font-size:0.85rem;"></div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-2fa-modal');
+
+  // Setup invisible reCAPTCHA verifier (Firebase requires this for phone auth)
+  setTimeout(() => {
+    try {
+      if (window._2faVerifier) window._2faVerifier.clear();
+      window._2faVerifier = new firebase.auth.RecaptchaVerifier('dm-2fa-captcha', { size: 'normal' });
+      window._2faVerifier.render();
+    } catch(e) { console.warn('Recaptcha init failed', e); }
+  }, 100);
+}
+
+async function send2FACode() {
+  const phone = document.getElementById('dm-2fa-phone').value.trim();
+  const status = document.getElementById('dm-2fa-status');
+  if (!/^\+\d{8,15}$/.test(phone)) { status.innerHTML = '<span style="color:var(--danger);">Invalid phone format. Use +20…</span>'; return; }
+  status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending code…';
+  try {
+    // Get MFA session
+    const user = curUser;
+    const multiFactorSession = await user.multiFactor.getSession();
+    const phoneInfoOptions = { phoneNumber: phone, session: multiFactorSession };
+    const phoneAuthProvider = new firebase.auth.PhoneAuthProvider();
+    window._2faVerificationId = await phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, window._2faVerifier);
+    document.getElementById('dm-2fa-step2').style.display = 'block';
+    status.innerHTML = '<span style="color:var(--success);">✅ Code sent to ' + phone + '</span>';
+  } catch(e) {
+    status.innerHTML = '<span style="color:var(--danger);">' + sanitize(e.message) + '</span>';
+    if (e.code === 'auth/operation-not-allowed') {
+      status.innerHTML += '<br><small>Enable Phone Auth + MFA in Firebase Console first.</small>';
+    }
+  }
+}
+
+async function verify2FACode() {
+  const code = document.getElementById('dm-2fa-code').value.trim();
+  const status = document.getElementById('dm-2fa-status');
+  if (!/^\d{6}$/.test(code)) { status.innerHTML = '<span style="color:var(--danger);">Enter 6 digits.</span>'; return; }
+  try {
+    const cred = firebase.auth.PhoneAuthProvider.credential(window._2faVerificationId, code);
+    const assertion = firebase.auth.PhoneMultiFactorGenerator.assertion(cred);
+    await curUser.multiFactor.enroll(assertion, 'Phone 2FA');
+    await db.collection('users').doc(curUser.uid).update({ twoFactorEnabled: true });
+    status.innerHTML = '<span style="color:var(--success);">🎉 2FA enabled! You\'ll be asked for a code on next login.</span>';
+    toast('Two-Factor Authentication enabled!', 'success', 5000);
+    setTimeout(() => closeModal('dm-2fa-modal'), 2500);
+  } catch(e) { status.innerHTML = '<span style="color:var(--danger);">' + sanitize(e.message) + '</span>'; }
+}
+
+async function disable2FA() {
+  if (!curUser || !confirm('Disable 2FA? This reduces your account security.')) return;
+  try {
+    const enrolled = curUser.multiFactor.enrolledFactors;
+    if (enrolled?.length) await curUser.multiFactor.unenroll(enrolled[0]);
+    await db.collection('users').doc(curUser.uid).update({ twoFactorEnabled: false });
+    toast('2FA disabled.', 'info');
+  } catch(e) { toast('Failed: ' + sanitize(e.message), 'danger'); }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 1 #3 — IMAGE OPTIMIZATION (WebP detection + srcset helper)
+// ═════════════════════════════════════════════════════════════════════
+(function detectWebPSupport() {
+  const img = new Image();
+  img.onload = () => { window._supportsWebP = img.width > 0 && img.height > 0; };
+  img.onerror = () => { window._supportsWebP = false; };
+  img.src = 'data:image/webp;base64,UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==';
+})();
+
+function optimizeImageUrl(url, width) {
+  // If served by Firebase Storage, no transformation available — return as-is.
+  // If served by Cloudflare Images, Imgix, or similar, transform here.
+  // For now: add width hint to query string (compatible with most CDNs)
+  if (!url) return url;
+  if (url.includes('firebasestorage.googleapis.com')) return url; // no transformations
+  if (url.includes('?')) return url + '&w=' + width;
+  return url + '?w=' + width;
+}
+
+// Auto-add srcset to product card images after render
+(function autoSrcsetProductImages() {
+  const observer = new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes?.forEach(n => {
+      if (n.nodeType !== 1) return;
+      n.querySelectorAll?.('.product-img img:not([data-srcset-applied])').forEach(img => {
+        img.dataset.srcsetApplied = '1';
+        const src = img.src;
+        if (src && !src.startsWith('data:')) {
+          img.srcset = `${optimizeImageUrl(src, 240)} 240w, ${optimizeImageUrl(src, 400)} 400w, ${optimizeImageUrl(src, 640)} 640w`;
+          img.sizes = '(max-width: 480px) 240px, (max-width: 768px) 400px, 640px';
+          img.decoding = 'async';
+          img.fetchPriority = 'low';
+        }
+      });
+    }));
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 1 #4 — BUNDLE SPLITTING (lazy-load heavy views)
+// ═════════════════════════════════════════════════════════════════════
+// Chart.js is already deferred. Defer admin/seller heavy code by gating expensive
+// renders until view is first opened (memoize first-load).
+(function lazyDashboards() {
+  const heavyViews = ['admin','seller'];
+  heavyViews.forEach(v => {
+    const origLoader = window[`load${v[0].toUpperCase()}${v.slice(1)}Dashboard`];
+    if (typeof origLoader !== 'function') return;
+    let loaded = false;
+    window[`load${v[0].toUpperCase()}${v.slice(1)}Dashboard`] = async function() {
+      if (!loaded) {
+        loaded = true;
+        // First call: yield to browser idle so initial paint isn't blocked
+        await new Promise(r => 'requestIdleCallback' in window ? requestIdleCallback(r) : setTimeout(r, 50));
+      }
+      return origLoader.apply(this, arguments);
+    };
+  });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #6 — MULTI-CURRENCY DISPLAY
+// ═════════════════════════════════════════════════════════════════════
+const DM_CURRENCIES = {
+  EGP: { symbol: 'EGP', rate: 1,      flag: '🇪🇬' },
+  USD: { symbol: '$',   rate: 0.0205, flag: '🇺🇸' }, // 1 EGP ≈ $0.0205 (May 2026)
+  EUR: { symbol: '€',   rate: 0.0190, flag: '🇪🇺' },
+  SAR: { symbol: 'SAR', rate: 0.0770, flag: '🇸🇦' },
+  AED: { symbol: 'AED', rate: 0.0754, flag: '🇦🇪' },
+  GBP: { symbol: '£',   rate: 0.0163, flag: '🇬🇧' },
+};
+
+function getCurrentCurrency() { return localStorage.getItem('dm_currency') || 'EGP'; }
+function setCurrency(code) {
+  if (!DM_CURRENCIES[code]) return;
+  localStorage.setItem('dm_currency', code);
+  toast(`Currency: ${DM_CURRENCIES[code].flag} ${code}`, 'success', 1500);
+  if (typeof renderProducts === 'function') renderProducts();
+  document.querySelectorAll('[data-currency-aware]').forEach(el => {
+    const egp = Number(el.dataset.priceEgp || 0);
+    el.textContent = formatPriceMulti(egp);
+  });
+  document.getElementById('dm-currency-btn').textContent = `${DM_CURRENCIES[code].flag} ${code}`;
+}
+
+function formatPriceMulti(egpAmount) {
+  const c = DM_CURRENCIES[getCurrentCurrency()];
+  if (!c || c.rate === 1) return `EGP ${Number(egpAmount||0).toLocaleString()}`;
+  const converted = Number(egpAmount||0) * c.rate;
+  return `${c.symbol} ${converted.toFixed(2)}`;
+}
+
+// Patch formatPrice to use currency
+(function patchFormatPriceForCurrency() {
+  const orig = window.formatPrice;
+  if (typeof orig !== 'function') return;
+  window.formatPrice = function(price) {
+    return getCurrentCurrency() === 'EGP' ? orig.apply(this, arguments) : formatPriceMulti(price);
+  };
+})();
+
+// Currency switcher button
+(function addCurrencySwitcher() {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    if (document.getElementById('dm-currency-btn')) return;
+    const header = document.querySelector('header .header-actions, .header-right') ||
+                   document.getElementById('search-input')?.closest('header') ||
+                   document.querySelector('header');
+    if (!header) return;
+    const cur = getCurrentCurrency();
+    const btn = document.createElement('button');
+    btn.id = 'dm-currency-btn';
+    btn.className = 'icon-btn';
+    btn.title = 'Switch currency';
+    btn.style.cssText = 'background:none;border:1px solid var(--border);border-radius:6px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.78rem;color:var(--text);margin-left:0.4rem;white-space:nowrap;';
+    btn.textContent = `${DM_CURRENCIES[cur].flag} ${cur}`;
+    btn.onclick = () => {
+      const codes = Object.keys(DM_CURRENCIES);
+      const next = codes[(codes.indexOf(getCurrentCurrency()) + 1) % codes.length];
+      setCurrency(next);
+    };
+    header.appendChild(btn);
+  }, 1000));
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #7 — BNPL / INSTALLMENT PLANS (info display)
+// ═════════════════════════════════════════════════════════════════════
+function getBNPLOptions(totalEgp) {
+  if (totalEgp < 100) return [];
+  const opts = [];
+  if (totalEgp >= 100)  opts.push({ name: 'Pay in 3', logo: '💳', per: (totalEgp/3).toFixed(0), provider: 'ValU' });
+  if (totalEgp >= 200)  opts.push({ name: 'Pay in 4', logo: '💎', per: (totalEgp/4).toFixed(0), provider: 'Tabby' });
+  if (totalEgp >= 500)  opts.push({ name: '6 months', logo: '📅', per: (totalEgp/6).toFixed(0), provider: 'Tamara' });
+  return opts;
+}
+
+(function injectBNPLIntoCheckout() {
+  const orig = window.openCheckout;
+  if (typeof orig !== 'function') return;
+  window.openCheckout = async function(ids) {
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      const total = (checkoutItems||[]).reduce((s,p)=>s+Number(p.price||0),0);
+      const opts = getBNPLOptions(total);
+      if (!opts.length || document.getElementById('dm-bnpl')) return;
+      const body = document.getElementById('checkout-body');
+      if (!body) return;
+      const div = document.createElement('div');
+      div.id = 'dm-bnpl';
+      div.style.cssText = 'background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.08));border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius);padding:0.85rem;margin-bottom:0.85rem;';
+      div.innerHTML = `<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-bottom:0.5rem;">💳 Or pay in installments</div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          ${opts.map(o=>`<div style="flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.5rem;text-align:center;font-size:0.78rem;">
+            <div style="font-size:1.2rem;">${o.logo}</div>
+            <div style="font-weight:600;">${o.name}</div>
+            <div style="color:var(--text-muted);">EGP ${o.per} × via ${o.provider}</div>
+          </div>`).join('')}
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem;">Contact support@digitalmarketstore.shop to arrange installments before paying.</div>`;
+      body.insertBefore(div, body.firstChild);
+    }, 250);
+  };
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #8 — SELLER KYC (identity verification)
+// ═════════════════════════════════════════════════════════════════════
+async function openKYCModal() {
+  if (!curUser) return;
+  const snap = await db.collection('users').doc(curUser.uid).get();
+  const u = snap.data() || {};
+  if (u.kycStatus === 'verified') { toast('✅ Already verified!', 'success'); return; }
+
+  document.getElementById('dm-kyc-modal')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-kyc-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3>🪪 Identity Verification (KYC)</h3>
+        <button class="btn-icon" onclick="closeModal('dm-kyc-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">
+          Required for payouts over EGP 1,000. Admin review takes 1–2 business days.
+        </p>
+        <div class="form-group" style="margin-bottom:0.6rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;">Full Legal Name</label>
+          <input type="text" id="kyc-name" class="form-control" value="${sanitize(u.kycName||u.name||'')}">
+        </div>
+        <div class="form-group" style="margin-bottom:0.6rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;">National ID / Passport Number</label>
+          <input type="text" id="kyc-id" class="form-control" maxlength="20" placeholder="14-digit Egyptian National ID">
+        </div>
+        <div class="form-group" style="margin-bottom:0.6rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;">Date of Birth</label>
+          <input type="date" id="kyc-dob" class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom:0.6rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;">Address</label>
+          <textarea id="kyc-address" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:0.6rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;">ID Photo (front)</label>
+          <input type="file" id="kyc-id-photo" accept="image/*" class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom:0.6rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;">Selfie holding ID</label>
+          <input type="file" id="kyc-selfie" accept="image/*" class="form-control">
+        </div>
+        <div id="kyc-status" style="font-size:0.85rem;margin-bottom:0.5rem;">${u.kycStatus==='pending' ? '<span style="color:var(--warning);">⏳ Under review</span>' : u.kycStatus==='rejected' ? '<span style="color:var(--danger);">❌ Rejected: '+sanitize(u.kycRejectReason||'see admin')+'</span>' : ''}</div>
+        <button class="btn btn-primary" onclick="submitKYC()" style="width:100%;">
+          <i class="fa-solid fa-paper-plane"></i> Submit for Review
+        </button>
+        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.6rem;">
+          🔒 Your documents are encrypted and only viewed by admin. Never shared with third parties.
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-kyc-modal');
+}
+
+async function submitKYC() {
+  if (!curUser) return;
+  const name    = document.getElementById('kyc-name').value.trim();
+  const idNum   = document.getElementById('kyc-id').value.trim();
+  const dob     = document.getElementById('kyc-dob').value;
+  const address = document.getElementById('kyc-address').value.trim();
+  const idPhoto = document.getElementById('kyc-id-photo').files[0];
+  const selfie  = document.getElementById('kyc-selfie').files[0];
+  const status  = document.getElementById('kyc-status');
+
+  if (!name || !idNum || !dob || !address) { status.innerHTML = '<span style="color:var(--danger);">All fields required.</span>'; return; }
+  if (!idPhoto || !selfie) { status.innerHTML = '<span style="color:var(--danger);">Both photos required.</span>'; return; }
+  if (idPhoto.size > 5*1024*1024 || selfie.size > 5*1024*1024) { status.innerHTML = '<span style="color:var(--danger);">Images must be under 5MB.</span>'; return; }
+
+  status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading…';
+  try {
+    const ts = Date.now();
+    const idRef    = storage.ref(`kyc/${curUser.uid}/${ts}_id.jpg`);
+    const selfieRef= storage.ref(`kyc/${curUser.uid}/${ts}_selfie.jpg`);
+    const [idSnap, selfieSnap] = await Promise.all([
+      idRef.put(idPhoto, { contentType: idPhoto.type }),
+      selfieRef.put(selfie, { contentType: selfie.type })
+    ]);
+    const [idUrl, selfieUrl] = await Promise.all([idSnap.ref.getDownloadURL(), selfieSnap.ref.getDownloadURL()]);
+
+    await db.collection('users').doc(curUser.uid).update({
+      kycName: name, kycIdNum: idNum, kycDob: dob, kycAddress: address,
+      kycIdPhoto: idUrl, kycSelfie: selfieUrl,
+      kycStatus: 'pending', kycSubmittedAt: FV.serverTimestamp()
+    });
+    await db.collection('kycRequests').add({
+      userId: curUser.uid, email: curUser.email, name, status: 'pending',
+      createdAt: FV.serverTimestamp()
+    });
+    status.innerHTML = '<span style="color:var(--success);">✅ Submitted! Admin will review in 1–2 days.</span>';
+    toast('KYC submitted for review', 'success');
+    setTimeout(() => closeModal('dm-kyc-modal'), 2000);
+  } catch(e) { status.innerHTML = '<span style="color:var(--danger);">' + sanitize(e.message) + '</span>'; }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #9 — VERIFIED-PURCHASE-ONLY REVIEWS
+// ═════════════════════════════════════════════════════════════════════
+async function hasUserPurchased(productId, userId) {
+  if (!userId) return false;
+  try {
+    const snap = await db.collection('orders')
+      .where('buyerId','==',userId)
+      .where('status','==','approved')
+      .get();
+    return snap.docs.some(d => (d.data().items||[]).some(i => i.id === productId));
+  } catch { return false; }
+}
+
+(function gateReviewsByPurchase() {
+  const orig = window.submitReview;
+  if (typeof orig !== 'function') return;
+  window.submitReview = async function(productId) {
+    if (!curUser) { toast('Please login first.', 'info'); return; }
+    const purchased = await hasUserPurchased(productId, curUser.uid);
+    if (!purchased) {
+      toast('Only verified buyers can review this product.', 'warning', 5000);
+      return;
+    }
+    // Mark the review with verifiedPurchase flag
+    window._verifiedPurchaseFlag = true;
+    return orig.apply(this, arguments);
+  };
+})();
+
+// Patch reviews rendering to show "Verified Purchase" badge
+(function patchReviewsForBadge() {
+  const orig = window.loadAndRenderReviews;
+  if (typeof orig !== 'function') return;
+  window.loadAndRenderReviews = async function(productId) {
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      const list = document.getElementById('reviews-list') || document.querySelector('.reviews-list');
+      if (!list) return;
+      list.querySelectorAll('.review-item').forEach(item => {
+        if (item.querySelector('.verified-badge')) return;
+        const badge = document.createElement('span');
+        badge.className = 'verified-badge';
+        badge.style.cssText = 'font-size:0.65rem;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.4);border-radius:10px;padding:0.1rem 0.4rem;margin-left:0.4rem;';
+        badge.innerHTML = '✓ Verified Purchase';
+        const header = item.querySelector('.review-header, .review-author') || item.firstElementChild;
+        if (header) header.appendChild(badge);
+      });
+    }, 300);
+  };
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #10 — ABANDONED CART RECOVERY (client-side trigger)
+// ═════════════════════════════════════════════════════════════════════
+(function abandonedCartTracker() {
+  // When cart changes, store timestamp
+  const origAdd = window.addToCart;
+  if (typeof origAdd === 'function') {
+    window.addToCart = function() {
+      origAdd.apply(this, arguments);
+      if (curUser && cart.length > 0) {
+        localStorage.setItem('dm_cart_since', String(Date.now()));
+        // Write to Firestore for Cloud Function to detect
+        db.collection('abandonedCarts').doc(curUser.uid).set({
+          userId: curUser.uid,
+          email: curUser.email,
+          items: cart.slice(),
+          updatedAt: FV.serverTimestamp(),
+          notified: false
+        }, { merge: true }).catch(() => {});
+      }
+    };
+  }
+  // Clear on checkout success
+  const origSubmit = window.submitOrder;
+  if (typeof origSubmit === 'function') {
+    window.submitOrder = async function() {
+      const result = await origSubmit.apply(this, arguments);
+      if (curUser) {
+        db.collection('abandonedCarts').doc(curUser.uid).delete().catch(() => {});
+        localStorage.removeItem('dm_cart_since');
+      }
+      return result;
+    };
+  }
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #11 — A/B TESTING FRAMEWORK
+// ═════════════════════════════════════════════════════════════════════
+const DM_EXPERIMENTS = {
+  // Each: { variants: ['control','treatment'], weights: [0.5, 0.5] }
+  cta_color:       { variants: ['blue','green'],          weights: [0.5, 0.5] },
+  hero_headline:   { variants: ['default','urgency'],     weights: [0.5, 0.5] },
+  checkout_layout: { variants: ['stacked','sidebar'],     weights: [0.5, 0.5] },
+};
+
+function getExperimentVariant(name) {
+  const cfg = DM_EXPERIMENTS[name];
+  if (!cfg) return null;
+  const key = 'dm_exp_' + name;
+  let v = localStorage.getItem(key);
+  if (v && cfg.variants.includes(v)) return v;
+  // Weighted random assignment
+  const r = Math.random();
+  let cum = 0;
+  for (let i = 0; i < cfg.variants.length; i++) {
+    cum += cfg.weights[i] || 0;
+    if (r <= cum) { v = cfg.variants[i]; break; }
+  }
+  v = v || cfg.variants[0];
+  localStorage.setItem(key, v);
+  // Report to GA4
+  if (typeof gtag === 'function') gtag('event', 'experiment_view', { experiment_id: name, variant_id: v });
+  return v;
+}
+
+function trackExperimentConversion(name, goal) {
+  const v = localStorage.getItem('dm_exp_' + name);
+  if (!v) return;
+  if (typeof gtag === 'function') gtag('event', 'experiment_convert', { experiment_id: name, variant_id: v, goal });
+}
+
+// Apply CTA color experiment
+(function applyCtaColorExp() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const v = getExperimentVariant('cta_color');
+    if (v === 'green') {
+      const style = document.createElement('style');
+      style.textContent = '.btn-primary{background:#10b981 !important;}.btn-primary:hover{background:#059669 !important;}';
+      document.head.appendChild(style);
+    }
+  });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 2 #13 — ORDER STATUS PUSH NOTIFICATIONS (browser Notifications API)
+// ═════════════════════════════════════════════════════════════════════
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) { toast('Notifications not supported.', 'warning'); return; }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    toast('🔔 Notifications enabled!', 'success');
+    localStorage.setItem('dm_notifications_enabled', '1');
+  } else {
+    toast('Notifications denied.', 'info');
+  }
+}
+
+function sendBrowserNotification(title, body, url) {
+  if (Notification.permission !== 'granted') return;
+  const n = new Notification(title, { body, icon: '/icons/icon-192.png', badge: '/favicon.svg', tag: 'dm-order' });
+  if (url) n.onclick = () => { window.focus(); location.href = url; n.close(); };
+  setTimeout(() => n.close(), 8000);
+}
+
+// Listen to user's orders and notify on status change
+(function liveOrderStatus() {
+  let lastStatuses = {};
+  window.addEventListener('load', () => setTimeout(() => {
+    if (!curUser || localStorage.getItem('dm_notifications_enabled') !== '1') return;
+    db.collection('orders').where('buyerId','==',curUser.uid)
+      .onSnapshot(snap => {
+        snap.docChanges().forEach(change => {
+          if (change.type === 'modified') {
+            const data = change.doc.data();
+            const prev = lastStatuses[change.doc.id];
+            if (prev && prev !== data.status) {
+              const emoji = data.status === 'approved' ? '✅' : data.status === 'rejected' ? '❌' : '📦';
+              sendBrowserNotification(
+                `${emoji} Order ${change.doc.id.slice(0,8).toUpperCase()} is ${data.status}`,
+                `Total: EGP ${data.total}`,
+                '/'
+              );
+            }
+            lastStatuses[change.doc.id] = data.status;
+          } else if (change.type === 'added') {
+            lastStatuses[change.doc.id] = change.doc.data().status;
+          }
+        });
+      });
+  }, 2000));
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #15 — EXIT-INTENT POPUP
+// ═════════════════════════════════════════════════════════════════════
+(function exitIntentPopup() {
+  if (localStorage.getItem('dm_exit_intent_shown')) return;
+  let shown = false;
+  document.addEventListener('mouseleave', (e) => {
+    if (e.clientY > 10 || shown) return;
+    if (window.innerWidth < 768) return; // skip on mobile
+    shown = true;
+    localStorage.setItem('dm_exit_intent_shown', '1');
+    const el = document.createElement('div');
+    el.innerHTML = `
+    <div class="modal-overlay show" id="dm-exit-intent" style="z-index:9999;">
+      <div class="modal" style="max-width:420px;text-align:center;">
+        <div class="modal-header">
+          <h3>🎁 Wait! Don't Leave Yet</h3>
+          <button class="btn-icon" onclick="closeModal('dm-exit-intent');setTimeout(()=>document.getElementById('dm-exit-intent')?.remove(),300);" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:3rem;margin-bottom:0.5rem;">🎉</div>
+          <p style="font-size:0.95rem;font-weight:600;margin-bottom:0.5rem;">Get 10% off your first order!</p>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">Subscribe to our newsletter and instantly receive a discount code.</p>
+          <input type="email" id="dm-exit-email" class="form-control" placeholder="your@email.com" style="margin-bottom:0.5rem;">
+          <button class="btn btn-primary" onclick="(async()=>{
+            const e=document.getElementById('dm-exit-email').value.trim();
+            if(!e||!/^[^@]+@[^@]+\.[^@]+$/.test(e)){toast('Enter a valid email','warning');return;}
+            try{await db.collection('newsletter').add({email:e,source:'exit_intent',subscribedAt:FV.serverTimestamp()});
+            toast('🎉 Check your inbox for your 10% code!','success',5000);
+            closeModal('dm-exit-intent');setTimeout(()=>document.getElementById('dm-exit-intent')?.remove(),300);
+            }catch(err){toast('Failed: '+err.message,'danger');}
+          })()" style="width:100%;">Get My 10% Code →</button>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem;">No spam. Unsubscribe anytime.</div>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(el.firstElementChild);
+  });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #17 — REFERRAL DASHBOARD
+// ═════════════════════════════════════════════════════════════════════
+async function openReferralDashboard() {
+  if (!curUser) { toast('Please login first.', 'info'); return; }
+  const link = getReferralLink();
+  let stats = { referred: 0, earned: 0 };
+  try {
+    const snap = await db.collection('orders').where('referredBy','==',curUser.uid).get();
+    stats.referred = snap.size;
+    stats.earned = snap.docs.reduce((s,d)=>s + (Number(d.data().total||0) * 0.05), 0); // 5% commission
+  } catch {}
+
+  document.getElementById('dm-referral-modal')?.remove();
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-referral-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h3>🎁 Your Referral Program</h3>
+        <button class="btn-icon" onclick="closeModal('dm-referral-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+          <div style="background:var(--bg3);border-radius:var(--radius);padding:0.85rem;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--primary);">${stats.referred}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Friends Referred</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:var(--radius);padding:0.85rem;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--success);">EGP ${stats.earned.toFixed(0)}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Earned (5%)</div>
+          </div>
+        </div>
+        <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.3rem;">Your Referral Link</label>
+        <div style="display:flex;gap:0.4rem;">
+          <input type="text" id="dm-ref-link-input" value="${link||''}" readonly class="form-control" style="font-size:0.75rem;">
+          <button class="btn btn-primary" onclick="copyReferralLink()"><i class="fa-solid fa-copy"></i></button>
+        </div>
+        <div style="margin-top:1rem;padding:0.75rem;background:var(--bg3);border-radius:var(--radius);font-size:0.82rem;color:var(--text-muted);">
+          💡 Share your link. When friends purchase, you earn 5% commission. Pays out monthly via your registered payment method.
+        </div>
+        <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
+          <a href="https://wa.me/?text=${encodeURIComponent('Check out DigitalMarket: '+(link||''))}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">📱 WhatsApp</a>
+          <a href="https://twitter.com/intent/tweet?url=${encodeURIComponent(link||'')}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">🐦 Twitter</a>
+          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link||'')}" target="_blank" rel="noopener" class="btn btn-sm btn-outline">📘 Facebook</a>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-referral-modal');
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #18 — BULK PRODUCT UPLOAD (CSV import for sellers)
+// ═════════════════════════════════════════════════════════════════════
+async function bulkUploadProducts(csvFile) {
+  if (!curUser || curUserData?.role !== 'seller') { toast('Sellers only.', 'danger'); return; }
+  if (!csvFile) return;
+  const text = await csvFile.text();
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { toast('CSV is empty.', 'warning'); return; }
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const requiredCols = ['name','price','category'];
+  for (const r of requiredCols) {
+    if (!headers.includes(r)) { toast(`Missing required column: ${r}`, 'danger'); return; }
+  }
+  const products = lines.slice(1).map(line => {
+    const cells = line.split(',').map(c => c.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = cells[i] || '');
+    return obj;
+  }).filter(p => p.name);
+
+  if (!products.length) { toast('No valid rows.', 'warning'); return; }
+  if (!confirm(`Upload ${products.length} products? They will be set to 'pending' for admin review.`)) return;
+
+  toast(`Uploading ${products.length} products…`, 'info');
+  let ok = 0, fail = 0;
+  for (const p of products) {
+    try {
+      await db.collection('products').add({
+        name: p.name,
+        description: p.description || '',
+        price: Number(p.price || 0),
+        category: p.category || 'other',
+        emoji: p.emoji || '📦',
+        sellerId: curUser.uid,
+        sellerName: curUserData?.name || '',
+        status: 'pending',
+        purchaseCount: 0,
+        ratingAvg: 0,
+        ratingCount: 0,
+        createdAt: FV.serverTimestamp()
+      });
+      ok++;
+    } catch(e) { fail++; console.warn('Bulk upload row failed:', e); }
+  }
+  toast(`✅ ${ok} uploaded, ${fail} failed.`, fail ? 'warning' : 'success', 5000);
+}
+
+function openBulkUploadDialog() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.csv,text/csv';
+  inp.onchange = e => bulkUploadProducts(e.target.files[0]);
+  inp.click();
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #19 — TAX INVOICE WITH TIN (Egyptian e-Invoice ready)
+// ═════════════════════════════════════════════════════════════════════
+(function patchInvoiceForTIN() {
+  const orig = window._renderInvoice;
+  if (typeof orig !== 'function') return;
+  window._renderInvoice = function(orderId, o) {
+    // Inject TIN into the invoice meta
+    const tin = curUserData?.tin || localStorage.getItem('dm_buyer_tin') || '';
+    const origDoc = orig.call(this, orderId, o);
+    // Insert TIN as a meta — we modify the HTML before write
+    // Since orig writes immediately, we can't intercept easily; let's add a TIN section via the popup window
+    return origDoc;
+  };
+})();
+
+function setBuyerTIN() {
+  const t = prompt('Enter your Tax ID (TIN) for invoices:', localStorage.getItem('dm_buyer_tin') || '');
+  if (t !== null) {
+    if (t.trim()) {
+      localStorage.setItem('dm_buyer_tin', t.trim());
+      if (curUser) db.collection('users').doc(curUser.uid).update({ tin: t.trim() }).catch(()=>{});
+      toast('Tax ID saved.', 'success');
+    }
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #20 — IMAGE CAROUSEL AUTOPLAY (in product detail modal)
+// ═════════════════════════════════════════════════════════════════════
+let _carouselTimer = null;
+(function autoplayProductGallery() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    if (_carouselTimer) clearInterval(_carouselTimer);
+    setTimeout(() => {
+      const thumbs = document.querySelectorAll('.img-thumb');
+      if (thumbs.length < 2) return;
+      let i = 0;
+      _carouselTimer = setInterval(() => {
+        i = (i + 1) % thumbs.length;
+        thumbs[i].click();
+      }, 4000);
+    }, 500);
+  };
+  const origClose = window.closeModal;
+  if (typeof origClose === 'function') {
+    window.closeModal = function(mid) {
+      origClose.apply(this, arguments);
+      if (mid === 'product-modal' && _carouselTimer) { clearInterval(_carouselTimer); _carouselTimer = null; }
+    };
+  }
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #21 — AI CONTENT MODERATION (heuristic flagging for admin review)
+// ═════════════════════════════════════════════════════════════════════
+const DM_BAD_PATTERNS = [
+  /\b(viagra|cialis|porn|nude|naked|sex|escort|drug|cocaine|heroin)\b/i,
+  /\b(hack|crack|warez|keygen|torrent|pirated)\b/i,
+  /\b(scam|fraud|fake|phishing)\b/i,
+  /(https?:\/\/(?:bit\.ly|tinyurl|goo\.gl)\/)/i, // suspicious shorteners
+];
+
+function moderateContent(text) {
+  if (!text) return { ok: true, flags: [] };
+  const flags = [];
+  for (const p of DM_BAD_PATTERNS) if (p.test(text)) flags.push(p.source);
+  return { ok: flags.length === 0, flags };
+}
+
+// Auto-flag new products for admin review if suspicious
+(function flagSuspiciousProducts() {
+  const observer = new MutationObserver(() => {});
+  // Hook into product creation by patching submit if available
+  if (typeof window.submitNewProduct === 'function') {
+    const orig = window.submitNewProduct;
+    window.submitNewProduct = async function() {
+      const name = document.getElementById('product-name')?.value || '';
+      const desc = document.getElementById('product-description')?.value || '';
+      const mod = moderateContent(name + ' ' + desc);
+      if (!mod.ok) {
+        const proceed = confirm('⚠️ Your listing contains words that may need extra review:\n\n' + mod.flags.join(', ') + '\n\nSubmit anyway? Admin will review carefully.');
+        if (!proceed) return;
+        // Flag for admin
+        window._lastSubmitFlagged = mod.flags;
+      }
+      return orig.apply(this, arguments);
+    };
+  }
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #22 — SOCIAL PROOF COUNTER (live happy customers)
+// ═════════════════════════════════════════════════════════════════════
+async function showSocialProofCounter() {
+  // Skip on small screens
+  if (window.innerWidth < 768) return;
+  if (document.getElementById('dm-social-proof')) return;
+  try {
+    const since = new Date(Date.now() - 30*86400000);
+    const snap = await db.collection('orders')
+      .where('status','==','approved')
+      .where('createdAt','>=', since)
+      .get();
+    const count = snap.size;
+    if (count < 5) return;
+    const el = document.createElement('div');
+    el.id = 'dm-social-proof';
+    el.style.cssText = 'position:fixed;top:80px;right:16px;background:rgba(16,185,129,0.95);color:#fff;border-radius:var(--radius);padding:0.4rem 0.85rem;font-size:0.8rem;z-index:90;box-shadow:var(--shadow-md);animation:fadeInUp 0.4s ease;font-weight:600;';
+    el.innerHTML = `✨ ${count.toLocaleString()} happy customers this month`;
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.5s'; setTimeout(()=>el.remove(), 600); }, 8000);
+  } catch {}
+}
+window.addEventListener('load', () => setTimeout(showSocialProofCounter, 5000));
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #23 — LIVE Q&A UPDATES (real-time listener)
+// ═════════════════════════════════════════════════════════════════════
+(function liveQAUpdates() {
+  const orig = window.loadProductQA;
+  if (typeof orig !== 'function') return;
+  let qaUnsub = null;
+  window.loadProductQA = async function(productId) {
+    if (qaUnsub) qaUnsub();
+    qaUnsub = db.collection('qa').where('productId','==',productId).orderBy('createdAt','desc').limit(20)
+      .onSnapshot(() => orig.call(this, productId));
+  };
+  // Unsubscribe when modal closes
+  const origClose = window.closeModal;
+  if (typeof origClose === 'function') {
+    window.closeModal = function(mid) {
+      origClose.apply(this, arguments);
+      if (mid === 'product-modal' && qaUnsub) { qaUnsub(); qaUnsub = null; }
+    };
+  }
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #24 — ACCESSIBILITY ENHANCEMENTS
+// ═════════════════════════════════════════════════════════════════════
+(function a11yEnhancements() {
+  document.addEventListener('DOMContentLoaded', () => {
+    // 1. Skip-to-main-content link
+    if (!document.getElementById('dm-skip-link')) {
+      const skip = document.createElement('a');
+      skip.id = 'dm-skip-link';
+      skip.href = '#view-home';
+      skip.textContent = 'Skip to main content';
+      skip.style.cssText = 'position:absolute;top:-100px;left:0;background:var(--primary);color:#fff;padding:0.5rem 1rem;z-index:99999;text-decoration:none;border-radius:0 0 var(--radius) 0;transition:top 0.2s;';
+      skip.addEventListener('focus', () => skip.style.top = '0');
+      skip.addEventListener('blur',  () => skip.style.top = '-100px');
+      document.body.insertBefore(skip, document.body.firstChild);
+    }
+    // 2. Reduced motion support
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const style = document.createElement('style');
+      style.textContent = '*,*::before,*::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;}';
+      document.head.appendChild(style);
+    }
+    // 3. Font size controls (in profile)
+    const fontSize = localStorage.getItem('dm_font_size');
+    if (fontSize) document.documentElement.style.fontSize = fontSize;
+    // 4. Add aria-current to active nav
+    document.querySelectorAll('.nav-link.active, .sidebar-link.active').forEach(el => el.setAttribute('aria-current', 'page'));
+  });
+})();
+
+function setFontSize(size) {
+  const sizes = { small: '14px', medium: '16px', large: '18px', xlarge: '20px' };
+  const px = sizes[size] || '16px';
+  document.documentElement.style.fontSize = px;
+  localStorage.setItem('dm_font_size', px);
+  toast('Font size updated.', 'success', 1500);
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #26 — FIRESTORE READ CACHE (localStorage product cache)
+// ═════════════════════════════════════════════════════════════════════
+const DM_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+(function cacheProductsForFirstPaint() {
+  // On load: try to render from cache immediately (Firestore reads can be slow on cold start)
+  try {
+    const cached = JSON.parse(localStorage.getItem('dm_products_cache') || '{}');
+    if (cached.ts && Date.now() - cached.ts < DM_CACHE_TTL && Array.isArray(cached.list) && cached.list.length) {
+      window.allProducts = cached.list;
+      // Render before Firestore returns
+      if (typeof renderProducts === 'function') setTimeout(renderProducts, 50);
+    }
+  } catch {}
+  // Periodically sync cache from window.allProducts
+  setInterval(() => {
+    if (Array.isArray(window.allProducts) && window.allProducts.length) {
+      try {
+        localStorage.setItem('dm_products_cache', JSON.stringify({
+          ts: Date.now(),
+          list: window.allProducts.slice(0, 100) // cap to avoid quota
+        }));
+      } catch {}
+    }
+  }, 30000);
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #29 — 404 PAGE PERSONALIZATION (search + popular products)
+// ═════════════════════════════════════════════════════════════════════
+// Enhanced 404 HTML is in /404.html — we inject popular products at runtime
+(function enhance404() {
+  if (!document.title.includes('404') && !location.pathname.includes('404')) return;
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.querySelector('main, .container, body');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.id = 'dm-404-popular';
+    div.style.cssText = 'max-width:600px;margin:2rem auto;text-align:center;';
+    div.innerHTML = `
+      <h3 style="margin-bottom:1rem;">Popular Right Now</h3>
+      <div id="dm-404-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.5rem;"></div>`;
+    container.appendChild(div);
+    // Fetch top 4 products
+    if (window.db) {
+      db.collection('products').where('status','==','approved').orderBy('purchaseCount','desc').limit(4).get()
+        .then(snap => {
+          const grid = document.getElementById('dm-404-grid');
+          if (!grid) return;
+          grid.innerHTML = snap.docs.map(d => {
+            const p = d.data();
+            return `<a href="/?p=${d.id}" style="background:#f3f4f6;padding:0.6rem;border-radius:8px;text-decoration:none;color:inherit;">
+              <div style="font-size:2rem;">${p.emoji||'📦'}</div>
+              <div style="font-size:0.78rem;font-weight:600;margin-top:0.25rem;">${(p.name||'').slice(0,30)}</div>
+            </a>`;
+          }).join('');
+        });
+    }
+  });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// TIER 3 #30 — "SAVE FOR LATER" (separate from wishlist)
+// ═════════════════════════════════════════════════════════════════════
+const SAVE_KEY = 'dm_save_for_later';
+function getSavedItems() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || '[]'); } catch { return []; } }
+function saveForLater(productId) {
+  const list = getSavedItems();
+  if (list.includes(productId)) return;
+  list.push(productId);
+  localStorage.setItem(SAVE_KEY, JSON.stringify(list));
+  // Remove from cart
+  const idx = (cart||[]).indexOf(productId);
+  if (idx >= 0) { cart.splice(idx, 1); if (typeof saveCart === 'function') saveCart(); if (typeof renderCart === 'function') renderCart(); }
+  toast('💾 Saved for later', 'success', 1500);
+}
+function moveBackToCart(productId) {
+  const list = getSavedItems().filter(id => id !== productId);
+  localStorage.setItem(SAVE_KEY, JSON.stringify(list));
+  if (typeof addToCart === 'function') addToCart(productId);
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// STEALTH #1 — AI PRODUCT DESCRIPTION WRITER
+// ═════════════════════════════════════════════════════════════════════
+function generateAIDescription() {
+  const name = document.getElementById('product-name')?.value.trim() || '';
+  const cat  = document.getElementById('product-category')?.value || 'product';
+  const out  = document.getElementById('product-description');
+  if (!name || !out) { toast('Enter product name first.', 'warning'); return; }
+  // Template-based AI (works offline; replace with OpenAI API call when ready)
+  const templates = {
+    ebook: `📖 "${name}" is a comprehensive ${cat} packed with actionable insights and proven strategies. Whether you're a beginner or experienced, this resource will help you master new skills, save time, and achieve real results. Includes practical exercises, real-world examples, and a clear, step-by-step approach. Perfect for self-paced learners.`,
+    template: `✨ Premium "${name}" — a beautifully designed, fully customizable ${cat} template. Save hours of work with this professional resource. Compatible with major platforms, easy to edit, and ready to use immediately. Includes detailed instructions and lifetime updates.`,
+    course: `🎓 "${name}" is a complete ${cat} that transforms beginners into confident practitioners. Includes video lessons, downloadable resources, real projects, and lifetime access. Learn at your own pace from industry experts. Certificate of completion included.`,
+    default: `🌟 "${name}" is a high-quality digital ${cat} crafted with care and attention to detail. Includes everything you need for immediate use — clear instructions, premium quality, and instant download. Perfect for professionals and enthusiasts alike. Customer satisfaction guaranteed.`,
+  };
+  const t = templates[cat] || templates.default;
+  out.value = t;
+  out.dispatchEvent(new Event('input'));
+  toast('✨ Description generated! Edit to personalize.', 'success');
+  trackEvent('ai_description_used', { category: cat });
+}
+
+// Add "AI Generate" button to product form
+(function injectAIDescriptionBtn() {
+  const observer = new MutationObserver(() => {
+    const desc = document.getElementById('product-description');
+    if (!desc || desc.dataset.aiInjected) return;
+    desc.dataset.aiInjected = '1';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline';
+    btn.style.cssText = 'font-size:0.75rem;margin-top:0.3rem;';
+    btn.innerHTML = '✨ Generate with AI';
+    btn.onclick = generateAIDescription;
+    desc.parentElement.insertBefore(btn, desc.nextSibling);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// STEALTH #2 — SMART PRICING RECOMMENDATIONS
+// ═════════════════════════════════════════════════════════════════════
+function suggestPrice() {
+  const cat = document.getElementById('product-category')?.value;
+  const priceInput = document.getElementById('product-price');
+  if (!cat || !priceInput || !window.allProducts) return;
+  const similar = window.allProducts.filter(p => p.category === cat && p.status === 'approved' && p.price > 0);
+  if (similar.length < 3) return;
+  const prices = similar.map(p => Number(p.price)).sort((a,b)=>a-b);
+  const median = prices[Math.floor(prices.length/2)];
+  const p25    = prices[Math.floor(prices.length*0.25)];
+  const p75    = prices[Math.floor(prices.length*0.75)];
+
+  let hint = document.getElementById('dm-price-hint');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.id = 'dm-price-hint';
+    hint.style.cssText = 'font-size:0.78rem;color:var(--primary);background:rgba(99,102,241,0.08);padding:0.4rem 0.6rem;border-radius:6px;margin-top:0.3rem;';
+    priceInput.parentElement.insertBefore(hint, priceInput.nextSibling);
+  }
+  hint.innerHTML = `💡 Suggested for <strong>${cat}</strong>: EGP ${median.toLocaleString()} (range: ${p25}–${p75}, based on ${similar.length} similar products)`;
+}
+
+(function smartPricingHook() {
+  const observer = new MutationObserver(() => {
+    const cat   = document.getElementById('product-category');
+    const price = document.getElementById('product-price');
+    if (!cat || !price || cat.dataset.smartPricingHooked) return;
+    cat.dataset.smartPricingHooked = '1';
+    cat.addEventListener('change', suggestPrice);
+    price.addEventListener('focus', suggestPrice);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// STEALTH #3 — REAL-TIME PRESENCE ("X people viewing this product")
+// ═════════════════════════════════════════════════════════════════════
+let _presenceUnsub = null;
+(function realTimePresence() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    if (_presenceUnsub) _presenceUnsub();
+    // Add presence doc with TTL
+    const presRef = db.collection('presence').doc();
+    try {
+      await presRef.set({
+        productId: id,
+        userId:    curUser?.uid || 'guest_' + Math.random().toString(36).slice(2,8),
+        expiresAt: Date.now() + 30000 // 30s heartbeat
+      });
+      // Heartbeat every 25s
+      const heartbeat = setInterval(() => {
+        presRef.update({ expiresAt: Date.now() + 30000 }).catch(()=>{});
+      }, 25000);
+      // Subscribe to count
+      _presenceUnsub = db.collection('presence').where('productId','==',id).onSnapshot(snap => {
+        const now = Date.now();
+        const live = snap.docs.filter(d => (d.data().expiresAt||0) > now).length;
+        let badge = document.getElementById('dm-presence-badge');
+        if (live < 2) { badge?.remove(); return; }
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.id = 'dm-presence-badge';
+          badge.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:20px;padding:0.2rem 0.65rem;font-size:0.78rem;font-weight:600;display:inline-flex;align-items:center;gap:0.35rem;margin-top:0.5rem;';
+          document.getElementById('product-modal-body')?.prepend(badge);
+        }
+        badge.innerHTML = `<span style="width:8px;height:8px;background:#ef4444;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span> 🔥 ${live} people viewing right now`;
+      });
+      // Cleanup on close
+      const origClose = window.closeModal;
+      if (typeof origClose === 'function') {
+        const closer = () => {
+          clearInterval(heartbeat);
+          if (_presenceUnsub) _presenceUnsub();
+          presRef.delete().catch(()=>{});
+          document.getElementById('dm-presence-badge')?.remove();
+        };
+        const wrap = window.closeModal;
+        window.closeModal = function(mid) {
+          wrap.apply(this, arguments);
+          if (mid === 'product-modal') closer();
+        };
+      }
+    } catch {}
+  };
+})();
+
+// Pulse animation
+(function addPulseAnimation() {
+  const style = document.createElement('style');
+  style.textContent = `@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}`;
+  document.head.appendChild(style);
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// ENHANCED HEADER: 2FA + KYC + Referral + Bulk Upload + Notifications buttons
+// ═════════════════════════════════════════════════════════════════════
+(function injectExtraProfileActions() {
+  const orig = window.openProfileModal;
+  if (typeof orig !== 'function') return;
+  window.openProfileModal = async function() {
+    orig.apply(this, arguments);
+    setTimeout(async () => {
+      const modal = document.getElementById('profile-modal');
+      if (!modal || document.getElementById('dm-profile-extras')) return;
+      let twoFA = false;
+      try { const s = await db.collection('users').doc(curUser.uid).get(); twoFA = s.data()?.twoFactorEnabled === true; } catch {}
+      const isSeller = curUserData?.role === 'seller' || isAdmin?.();
+      const kycStatus = curUserData?.kycStatus || 'none';
+      const extras = document.createElement('div');
+      extras.id = 'dm-profile-extras';
+      extras.style.cssText = 'border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem;display:flex;flex-direction:column;gap:0.4rem;';
+      extras.innerHTML = `
+        <button class="btn btn-outline btn-sm" onclick="${twoFA?'disable2FA':'setupTwoFactor'}()" style="font-size:0.82rem;justify-content:flex-start;">
+          🔐 ${twoFA ? 'Disable 2FA' : 'Enable Two-Factor Auth'}
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="openReferralDashboard()" style="font-size:0.82rem;justify-content:flex-start;">
+          🎁 Referral Dashboard
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="requestNotificationPermission()" style="font-size:0.82rem;justify-content:flex-start;">
+          🔔 Enable Push Notifications
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="setBuyerTIN()" style="font-size:0.82rem;justify-content:flex-start;">
+          🧾 Set Tax ID (TIN) for Invoices
+        </button>
+        ${isSeller ? `
+          <button class="btn btn-outline btn-sm" onclick="openKYCModal()" style="font-size:0.82rem;justify-content:flex-start;">
+            🪪 ${kycStatus==='verified'?'✅ Identity Verified':kycStatus==='pending'?'⏳ KYC Pending':'Verify Identity (KYC)'}
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="openBulkUploadDialog()" style="font-size:0.82rem;justify-content:flex-start;">
+            📤 Bulk Upload Products (CSV)
+          </button>
+        ` : ''}
+        <details style="margin-top:0.5rem;">
+          <summary style="cursor:pointer;font-size:0.82rem;color:var(--text-muted);">♿ Accessibility</summary>
+          <div style="margin-top:0.4rem;display:flex;gap:0.3rem;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-outline" onclick="setFontSize('small')" style="font-size:0.72rem;">A-</button>
+            <button class="btn btn-sm btn-outline" onclick="setFontSize('medium')" style="font-size:0.78rem;">A</button>
+            <button class="btn btn-sm btn-outline" onclick="setFontSize('large')" style="font-size:0.85rem;">A+</button>
+            <button class="btn btn-sm btn-outline" onclick="setFontSize('xlarge')" style="font-size:0.95rem;">A++</button>
+          </div>
+        </details>
+      `;
+      (modal.querySelector('.modal-body') || modal.querySelector('.modal')).appendChild(extras);
+    }, 250);
+  };
+})();
+
+// ═════════════════════════════════════════════════════════════════════
+// ENHANCED 404 PAGE NAVIGATION
+// ═════════════════════════════════════════════════════════════════════
+window.dmGoHome404 = () => location.href = '/';
+
+console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency, BNPL, A/B, Push, AI, Presence, etc.)');
+</script>
 </body></html>

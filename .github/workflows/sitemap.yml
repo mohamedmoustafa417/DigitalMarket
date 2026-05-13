@@ -1,0 +1,48 @@
+name: Auto-Regenerate Sitemap
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # daily at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sitemap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Call generateSitemap Cloud Function
+        env:
+          REGION: us-central1
+          PROJECT_ID: digitalmarket-38db5
+        run: |
+          # The callable function returns { sitemap, count }.
+          # We call its HTTPS endpoint, parse the XML, and write to sitemap.xml.
+          ENDPOINT="https://${REGION}-${PROJECT_ID}.cloudfunctions.net/generateSitemap"
+          RESPONSE=$(curl -s -X POST "$ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -d '{"data":{}}')
+          echo "$RESPONSE" | jq -r '.result.sitemap' > sitemap.xml
+          # Sanity check
+          if [ ! -s sitemap.xml ]; then
+            echo "::error::sitemap.xml is empty — function call may have failed"
+            echo "Response was: $RESPONSE"
+            exit 1
+          fi
+          echo "Generated sitemap.xml with $(grep -c '<loc>' sitemap.xml) URLs"
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet sitemap.xml; then
+            echo "No changes — skipping commit."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add sitemap.xml
+            git commit -m "chore: auto-regenerate sitemap.xml"
+            git push
+          fi
