@@ -1049,11 +1049,6 @@
       </button>
     </div>
 
-    <!-- Recently Viewed -->
-    <div class="recently-viewed hidden" id="recently-viewed-section">
-      <h3><i class="fa-solid fa-clock-rotate-left" style="margin-right:0.4rem;"></i> Recently Viewed</h3>
-      <div class="rv-grid" id="rv-grid"></div>
-    </div>
   </div>
 </main>
 
@@ -3228,8 +3223,6 @@ function openProductDetail(id) {
   if (!p) return;
   currentProductId = id;
 
-  // Increment view count fire-and-forget
-  try { db.collection('products').doc(id).update({ viewCount: firebase.firestore.FieldValue.increment(1) }); } catch(e){}
   trackEvent('view_item', { item_id: id, item_name: p.name, value: p.price });
 
   const body = document.getElementById('product-modal-body');
@@ -3322,7 +3315,7 @@ function openProductDetail(id) {
   openModal('product-modal');
   loadAndRenderReviews(id);
   loadAndRenderQA(id);
-  renderRelatedProducts(p);
+  renderRelatedProducts(id, p.category);
   // Show license picker if product has commercial license
   if (p.hasCommercialLicense && p.commercialPrice != null) renderCheckoutLicense(p);
 }
@@ -4666,6 +4659,8 @@ function openProfileModal() {
   const alert = document.getElementById('profile-alert');
   alert.style.display = 'none';
   openModal('profile-modal');
+  // Load loyalty points (defined later; safe to call — fires async)
+  if (typeof loadLoyaltyPoints === 'function') loadLoyaltyPoints();
 }
 
 async function saveProfileInfo() {
@@ -7027,15 +7022,7 @@ sellerTab = function(tab) {
 // ═══════════════════════════════════════════════════════════════════
 // WIRE UP: upsell in openCheckout
 // ═══════════════════════════════════════════════════════════════════
-const _origOpenCheckout = openCheckout;
-// Patch openCheckout to show upsell after rendering
-const _patchedOpenCheckout = openCheckout;
-// We override after a tick so the DOM has settled
-document.addEventListener('DOMContentLoaded', () => {});
-// (Upsell is called from within openCheckout via renderUpsell below)
-
 // Hook into existing openCheckout to render upsell
-// We do this by patching the function
 (function patchOpenCheckout() {
   const orig = window.openCheckout;
   if (typeof orig !== 'function') return;
@@ -7048,9 +7035,6 @@ document.addEventListener('DOMContentLoaded', () => {});
 // ═══════════════════════════════════════════════════════════════════
 // ROUND 4 — RECENTLY VIEWED PRODUCTS
 // ═══════════════════════════════════════════════════════════════════
-const RV_KEY = 'dm_recently_viewed_v1';
-const RV_MAX = 10;
-
 function addRecentlyViewed(productId) {
   if (!productId) return;
   try {
@@ -7089,7 +7073,7 @@ function renderRecentlyViewed() {
 // ROUND 4 — RELATED PRODUCTS (same category)
 // ═══════════════════════════════════════════════════════════════════
 function renderRelatedProducts(currentProductId, category) {
-  const section = document.getElementById('related-products-section');
+  const section = document.getElementById('product-related-section');
   if (!section) return;
   const related = allProducts
     .filter(p => p.id !== currentProductId && p.category === category && p.status === 'approved')
@@ -7968,6 +7952,24 @@ function renderFilePreview(product) {
     if (map[view]) mbnActive(map[view]);
     // Render recently viewed when going home
     if (view === 'home') setTimeout(renderRecentlyViewed, 300);
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════════════
+// WIRE UP: include redeemed loyalty points in the order discount
+// Patches calcCouponDiscount so submitOrder's total calculation
+// automatically includes the loyalty discount.
+// ═══════════════════════════════════════════════════════════════════
+(function patchCalcCouponDiscountForLoyalty() {
+  const orig = window.calcCouponDiscount;
+  if (typeof orig !== 'function') return;
+  window.calcCouponDiscount = function(subtotal) {
+    const couponDisc = orig.call(this, subtotal);
+    if (_redeemingPoints && _redeemPointsCount > 0) {
+      const loyaltyDisc = Math.floor(_redeemPointsCount / POINTS_PER_DISC) * POINTS_DISC_VAL;
+      return couponDisc + Math.min(loyaltyDisc, subtotal); // never exceed subtotal
+    }
+    return couponDisc;
   };
 })();
 
