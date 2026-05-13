@@ -218,5 +218,26 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
+    // ── Affiliates ────────────────────────────────────────────────────
+    // Each seller has a doc identified by their uid.
+    match /affiliates/{sellerId} {
+      // Anyone can read (for click tracking from unauthenticated visitors)
+      allow read: if true;
+      // Only the owning seller can write their settings (commission rate)
+      allow write: if isSignedIn() && request.auth.uid == sellerId;
+      // Admin can update/delete
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Loyalty Points Log (subcollection of users) ───────────────────
+    match /users/{userId}/pointsLog/{logId} {
+      // Users can only read their own log
+      allow read: if isSelf(userId);
+      // Backend (via Cloud Functions or client after purchase) writes points
+      allow create: if isSignedIn()
+                    && request.auth.uid == userId;
+      allow update, delete: if isAdmin();
+    }
+
   }
 }

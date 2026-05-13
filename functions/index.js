@@ -75,8 +75,45 @@ exports.onOrderStatusChange = onDocumentWritten(
 
     const orderId = event.params.orderId;
 
-    // ── Order approved → send download links ──
+    // ── Order approved → issue download token + license keys + send email ──
     if (after.status === 'approved') {
+      // Issue a secure download token (30-day expiry)
+      const token     = require('crypto').randomUUID();
+      const expiresAt = Date.now() + 30 * 86400000;
+      await event.data.after.ref.update({ downloadToken: token, downloadExpiresAt: expiresAt, downloadExpired: false });
+
+      // Issue license keys for each item (if seller has licenseEnabled)
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const seg   = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const genKey = () => `${seg()}-${seg()}-${seg()}-${seg()}`;
+      const licenseKeys = {};
+      (after.items || []).forEach(item => { licenseKeys[item.id] = genKey(); });
+      await event.data.after.ref.update({ licenseKeys });
+
+      // Update seller totalSales + tier
+      const TIERS = [[200,'Platinum'],[50,'Gold'],[10,'Silver'],[0,'Bronze']];
+      for (const sid of (after.sellerIds || [])) {
+        try {
+          const sellerRef  = db.collection('users').doc(sid);
+          const sellerSnap = await sellerRef.get();
+          const newCount   = (sellerSnap.data()?.totalSales || 0) + 1;
+          const tier       = (TIERS.find(([min]) => newCount >= min) || TIERS[3])[1];
+          await sellerRef.update({ totalSales: FieldValue.increment(1), tier });
+        } catch {}
+      }
+
+      // Award loyalty points to buyer
+      if (after.buyerId && after.total) {
+        const pts = Math.floor(Number(after.total));
+        if (pts > 0) {
+          await db.collection('users').doc(after.buyerId).update({ loyaltyPoints: FieldValue.increment(pts) });
+          await db.collection('users').doc(after.buyerId).collection('pointsLog').add({
+            type: 'earn', pts, reason: `Purchase EGP ${after.total}`,
+            createdAt: FieldValue.serverTimestamp()
+          });
+        }
+      }
+
       const items      = after.items || [];
       const buyerEmail = after.buyerEmail || '';
       const buyerName  = after.buyerName  || 'Valued Customer';
