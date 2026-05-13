@@ -1,5 +1,5 @@
 /**
- * DigitalMarket – Cloud Functions (Node 18)
+ * DigitalMarket – Cloud Functions (Node 20)
  *
  * Deploy:  firebase deploy --only functions
  * Emulate: firebase emulators:start --only functions,firestore,storage
@@ -209,7 +209,7 @@ exports.cleanExpiredDownloads = onSchedule(
 // products that referenced that file (prevents dead links).
 
 exports.onProductFileDelete = onObjectDeleted(
-  { bucket: 'digitalmarket-38db5.firebasestorage.app', region: 'us-central1' },
+  { bucket: 'digitalmarket-38db5.firebasestorage.app', region: 'us-east1' },
   async event => {
     const filePath = event.data?.name;
     if (!filePath || !filePath.startsWith('products/')) return;
