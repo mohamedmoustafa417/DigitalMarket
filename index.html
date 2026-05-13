@@ -10407,6 +10407,94 @@ let _presenceUnsub = null;
 // ═════════════════════════════════════════════════════════════════════
 window.dmGoHome404 = () => location.href = '/';
 
+// ═════════════════════════════════════════════════════════════════════
+// ADMIN INTEGRATIONS PANEL (Clarity / Tawk.to / VAT toggle without DevTools)
+// Opens with secret shortcut: triple-click the footer logo
+// ═════════════════════════════════════════════════════════════════════
+function openAdminIntegrations() {
+  if (!isAdmin?.()) { toast('Admins only.', 'danger'); return; }
+  document.getElementById('dm-integrations-modal')?.remove();
+  const clarity = localStorage.getItem('dm_clarity_id') || '';
+  const tawk    = localStorage.getItem('dm_tawk_id')    || '';
+  const el = document.createElement('div');
+  el.innerHTML = `
+  <div class="modal-overlay" id="dm-integrations-modal" role="dialog" aria-modal="true">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>🔌 Integrations</h3>
+        <button class="btn-icon" onclick="closeModal('dm-integrations-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem;">
+          Configure third-party services. Settings save to localStorage and apply on next page reload.
+        </p>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.25rem;">
+            🔥 Microsoft Clarity ID <span style="color:var(--text-muted);font-weight:400;">(free heatmaps)</span>
+          </label>
+          <input type="text" id="dm-int-clarity" class="form-control" value="${clarity}" placeholder="e.g., qabcdef123" style="font-size:0.85rem;font-family:monospace;">
+          <a href="https://clarity.microsoft.com/" target="_blank" rel="noopener" style="font-size:0.72rem;">Get your Project ID →</a>
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label style="font-size:0.85rem;font-weight:600;display:block;margin-bottom:0.25rem;">
+            💬 Tawk.to Widget ID <span style="color:var(--text-muted);font-weight:400;">(free live chat)</span>
+          </label>
+          <input type="text" id="dm-int-tawk" class="form-control" value="${tawk}" placeholder="e.g., 5e8a.../default" style="font-size:0.85rem;font-family:monospace;">
+          <a href="https://dashboard.tawk.to/" target="_blank" rel="noopener" style="font-size:0.72rem;">Get your Widget Code →</a>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-primary" onclick="
+            localStorage.setItem('dm_clarity_id', document.getElementById('dm-int-clarity').value.trim());
+            localStorage.setItem('dm_tawk_id',    document.getElementById('dm-int-tawk').value.trim());
+            toast('Saved! Reload the page to apply.','success',4000);
+            closeModal('dm-integrations-modal');" style="flex:1;">
+            <i class="fa-solid fa-floppy-disk"></i> Save & Reload
+          </button>
+          <button class="btn btn-outline" onclick="
+            if(confirm('Clear all integration IDs?')){
+              localStorage.removeItem('dm_clarity_id');
+              localStorage.removeItem('dm_tawk_id');
+              toast('Cleared.','info');
+              closeModal('dm-integrations-modal');
+            }">Clear</button>
+        </div>
+        <div style="margin-top:1rem;padding:0.75rem;background:var(--bg3);border-radius:var(--radius);font-size:0.78rem;color:var(--text-muted);">
+          ℹ️ Heatmaps and chat are <strong>opt-in</strong>. Without IDs, the scripts never load — no GDPR issue.
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstElementChild);
+  openModal('dm-integrations-modal');
+}
+
+// Hidden trigger: triple-click the footer logo (or Ctrl+Shift+I)
+(function addIntegrationsShortcut() {
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'I' && isAdmin?.()) {
+      e.preventDefault();
+      openAdminIntegrations();
+    }
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      const logo = document.querySelector('footer .fa-store')?.parentElement;
+      if (!logo) return;
+      let clicks = 0, timer = null;
+      logo.addEventListener('click', () => {
+        clicks++;
+        clearTimeout(timer);
+        if (clicks >= 3 && isAdmin?.()) {
+          clicks = 0;
+          openAdminIntegrations();
+        } else {
+          timer = setTimeout(() => { clicks = 0; }, 500);
+        }
+      });
+    }, 1000);
+  });
+})();
+
 console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency, BNPL, A/B, Push, AI, Presence, etc.)');
 </script>
 </body></html>
