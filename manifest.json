@@ -30,9 +30,9 @@
   ],
   "screenshots": [
     {
-      "src": "og-image.png",
+      "src": "social_media_thumbnail.svg",
       "sizes": "1200x630",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "form_factor": "wide",
       "label": "DigitalMarket Marketplace"
     }

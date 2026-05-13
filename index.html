@@ -9,7 +9,7 @@
   <meta property="og:description" content="Buy and sell digital products securely on DigitalMarket.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://digitalmarketstore.shop/">
-  <meta property="og:image" content="https://digitalmarketstore.shop/og-image.png">
+  <meta property="og:image" content="https://digitalmarketstore.shop/social_media_thumbnail.svg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:locale" content="en_US">
@@ -20,7 +20,7 @@
   <meta name="twitter:site" content="@DigitalMarketEG">
   <meta name="twitter:title" content="DigitalMarket – Digital Marketplace">
   <meta name="twitter:description" content="Buy and sell digital products securely on DigitalMarket.">
-  <meta name="twitter:image" content="https://digitalmarketstore.shop/og-image.png">
+  <meta name="twitter:image" content="https://digitalmarketstore.shop/social_media_thumbnail.svg">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#6366f1">
@@ -81,7 +81,7 @@
       onLCP(sendVital); onCLS(sendVital); onFID(sendVital); onINP(sendVital);
     } catch(e) {}
   </script>
-  <!-- Google reCAPTCHA v3 – replace YOUR_RECAPTCHA_SITE_KEY -->
+  <!-- Google reCAPTCHA v3 -->
   <script src="https://www.google.com/recaptcha/api.js?render=6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz" async defer></script>
   <!-- Firebase 10 (compat layer – same API as v8, no code changes needed) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -2612,6 +2612,8 @@ function toast(msg, type = 'info', duration = 3500) {
   container.appendChild(el);
   setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.4s'; setTimeout(() => el.remove(), 400); }, duration);
 }
+// Alias used throughout Round 4–6 code
+const showToast = toast;
 
 // ═══════════════════════════════════════════════════════════════════
 // ALERT HELPER
@@ -5597,6 +5599,10 @@ updateWishlistBadge();
 applyLang();
 loadProducts();
 setTimeout(initHeroCanvas, 300);
+// If URL contains ?token=, verify and show downloads
+if (new URLSearchParams(window.location.search).get('token')) {
+  setTimeout(validateDownloadToken, 1500); // wait for auth to settle
+}
 
 // Restore lockout banner on page load
 if (isLockedOut()) showLockoutBanner();
@@ -7645,6 +7651,7 @@ function showCheckoutRedeemRow(pts) {
 
 function togglePointsRedeem(checked) {
   _redeemingPoints = checked;
+  renderCheckoutSummary(); // refresh displayed total immediately
 }
 
 /** Award points after a successful purchase */
