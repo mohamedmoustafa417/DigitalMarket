@@ -118,5 +118,105 @@ service cloud.firestore {
                     || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
+    // ── Q&A ──────────────────────────────────────────────────────────
+    match /qa/{qaId} {
+      // Anyone can read Q&A (shown on product pages)
+      allow read: if true;
+      // Any signed-in, non-banned user can post a question
+      allow create: if isSignedIn() && isNotBanned()
+                    && request.resource.data.askerId == request.auth.uid;
+      // Only the product's seller or an admin can add/update an answer
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['answer', 'answeredAt', 'answererId'])
+                        && (
+                          // Seller who owns the product
+                          get(/databases/$(database)/documents/products/$(resource.data.productId)).data.sellerId == request.auth.uid
+                          || isAdmin()
+                        ));
+      allow delete: if isAdmin()
+                    || (isSignedIn() && resource.data.askerId == request.auth.uid);
+    }
+
+    // ── Disputes / Refund Requests ────────────────────────────────────
+    match /disputes/{disputeId} {
+      // Buyer who opened it, involved seller, or admin can read
+      allow read: if isSignedIn() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.sellerId == request.auth.uid ||
+        isAdmin()
+      );
+      // Only the buyer can open a dispute, and only for their own orders
+      allow create: if isSignedIn() && isNotBanned()
+                    && request.resource.data.buyerId == request.auth.uid;
+      // Admin resolves; involved parties cannot self-modify status
+      allow update: if isAdmin()
+                    || (isSignedIn()
+                        && resource.data.buyerId == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['message', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+
+    // ── Reports ──────────────────────────────────────────────────────
+    match /reports/{reportId} {
+      // Only the reporter and admins can read
+      allow read: if isSignedIn() && (
+        resource.data.reporterId == request.auth.uid || isAdmin()
+      );
+      // Any signed-in user can submit a report
+      allow create: if isSignedIn()
+                    && request.resource.data.reporterId == request.auth.uid;
+      // Only admin can update (change status) or delete
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Follows ───────────────────────────────────────────────────────
+    // Doc IDs are "{followerId}_{sellerId}" for O(1) existence checks
+    match /follows/{followId} {
+      allow read: if true;   // used for public follower counts
+      // Only the follower can create/delete their own follow
+      allow create: if isSignedIn()
+                    && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn()
+                    && resource.data.followerId == request.auth.uid;
+      allow update: if false;  // follows are immutable; delete + recreate instead
+    }
+
+    // ── Payouts ───────────────────────────────────────────────────────
+    match /payouts/{payoutId} {
+      // Seller can read their own; admin can read all
+      allow read: if isSignedIn() && (
+        resource.data.sellerId == request.auth.uid || isAdmin()
+      );
+      // Only sellers can request payouts for themselves
+      allow create: if isSeller() && isNotBanned()
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+      // Only admin can update payout status
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Collections (admin-curated product bundles) ───────────────────
+    match /collections/{collectionId} {
+      allow read: if true;     // shown on public marketplace homepage
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── Newsletter Subscribers ────────────────────────────────────────
+    match /newsletter/{subId} {
+      // Only admin can list/read all subscribers
+      allow read: if isAdmin();
+      // Anyone (incl. unauthenticated) can subscribe with a valid email
+      allow create: if request.resource.data.keys().hasAll(['email', 'subscribedAt'])
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() <= 254;
+      // Allow unsubscribe by anyone who knows the doc ID (linked from email)
+      allow delete: if true;
+      allow update: if isAdmin();
+    }
+
   }
 }
