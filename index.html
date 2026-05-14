@@ -10589,20 +10589,191 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
   });
 })();
 
-// ─── 1b. DETECT FIREBASE LOAD FAILURE ─────────────────────────────────
+// ─── 1b. DETECT FIREBASE / FIRESTORE FAILURE ──────────────────────────
 (function detectFirebaseFail() {
-  // After 8s, check if firebase + db are defined. If not, show banner.
+  // After 8s — check if SDK loaded at all
   setTimeout(() => {
     if (typeof firebase === 'undefined' || typeof db === 'undefined') {
-      const banner = document.createElement('div');
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;padding:0.75rem 1rem;text-align:center;z-index:99999;font-size:0.9rem;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
-      banner.innerHTML = `
-        ⚠️ Failed to connect to our servers. This may be a network issue.
-        <button onclick="location.reload()" style="margin-left:1rem;background:#fff;color:#ef4444;border:none;padding:0.3rem 0.85rem;border-radius:4px;cursor:pointer;font-weight:700;">Refresh</button>
-        <button onclick="this.parentElement.remove()" style="margin-left:0.4rem;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;">✕</button>`;
-      document.body.appendChild(banner);
+      showConnectionBanner('Failed to load our SDK. Check your internet or ad-blocker.', 'reload');
     }
   }, 8000);
+  // After 15s — if SDK loaded but Firestore couldn't fetch products, it's a backend issue
+  setTimeout(() => {
+    if (typeof allProducts !== 'undefined' && Array.isArray(allProducts) && allProducts.length === 0
+        && !document.getElementById('dm-conn-banner')) {
+      // Probe Firestore to confirm it's actually unreachable (not just empty data)
+      if (typeof db === 'object' && db?.collection) {
+        const timer = setTimeout(() => {
+          showConnectionBanner('Slow or unstable connection — some features may not work.', 'retry');
+        }, 5000);
+        db.collection('settings').doc('payment').get()
+          .then(() => clearTimeout(timer))
+          .catch(() => { clearTimeout(timer); showConnectionBanner("Can't reach our servers. Working offline.", 'retry'); });
+      }
+    }
+  }, 15000);
+
+  function showConnectionBanner(msg, action) {
+    if (document.getElementById('dm-conn-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'dm-conn-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;padding:0.6rem 1rem;text-align:center;z-index:99999;font-size:0.88rem;box-shadow:0 4px 12px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;gap:0.75rem;flex-wrap:wrap;';
+    b.innerHTML = `⚠️ ${msg}
+      <button onclick="location.reload()" style="background:#fff;color:#ef4444;border:none;padding:0.25rem 0.75rem;border-radius:4px;cursor:pointer;font-weight:700;font-size:0.82rem;">Refresh</button>
+      <button onclick="document.getElementById('dm-conn-banner').remove()" aria-label="Dismiss" style="background:rgba(255,255,255,0.2);color:#fff;border:none;padding:0.25rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">✕</button>`;
+    document.body.appendChild(b);
+  }
+})();
+
+// ─── 2 ENHANCED: SKELETON LOADERS in seller storefront ────────────────
+(function storefrontSkeleton() {
+  const orig = window.openStorefront;
+  if (typeof orig !== 'function') return;
+  window.openStorefront = async function(sellerId) {
+    // Show skeleton in stats + grid immediately
+    setTimeout(() => {
+      const grid = document.getElementById('storefront-products-grid');
+      const stats = document.getElementById('storefront-stats');
+      if (grid && grid.children.length === 0) {
+        grid.innerHTML = Array.from({ length: 4 }).map(() => `
+          <div class="dm-skel-card">
+            <div class="dm-skel img"></div>
+            <div class="body">
+              <div class="dm-skel line" style="width:70%;"></div>
+              <div class="dm-skel line" style="width:40%;"></div>
+            </div>
+          </div>`).join('');
+      }
+      if (stats && !stats.children.length) {
+        stats.innerHTML = `<div class="dm-skel" style="width:80px;height:60px;"></div>
+          <div class="dm-skel" style="width:80px;height:60px;"></div>
+          <div class="dm-skel" style="width:80px;height:60px;"></div>
+          <div class="dm-skel" style="width:80px;height:60px;"></div>`;
+      }
+    }, 50);
+    return orig.apply(this, arguments);
+  };
+})();
+
+// ─── 3. AUTO-FOCUS FIRST INPUT + FOCUS TRAP in modals (a11y) ──────────
+(function focusTrapInModals() {
+  const observer = new MutationObserver(muts => {
+    muts.forEach(m => m.addedNodes?.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (!n.classList?.contains('modal-overlay') && !n.classList?.contains('show')) return;
+    }));
+  });
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
+
+  // When openModal called, focus first input
+  const origOpen = window.openModal;
+  if (typeof origOpen === 'function') {
+    window.openModal = function(id) {
+      origOpen.apply(this, arguments);
+      setTimeout(() => {
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        const focusable = modal.querySelector('input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable=true]');
+        if (focusable) focusable.focus();
+        else {
+          const closeBtn = modal.querySelector('.btn-icon, .modal-close, [aria-label="Close"]');
+          if (closeBtn) closeBtn.focus();
+        }
+      }, 100);
+    };
+  }
+})();
+
+// ─── 4. "BUY NOW" express checkout button on product detail ───────────
+(function injectBuyNowBtn() {
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      if (document.getElementById('dm-buynow-btn-' + id)) return;
+      const body = document.getElementById('product-modal-body');
+      if (!body) return;
+      const addBtn = body.querySelector('[onclick*="addToCart"]');
+      if (!addBtn) return;
+      const btn = document.createElement('button');
+      btn.id = 'dm-buynow-btn-' + id;
+      btn.className = 'btn btn-primary';
+      btn.style.cssText = 'width:100%;margin-top:0.4rem;font-size:0.9rem;background:linear-gradient(135deg,var(--success),#16a34a);border:none;';
+      btn.innerHTML = '⚡ Buy Now (skip cart)';
+      btn.onclick = () => {
+        if (!cart.includes(id)) addToCart(id);
+        setTimeout(() => { closeModal('product-modal'); openCheckout([id]); }, 200);
+      };
+      addBtn.parentElement.insertBefore(btn, addBtn.nextSibling);
+    }, 280);
+  };
+})();
+
+// ─── 5. TIER BADGE on product cards (small badge near seller info) ────
+(function patchCardsWithTier() {
+  const orig = window.renderProducts;
+  if (typeof orig !== 'function') return;
+  window.renderProducts = function() {
+    orig.apply(this, arguments);
+    setTimeout(async () => {
+      // Group cards by sellerId, fetch tier once per seller
+      const tierCache = window._dmTierCache || (window._dmTierCache = {});
+      const sellerIds = [...new Set((window.allProducts || []).map(p => p.sellerId).filter(Boolean))];
+      for (const sid of sellerIds) {
+        if (sid in tierCache) continue;
+        try {
+          const snap = await db.collection('users').doc(sid).get();
+          const sales = snap.data()?.totalSales || 0;
+          tierCache[sid] = (typeof getCreatorTier === 'function') ? getCreatorTier(sales) : null;
+        } catch { tierCache[sid] = null; }
+      }
+      // Now inject tier badge into each card
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (card.querySelector('.dm-tier-pill')) return;
+        const m = (card.getAttribute('onclick') || '').match(/'([^']+)'/);
+        if (!m) return;
+        const product = (window.allProducts || []).find(p => p.id === m[1]);
+        const tier = tierCache[product?.sellerId];
+        if (!tier || tier.name === 'Bronze') return; // hide Bronze (default tier — too noisy)
+        const pill = document.createElement('span');
+        pill.className = 'dm-tier-pill';
+        pill.style.cssText = 'position:absolute;top:0.5rem;left:0.5rem;background:rgba(0,0,0,0.55);color:#fff;border-radius:14px;padding:0.15rem 0.5rem;font-size:0.66rem;font-weight:600;z-index:2;display:inline-flex;align-items:center;gap:0.2rem;';
+        pill.innerHTML = `${tier.icon} ${tier.name}`;
+        pill.title = `${tier.name} seller · ${tier.rate}% commission`;
+        card.appendChild(pill);
+      });
+    }, 150);
+  };
+})();
+
+// ─── 6. WISHLIST COUNT BADGE in header ────────────────────────────────
+(function wishlistCountBadge() {
+  function update() {
+    let wl = [];
+    try { wl = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]'); } catch {}
+    const count = wl.length;
+    // Add badge to any "Wishlist" nav link
+    document.querySelectorAll('a[onclick*="wishlist"], button[onclick*="wishlist"], .nav-link').forEach(el => {
+      const txt = el.textContent.toLowerCase();
+      if (!txt.includes('wishlist')) return;
+      let badge = el.querySelector('.dm-wl-count');
+      if (count === 0) { badge?.remove(); return; }
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'dm-wl-count';
+        badge.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;background:var(--danger,#ef4444);color:#fff;font-size:0.6rem;font-weight:700;border-radius:10px;min-width:16px;height:16px;padding:0 0.3rem;margin-left:0.3rem;vertical-align:middle;';
+        el.appendChild(badge);
+      }
+      badge.textContent = count;
+    });
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(update, 1500));
+  // Hook into wishlist changes
+  const origSave = window.saveWishlist;
+  if (typeof origSave === 'function') {
+    window.saveWishlist = function() { origSave.apply(this, arguments); setTimeout(update, 50); };
+  }
 })();
 
 // ─── 2. CART BADGE BUMP ANIMATION when item added ─────────────────────
