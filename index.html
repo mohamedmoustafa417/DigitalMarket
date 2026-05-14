@@ -1619,7 +1619,7 @@
             <label class="form-label">Your Referral Link</label>
             <div class="affiliate-row">
               <div class="affiliate-link-box" id="affiliate-link-display">—</div>
-              <button class="btn btn-outline btn-sm" onclick="copyAffiliateLink()"><i class="fa-solid fa-copy"></i></button>
+              <button class="btn btn-outline btn-sm" onclick="copyAffiliateLink()" aria-label="Copy affiliate link" title="Copy affiliate link"><i class="fa-solid fa-copy"></i></button>
             </div>
           </div>
           <div class="form-group">
@@ -10552,7 +10552,7 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
 // pagination, branded confirm, fraud guards, badge animation, etc.
 // ═════════════════════════════════════════════════════════════════════
 
-// ─── 1. SKELETON LOADERS while products fetch ─────────────────────────
+// ─── 1. SKELETON LOADERS while products fetch + TIMEOUT FALLBACK ──────
 (function showSkeletonsImmediately() {
   document.addEventListener('DOMContentLoaded', () => {
     const grid = document.getElementById('products-grid');
@@ -10567,7 +10567,42 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
         </div>
       </div>`).join('');
     grid.innerHTML = skel;
+
+    // Fallback: if products don't replace skeletons within 12s, show error state
+    setTimeout(() => {
+      const stillSkel = grid.querySelector('.dm-skel-card');
+      const realCards = grid.querySelectorAll('.product-card').length;
+      if (stillSkel && realCards === 0) {
+        grid.innerHTML = `
+          <div style="grid-column:1/-1;padding:3rem 1.5rem;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);">
+            <div style="font-size:3rem;margin-bottom:0.75rem;">⚠️</div>
+            <h3 style="margin-bottom:0.5rem;">Can't load products</h3>
+            <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;">
+              Check your internet connection — we can't reach our servers.
+            </p>
+            <button class="btn btn-primary" onclick="location.reload()">
+              <i class="fa-solid fa-rotate"></i> Retry
+            </button>
+          </div>`;
+      }
+    }, 12000);
   });
+})();
+
+// ─── 1b. DETECT FIREBASE LOAD FAILURE ─────────────────────────────────
+(function detectFirebaseFail() {
+  // After 8s, check if firebase + db are defined. If not, show banner.
+  setTimeout(() => {
+    if (typeof firebase === 'undefined' || typeof db === 'undefined') {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;padding:0.75rem 1rem;text-align:center;z-index:99999;font-size:0.9rem;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
+      banner.innerHTML = `
+        ⚠️ Failed to connect to our servers. This may be a network issue.
+        <button onclick="location.reload()" style="margin-left:1rem;background:#fff;color:#ef4444;border:none;padding:0.3rem 0.85rem;border-radius:4px;cursor:pointer;font-weight:700;">Refresh</button>
+        <button onclick="this.parentElement.remove()" style="margin-left:0.4rem;background:rgba(255,255,255,0.2);color:#fff;border:none;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;">✕</button>`;
+      document.body.appendChild(banner);
+    }
+  }, 8000);
 })();
 
 // ─── 2. CART BADGE BUMP ANIMATION when item added ─────────────────────
