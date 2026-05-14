@@ -1,0 +1,189 @@
+name: Runtime Audit (headless Chromium)
+
+on:
+  schedule:
+    - cron: '15 4 * * 1'   # Mondays 04:15 UTC
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths: ['index.html']  # rerun audit whenever the main file changes
+
+permissions:
+  contents: read
+  issues: write           # so the job can open an issue if errors are found
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Puppeteer (with bundled Chromium)
+        run: |
+          mkdir -p ci-audit && cd ci-audit
+          npm init -y >/dev/null
+          npm install puppeteer --no-audit --no-fund
+
+      - name: Write audit script
+        run: |
+          cat > ci-audit/audit.js << 'AUDIT_EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+          const SITE = process.env.AUDIT_URL || 'https://digitalmarketstore.shop/';
+
+          (async () => {
+            const findings = { errors: [], failedReqs: [], httpErrors: [], pageErrors: [], perf: {}, workflows: [] };
+            const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'] });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1366, height: 900 });
+
+            page.on('console', m => { if (m.type() === 'error') findings.errors.push(m.text().slice(0,300)); });
+            page.on('pageerror', e => findings.pageErrors.push(e.message));
+            page.on('requestfailed', r => {
+              const url = r.url();
+              if (url.includes('google-analytics.com')) return; // GA aborts on page close, not real
+              findings.failedReqs.push({ url, failure: r.failure()?.errorText });
+            });
+            page.on('response', r => { if (r.status() >= 400) findings.httpErrors.push({ status: r.status(), url: r.url() }); });
+
+            const t0 = Date.now();
+            await page.goto(SITE, { waitUntil: 'networkidle2', timeout: 45000 });
+            findings.perf.loadTime = Date.now() - t0;
+
+            await new Promise(r => setTimeout(r, 3500));
+
+            // Critical workflow checks
+            const probe = await page.evaluate(() => {
+              const $ = id => document.getElementById(id);
+              return {
+                hasFirebase: typeof firebase !== 'undefined',
+                hasDb:       typeof db !== 'undefined',
+                hasNavigate: typeof navigate === 'function',
+                productCards: document.querySelectorAll('.product-card').length,
+                allProducts: typeof allProducts !== 'undefined' ? allProducts.length : -1,
+                jsonld: document.querySelectorAll('script[type="application/ld+json"]').length,
+                searchInput: !!$('search-input'),
+                cartButton: !!$('mbn-cart'),
+                cookieBanner: !!$('cookie-banner'),
+              };
+            });
+            findings.workflows.push({ name: 'Smoke probe', ...probe });
+
+            // Verify Firestore actually returns approved products
+            const fbProbe = await page.evaluate(async () => {
+              if (typeof db === 'undefined') return { error: 'db missing' };
+              try {
+                const s = await db.collection('products').where('status','==','approved').limit(3).get();
+                return { count: s.size };
+              } catch (e) { return { error: e.message }; }
+            });
+            findings.workflows.push({ name: 'Firestore query', ...fbProbe });
+
+            // Trigger ? shortcut and verify modal opens (defensive: shouldn't crash)
+            await page.keyboard.press('?');
+            await new Promise(r => setTimeout(r, 400));
+            const shortcutsOk = await page.evaluate(() => !!document.getElementById('dm-shortcuts-modal'));
+            findings.workflows.push({ name: 'Shortcuts modal', opens: shortcutsOk });
+
+            // Simulate the historical Sentry crash (IME with undefined key) — must NOT crash
+            try {
+              await page.evaluate(() => {
+                const ev = new KeyboardEvent('keydown', { isComposing: true, keyCode: 229 });
+                Object.defineProperty(ev, 'key', { value: undefined });
+                document.dispatchEvent(ev);
+              });
+              findings.workflows.push({ name: 'IME keydown defensive', ok: true });
+            } catch (e) {
+              findings.workflows.push({ name: 'IME keydown defensive', ok: false, error: e.message });
+            }
+
+            await page.screenshot({ path: 'home.png' });
+            await browser.close();
+
+            fs.writeFileSync('findings.json', JSON.stringify(findings, null, 2));
+
+            // Exit non-zero if critical issues
+            const critical = [
+              findings.pageErrors.length > 0,
+              probe.productCards === 0,
+              probe.allProducts === 0,
+              probe.jsonld === 0,
+              probe.hasFirebase === false,
+              fbProbe.error,
+            ].filter(Boolean).length;
+
+            console.log('Findings:', JSON.stringify(findings, null, 2));
+            if (critical > 0) {
+              console.error(`AUDIT FAILED: ${critical} critical issues`);
+              process.exit(1);
+            }
+            console.log('AUDIT PASSED');
+          })().catch(e => { console.error(e); process.exit(2); });
+          AUDIT_EOF
+
+      - name: Run audit
+        id: audit
+        working-directory: ci-audit
+        run: node audit.js
+        continue-on-error: true
+
+      - name: Upload findings + screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-results-${{ github.run_number }}
+          path: |
+            ci-audit/findings.json
+            ci-audit/home.png
+          retention-days: 30
+
+      - name: Open issue on failure
+        if: steps.audit.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let findings = {};
+            try { findings = JSON.parse(fs.readFileSync('ci-audit/findings.json','utf8')); } catch {}
+            const body = [
+              '## Runtime audit failed',
+              `**Site:** https://digitalmarketstore.shop/`,
+              `**Run:** ${context.runNumber} (${context.runId})`,
+              `**Triggered by:** ${context.eventName}`,
+              '',
+              '### Page errors',
+              (findings.pageErrors || []).map(e => '- `' + e + '`').join('\n') || '_none_',
+              '',
+              '### Console errors',
+              (findings.errors || []).slice(0,10).map(e => '- `' + e + '`').join('\n') || '_none_',
+              '',
+              '### Failed network requests',
+              (findings.failedReqs || []).map(r => `- \`${r.url}\`: ${r.failure}`).join('\n') || '_none_',
+              '',
+              '### HTTP errors',
+              (findings.httpErrors || []).map(r => `- ${r.status}: \`${r.url}\``).join('\n') || '_none_',
+              '',
+              '### Workflow checks',
+              '```json',
+              JSON.stringify(findings.workflows, null, 2),
+              '```',
+              '',
+              '_Audit artifacts (screenshot + findings.json) attached to this workflow run._'
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[runtime-audit] Site issues detected (run ${context.runNumber})`,
+              body,
+              labels: ['bug', 'runtime-audit']
+            });
+
+      - name: Fail step if audit failed
+        if: steps.audit.outcome == 'failure'
+        run: exit 1
