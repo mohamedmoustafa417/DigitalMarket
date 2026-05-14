@@ -72,17 +72,23 @@ service cloud.firestore {
 
     // ── Users ────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Any signed-in user can read (needed for seller payment info in checkout)
-      allow read: if isSignedIn();
+      // PUBLIC READ — required so unauthenticated visitors can view seller storefronts,
+      // see product author info, etc. Marketplace UX needs this. Payment info (Instapay,
+      // phone) is visible by design so buyers can pay sellers directly.
+      // Sensitive data (KYC docs, 2FA secrets, OTP codes) should NEVER be stored on this
+      // doc — use the kycRequests collection (admin-only) for KYC.
+      allow read: if true;
 
       allow create: if isSelf(userId)
                     && request.resource.data.role in ['buyer', 'seller'];
 
-      // Users can update their own doc but CANNOT change role or disabled status
+      // Users can update their own doc but CANNOT change role, disabled, or KYC fields
+      // (KYC fields are mirrored from kycRequests via the onKYCApproval Cloud Function)
       allow update: if isAdmin()
                     || (isSelf(userId)
                         && !request.resource.data.diff(resource.data).affectedKeys()
-                            .hasAny(['role', 'disabled']));
+                            .hasAny(['role', 'disabled', 'kycStatus', 'kycRejectReason',
+                                     'kycReviewedAt', 'totalSales', 'tier']));
 
       allow delete: if isAdmin();
     }
