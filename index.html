@@ -25,6 +25,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#6366f1">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DigitalMarket">
   <link rel="apple-touch-icon" href="favicon.svg">
@@ -96,6 +97,44 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <!-- EmailJS -->
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
+  <!-- SEO: Organization + WebSite JSON-LD (for rich Google search results) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://digitalmarketstore.shop/#org",
+        "name": "DigitalMarket",
+        "url": "https://digitalmarketstore.shop/",
+        "logo": "https://digitalmarketstore.shop/favicon.svg",
+        "description": "Bilingual digital marketplace for buying and selling digital products securely in Egypt and MENA.",
+        "email": "support@digitalmarketstore.shop",
+        "sameAs": [
+          "https://twitter.com/DigitalMarketEG"
+        ],
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "EG"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://digitalmarketstore.shop/#website",
+        "url": "https://digitalmarketstore.shop/",
+        "name": "DigitalMarket",
+        "publisher": { "@id": "https://digitalmarketstore.shop/#org" },
+        "inLanguage": ["en", "ar"],
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://digitalmarketstore.shop/?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    ]
+  }
+  </script>
 
   <style>
     :root {
