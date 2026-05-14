@@ -337,8 +337,10 @@
     .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
     .product-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: all var(--transition); cursor: pointer; }
     .product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(99,102,241,0.2); border-color: var(--primary); }
-    .product-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--text-muted); }
-    .product-img img { width: 100%; height: 100%; object-fit: cover; }
+    .product-img { width: 100%; aspect-ratio: 16/9; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--text-muted); overflow: hidden; position: relative; }
+    /* contain keeps the full thumbnail visible (no awkward cropping of SVG-rich designs);
+       for raster photos we'd prefer cover, but our seller SVGs are designed to be shown whole. */
+    .product-img img { width: 100%; height: 100%; object-fit: contain; object-position: center; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
     .product-body { padding: 0.9rem; }
     .product-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .product-desc { font-size: 0.8rem; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -5731,25 +5733,45 @@ function selectAutocomplete(productId) {
 async function doGoogleSignIn() {
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
     const result = await auth.signInWithPopup(provider);
     const user = result.user;
-    // Check if user doc exists
+    // Create user doc on first sign-in
     const snap = await db.collection('users').doc(user.uid).get();
     if (!snap.exists) {
       await db.collection('users').doc(user.uid).set({
-        name: user.displayName || '',
-        email: user.email || '',
-        role: 'buyer',
-        disabled: false,
-        createdAt: FV.serverTimestamp()
+        name:          user.displayName || user.email?.split('@')[0] || '',
+        email:         user.email || '',
+        role:          'buyer',
+        disabled:      false,
+        emailVerified: true,            // Google emails are pre-verified
+        photoURL:      user.photoURL || '',
+        createdAt:     FV.serverTimestamp()
       });
     }
-    closeModal('login-modal');
-    closeModal('register-modal');
     toast(`Welcome, ${user.displayName || user.email}!`, 'success');
     trackEvent('login', { method: 'google' });
-  } catch(e) {
-    if (e.code !== 'auth/popup-closed-by-user') toast('Google sign-in failed: ' + sanitize(e.message), 'danger');
+    // BUGFIX: login/register are VIEWS not modals — navigate home so the user
+    // doesn't get stuck on the login screen after successful Google auth.
+    navigate('home');
+  } catch (e) {
+    // Don't show error for user-cancellation
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    if (e.code === 'auth/popup-blocked') {
+      toast('Pop-up blocked. Allow pop-ups for digitalmarketstore.shop and try again.', 'warning', 6000);
+      return;
+    }
+    if (e.code === 'auth/account-exists-with-different-credential') {
+      toast('An account with this email exists with a different sign-in method.', 'warning', 6000);
+      return;
+    }
+    if (e.code === 'auth/unauthorized-domain') {
+      toast('This domain is not authorized for Google sign-in. Contact admin.', 'danger', 6000);
+      return;
+    }
+    toast('Google sign-in failed: ' + sanitize(e.message), 'danger');
+    console.error('Google sign-in error:', e);
   }
 }
 
@@ -6821,12 +6843,17 @@ async function doAppleSignIn() {
         createdAt: FV.serverTimestamp()
       });
     }
-    closeModal('login-modal');
-    closeModal('register-modal');
     toast(`Welcome!`, 'success');
     trackEvent('login', { method: 'apple' });
+    // BUGFIX: login/register are VIEWS not modals — navigate home so the user
+    // doesn't get stuck on the login screen after successful Apple sign-in.
+    navigate('home');
   } catch(e) {
-    if (e.code !== 'auth/popup-closed-by-user') toast('Apple sign-in failed: ' + sanitize(e.message), 'danger');
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+    if (e.code === 'auth/popup-blocked') { toast('Pop-up blocked. Please allow pop-ups.', 'warning', 6000); return; }
+    if (e.code === 'auth/unauthorized-domain') { toast('Domain not authorized for Apple sign-in.', 'danger', 6000); return; }
+    toast('Apple sign-in failed: ' + sanitize(e.message), 'danger');
+    console.error('Apple sign-in error:', e);
   }
 }
 
