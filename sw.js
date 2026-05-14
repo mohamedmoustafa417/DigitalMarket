@@ -1,4 +1,4 @@
-const CACHE_NAME = 'digitalmarket-v3';
+const CACHE_NAME = 'digitalmarket-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -10,7 +10,7 @@ const STATIC_ASSETS = [
 ];
 
 // CDN assets to cache after first load (fonts, icons, libraries)
-const CDN_CACHE = 'digitalmarket-cdn-v3';
+const CDN_CACHE = 'digitalmarket-cdn-v4';
 const CDN_ORIGINS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
