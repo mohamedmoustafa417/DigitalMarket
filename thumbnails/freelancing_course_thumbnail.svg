@@ -1,43 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
   <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c2d12"/>
+      <stop offset="100%" stop-color="#431407"/>
     </linearGradient>
-    <filter id="shadow">
-      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-opacity="0.3"/>
-    </filter>
+    <linearGradient id="play" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
   </defs>
-  <rect width="800" height="600" fill="url(#bgGradient)"/>
-  <rect width="800" height="8" fill="#6366f1"/>
-  <g id="content">
-    <rect x="50" y="50" width="150" height="40" rx="20" fill="#6366f1" opacity="0.9"/>
-    <text x="125" y="75" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle">COURSES</text>
-    <g filter="url(#shadow)" transform="translate(400, 200)">
-      <rect x="-70" y="-90" width="140" height="180" fill="#f5f5f5" stroke="#999" stroke-width="1.5" rx="2"/>
-      <g transform="rotate(-8)">
-        <rect x="-70" y="-90" width="140" height="180" fill="#ffffff" stroke="#999" stroke-width="1.5" rx="2"/>
-        <line x1="-60" y1="-70" x2="60" y2="-70" stroke="#e0e0e0" stroke-width="1"/>
-        <line x1="-60" y1="-50" x2="60" y2="-50" stroke="#e0e0e0" stroke-width="1"/>
-        <line x1="-60" y1="-30" x2="60" y2="-30" stroke="#e0e0e0" stroke-width="1"/>
-      </g>
-      <g transform="rotate(-16)">
-        <rect x="-70" y="-90" width="140" height="180" fill="#ffffff" stroke="#6366f1" stroke-width="2" rx="2"/>
-        <line x1="-55" y1="-75" x2="55" y2="-75" stroke="#6366f1" stroke-width="2"/>
-        <line x1="-55" y1="-55" x2="55" y2="-55" stroke="#ddd" stroke-width="1"/>
-        <line x1="-55" y1="-40" x2="55" y2="-40" stroke="#ddd" stroke-width="1"/>
-        <line x1="-55" y1="-25" x2="55" y2="-25" stroke="#ddd" stroke-width="1"/>
-        <line x1="-55" y1="-10" x2="55" y2="-10" stroke="#ddd" stroke-width="1"/>
-      </g>
-    </g>
-    <text x="400" y="430" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="bold" fill="white" text-anchor="middle">30-Day Freelancing</text>
-    <text x="400" y="468" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="bold" fill="white" text-anchor="middle">Roadmap</text>
-    <text x="400" y="505" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="#6366f1" text-anchor="middle">&#x62E;&#x637;&#x629; &#x627;&#x644;&#x641;&#x631;&#x64A;&#x644;&#x627;&#x646;&#x633;&#x64A;&#x646;&#x62C; &#x641;&#x64A; 30 &#x64A;&#x648;&#x645;</text>
-    <g transform="translate(50, 520)">
-      <text x="0" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#6366f1">8 Chapters</text>
-      <text x="180" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#6366f1">Arabic and English</text>
-      <text x="420" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#6366f1">Action Steps</text>
-      <text x="650" y="0" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="end">299 EGP</text>
-    </g>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <!-- Graduation cap -->
+  <g transform="translate(280, 130)" filter="drop-shadow(0 10px 20px rgba(0,0,0,0.5))">
+    <path d="M120 0 L240 60 L120 120 L0 60 Z" fill="#fff"/>
+    <path d="M30 75 L30 140 Q30 170 120 170 Q210 170 210 140 L210 75 L120 120 Z" fill="#f97316"/>
+    <line x1="240" y1="60" x2="240" y2="160" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="240" cy="170" r="10" fill="#fbbf24"/>
   </g>
+  <!-- Play button overlay -->
+  <g transform="translate(560, 360)">
+    <circle cx="0" cy="0" r="36" fill="url(#play)" filter="drop-shadow(0 6px 12px rgba(0,0,0,0.4))"/>
+    <polygon points="-10,-14 -10,14 16,0" fill="#fff"/>
+  </g>
+  <text x="400" y="480" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">Freelancing Roadmap</text>
+  <text x="400" y="515" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="500" fill="#fdba74" text-anchor="middle" letter-spacing="2">30 · DAY · COURSE</text>
 </svg>

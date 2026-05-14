@@ -1,40 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
   <defs>
-    <linearGradient id="bgGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#581c87"/>
+      <stop offset="100%" stop-color="#3b0764"/>
     </linearGradient>
-    <linearGradient id="bookGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    <linearGradient id="cover" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
     </linearGradient>
-    <filter id="shadow2">
-      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-opacity="0.3"/>
-    </filter>
   </defs>
-  <rect width="800" height="600" fill="url(#bgGradient2)"/>
-  <rect width="800" height="8" fill="#06b6d4"/>
-  <g id="content">
-    <rect x="50" y="50" width="150" height="40" rx="20" fill="#06b6d4" opacity="0.9"/>
-    <text x="125" y="75" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle">E-BOOKS</text>
-    <g filter="url(#shadow2)" transform="translate(400, 200)">
-      <rect x="30" y="-100" width="12" height="200" fill="#055f75" rx="2"/>
-      <rect x="-80" y="-100" width="160" height="200" fill="url(#bookGradient)" rx="4" stroke="#ffffff" stroke-width="1.5"/>
-      <circle cx="-30" cy="-60" r="8" fill="#ffffff" opacity="0.6"/>
-      <circle cx="30" cy="-50" r="6" fill="#ffffff" opacity="0.4"/>
-      <line x1="-70" y1="-30" x2="70" y2="-30" stroke="#ffffff" stroke-width="2" opacity="0.7"/>
-      <text x="0" y="-10" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle">DIGITAL</text>
-      <text x="0" y="10" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="white" text-anchor="middle">PRODUCTIVITY</text>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <!-- Book -->
+  <g transform="translate(310, 120)" filter="drop-shadow(0 14px 28px rgba(0,0,0,0.5))">
+    <!-- Pages behind cover -->
+    <rect x="6" y="6" width="170" height="240" rx="4" fill="#fef3c7"/>
+    <rect x="3" y="3" width="170" height="240" rx="4" fill="#fde68a"/>
+    <!-- Front cover -->
+    <rect width="170" height="240" rx="4" fill="url(#cover)"/>
+    <!-- Lightbulb icon -->
+    <g transform="translate(85, 90)">
+      <circle r="32" fill="#fbbf24" opacity="0.95"/>
+      <path d="M-12 -10 Q-12 -22 0 -22 Q12 -22 12 -10 Q12 -2 6 4 L6 14 L-6 14 L-6 4 Q-12 -2 -12 -10 Z" fill="#fff"/>
+      <rect x="-4" y="14" width="8" height="6" fill="#fef3c7"/>
     </g>
-    <text x="400" y="430" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="bold" fill="white" text-anchor="middle">The Digital Productivity</text>
-    <text x="400" y="468" font-family="Helvetica, Arial, sans-serif" font-size="32" font-weight="bold" fill="white" text-anchor="middle">Playbook</text>
-    <text x="400" y="505" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="#06b6d4" text-anchor="middle">&#x62F;&#x644;&#x64A;&#x644; &#x627;&#x644;&#x625;&#x646;&#x62A;&#x627;&#x62C;&#x64A;&#x629; &#x627;&#x644;&#x631;&#x642;&#x645;&#x64A;&#x629;</text>
-    <g transform="translate(50, 520)">
-      <text x="0" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#06b6d4">12 Pages</text>
-      <text x="160" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#06b6d4">7 Chapters</text>
-      <text x="340" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#06b6d4">Proven Techniques</text>
-      <text x="620" y="0" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="bold" fill="#06b6d4">30-Day Challenge</text>
-      <text x="750" y="30" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="end">79 EGP</text>
-    </g>
+    <!-- Title text -->
+    <text x="85" y="170" font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#fff" text-anchor="middle">PRODUCTIVITY</text>
+    <text x="85" y="190" font-family="Inter, sans-serif" font-size="10" fill="#ddd6fe" text-anchor="middle" letter-spacing="2">PLAYBOOK</text>
+    <line x1="40" y1="205" x2="130" y2="205" stroke="#ddd6fe" stroke-width="1"/>
+    <text x="85" y="222" font-family="Inter, sans-serif" font-size="8" fill="#ddd6fe" text-anchor="middle">100+ STRATEGIES</text>
   </g>
+  <text x="400" y="475" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">Productivity eBook</text>
+  <text x="400" y="510" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="500" fill="#c4b5fd" text-anchor="middle" letter-spacing="2">PROVEN · STRATEGIES</text>
 </svg>

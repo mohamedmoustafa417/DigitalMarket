@@ -1,54 +1,37 @@
-<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7f1d1d"/>
+      <stop offset="100%" stop-color="#450a0a"/>
     </linearGradient>
-    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="8" dy="8" stdDeviation="6" flood-opacity="0.5"/>
-    </filter>
   </defs>
-  <rect width="800" height="600" fill="url(#bgGrad)"/>
-  <rect x="0" y="0" width="800" height="6" fill="#f97316"/>
-  <rect x="40" y="30" width="720" height="120" fill="#f97316" rx="15"/>
-  <text x="400" y="85" font-family="Arial, sans-serif" font-size="52" font-weight="900" text-anchor="middle" fill="#1a1a2e">YouTube and Reels</text>
-  <text x="400" y="135" font-family="Arial, sans-serif" font-size="48" font-weight="900" text-anchor="middle" fill="#1a1a2e">Thumbnail Pack</text>
-  <text x="400" y="175" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#f97316">&#x642;&#x648;&#x627;&#x644;&#x628; &#x62B;&#x645;&#x628;&#x646;&#x64A;&#x644; &#x64A;&#x648;&#x62A;&#x64A;&#x648;&#x628;</text>
-  <rect x="280" y="190" width="240" height="45" fill="#f97316" rx="8"/>
-  <text x="400" y="224" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="#1a1a2e">GRAPHICS</text>
-  <g filter="url(#shadow)" transform="translate(60, 280) rotate(-8)">
-    <rect width="180" height="102" fill="#0f0f0f" stroke="#f97316" stroke-width="2" rx="6"/>
-    <rect width="180" height="6" fill="#fbbf24"/>
-    <text x="90" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#fbbf24">HOW TO</text>
-    <text x="90" y="65" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#ffffff">Master Skills</text>
-    <circle cx="30" cy="85" r="8" fill="#fbbf24"/>
-    <circle cx="70" cy="85" r="8" fill="#fbbf24"/>
-    <circle cx="110" cy="85" r="8" fill="#fbbf24"/>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <!-- Thumbnail card -->
+  <g transform="translate(220, 130)" filter="drop-shadow(0 14px 28px rgba(0,0,0,0.5))">
+    <rect width="360" height="220" rx="12" fill="#1f2937"/>
+    <!-- Image area gradient -->
+    <rect width="360" height="160" rx="12" fill="#dc2626"/>
+    <rect y="148" width="360" height="12" fill="#dc2626"/>
+    <!-- Sparkles for visual interest -->
+    <circle cx="60" cy="40" r="3" fill="#fde047"/>
+    <circle cx="320" cy="60" r="4" fill="#fde047"/>
+    <circle cx="280" cy="30" r="2" fill="#fde047"/>
+    <circle cx="80" cy="100" r="3" fill="#fde047"/>
+    <!-- Big play button -->
+    <circle cx="180" cy="80" r="38" fill="#fff" opacity="0.95"/>
+    <polygon points="170,62 170,98 200,80" fill="#dc2626"/>
+    <!-- Duration badge -->
+    <rect x="295" y="125" width="50" height="18" rx="3" fill="rgba(0,0,0,0.8)"/>
+    <text x="320" y="138" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">12:34</text>
+    <!-- Bottom title area -->
+    <rect x="14" y="175" width="280" height="8" rx="3" fill="#9ca3af"/>
+    <rect x="14" y="190" width="180" height="6" rx="2" fill="#6b7280"/>
   </g>
-  <g filter="url(#shadow)" transform="translate(310, 260)">
-    <rect width="180" height="102" fill="#0f172a" stroke="#f97316" stroke-width="2" rx="6"/>
-    <rect width="180" height="6" fill="#f97316"/>
-    <text x="90" y="30" font-family="Arial, sans-serif" font-size="24" font-weight="900" text-anchor="middle" fill="#f97316">TOP 5</text>
-    <text x="90" y="65" font-family="Arial, sans-serif" font-size="11" font-weight="bold" text-anchor="middle" fill="#ffffff">Best Things</text>
-    <rect x="20" y="75" width="140" height="16" fill="#1a2847" stroke="#f97316" stroke-width="1" rx="3"/>
+  <text x="400" y="425" font-family="Inter, system-ui, sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">YouTube Thumbnails</text>
+  <text x="400" y="460" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="500" fill="#fca5a5" text-anchor="middle" letter-spacing="2">CLICK · WORTHY · DESIGNS</text>
+  <!-- YouTube logo nod -->
+  <g transform="translate(380, 490)">
+    <rect width="40" height="28" rx="6" fill="#dc2626"/>
+    <polygon points="15,8 15,20 25,14" fill="#fff"/>
   </g>
-  <g filter="url(#shadow)" transform="translate(560, 280) rotate(8)">
-    <rect width="180" height="102" fill="#0f0f0f" stroke="#ef4444" stroke-width="2" rx="6"/>
-    <rect width="180" height="6" fill="#ef4444"/>
-    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#ef4444">REACTING TO</text>
-    <text x="90" y="85" font-family="Arial, sans-serif" font-size="32" text-anchor="middle" fill="#ef4444">!</text>
-  </g>
-  <text x="60" y="430" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#f97316">Features:</text>
-  <circle cx="75" cy="465" r="4" fill="#f97316"/>
-  <text x="95" y="471" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#ffffff">4 Designs</text>
-  <circle cx="75" cy="505" r="4" fill="#f97316"/>
-  <text x="95" y="511" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#ffffff">1280x720 Resolution</text>
-  <circle cx="75" cy="545" r="4" fill="#f97316"/>
-  <text x="95" y="551" font-family="Arial, sans-serif" font-size="16" font-weight="600" fill="#ffffff">Editable SVG Files</text>
-  <rect x="480" y="440" width="280" height="140" fill="#f97316" rx="12"/>
-  <text x="620" y="475" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#1a1a2e">Arabic and English</text>
-  <text x="620" y="510" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#1a1a2e">&#x639;&#x631;&#x628;&#x64A; &#x648;&#x625;&#x646;&#x62C;&#x644;&#x64A;&#x632;&#x64A;</text>
-  <rect x="500" y="530" width="240" height="60" fill="#1a1a2e" stroke="#f97316" stroke-width="2" rx="8"/>
-  <text x="620" y="568" font-family="Arial, sans-serif" font-size="32" font-weight="900" text-anchor="middle" fill="#f97316">149 EGP</text>
-  <rect x="0" y="594" width="800" height="6" fill="#f97316"/>
 </svg>

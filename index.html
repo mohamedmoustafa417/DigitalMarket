@@ -1512,6 +1512,24 @@
         <canvas id="seller-revenue-chart" height="100"></canvas>
       </div>
 
+      <!-- Daily Sales Trend + Top Products + Status Breakdown -->
+      <div class="chart-grid hidden" id="dm-charts-grid" style="display:grid;grid-template-columns:1fr;gap:1rem;margin-top:1rem;">
+        <div class="chart-wrap">
+          <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;"><i class="fa-solid fa-arrow-trend-up" style="color:#10b981;margin-right:0.4rem;"></i> Daily Sales — Last 30 Days</h4>
+          <canvas id="dm-daily-chart" height="80"></canvas>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div class="chart-wrap">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;"><i class="fa-solid fa-trophy" style="color:#f59e0b;margin-right:0.4rem;"></i> Top 5 Products</h4>
+            <canvas id="dm-top-chart" height="180"></canvas>
+          </div>
+          <div class="chart-wrap">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;"><i class="fa-solid fa-chart-pie" style="color:#8b5cf6;margin-right:0.4rem;"></i> Order Status</h4>
+            <canvas id="dm-status-chart" height="180"></canvas>
+          </div>
+        </div>
+      </div>
+
       <!-- Products tab -->
       <div id="seller-tab-products">
         <div class="flex items-center gap-2" style="justify-content:space-between;margin-bottom:1rem;">
@@ -4113,6 +4131,7 @@ async function loadSellerDashboard() {
     document.getElementById('s-stat-orders').textContent   = approvedOrders.length;
     document.getElementById('s-stat-revenue').textContent  = revenue.toLocaleString();
     loadSellerChart(orderSnap.docs);
+    loadSellerExtraCharts(orderSnap.docs);
     const empty = document.getElementById('seller-products-empty');
     if (!products.length) {
       tbody.innerHTML = '';
@@ -5511,6 +5530,130 @@ function loadSellerChart(orderDocs) {
       }
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADDITIONAL SELLER CHARTS (daily trend, top products, status breakdown)
+// ═══════════════════════════════════════════════════════════════════
+let _dmDailyChart = null, _dmTopChart = null, _dmStatusChart = null;
+function loadSellerExtraCharts(orderDocs) {
+  if (typeof Chart === 'undefined') return;
+  const wrap = document.getElementById('dm-charts-grid');
+  if (!wrap) return;
+  const myUid = curUser?.uid;
+  if (!myUid) return;
+
+  // Collect my orders (where I'm a seller)
+  const myOrders = (orderDocs || [])
+    .map(d => d.data())
+    .filter(o => (o.sellerIds || []).includes(myUid) || (o.items || []).some(i => i.sellerId === myUid));
+
+  if (!myOrders.length) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  wrap.style.display = 'grid';
+
+  // ── Chart 1: Daily sales trend (last 30 days) ──
+  const dailyCanvas = document.getElementById('dm-daily-chart');
+  if (dailyCanvas) {
+    const labels = [], buckets = {};
+    const now = Date.now();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now - i * 86400000);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      labels.push(d.getDate() + '/' + (d.getMonth()+1));
+      buckets[key] = 0;
+    }
+    myOrders.forEach(o => {
+      if (o.status !== 'approved') return;
+      const date = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+      if (!date) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      if (key in buckets) buckets[key]++;
+    });
+    if (_dmDailyChart) { _dmDailyChart.destroy(); _dmDailyChart = null; }
+    _dmDailyChart = new Chart(dailyCanvas, {
+      type: 'line',
+      data: { labels, datasets: [{
+        label: 'Orders',
+        data: Object.values(buckets),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.15)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#10b981',
+      }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#94a3b8', maxTicksLimit: 10 }, grid: { display: false } },
+          y: { ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+        },
+      },
+    });
+  }
+
+  // ── Chart 2: Top 5 products by sales count ──
+  const topCanvas = document.getElementById('dm-top-chart');
+  if (topCanvas) {
+    const productSales = {};
+    myOrders.forEach(o => {
+      if (o.status !== 'approved') return;
+      (o.items || []).filter(i => i.sellerId === myUid).forEach(i => {
+        productSales[i.name] = (productSales[i.name] || 0) + 1;
+      });
+    });
+    const top = Object.entries(productSales).sort((a,b) => b[1] - a[1]).slice(0, 5);
+    if (_dmTopChart) { _dmTopChart.destroy(); _dmTopChart = null; }
+    if (top.length) {
+      _dmTopChart = new Chart(topCanvas, {
+        type: 'bar',
+        data: {
+          labels: top.map(t => t[0].length > 25 ? t[0].slice(0,22) + '…' : t[0]),
+          datasets: [{ data: top.map(t => t[1]), backgroundColor: ['#f59e0b','#6366f1','#10b981','#ef4444','#8b5cf6'], borderRadius: 6 }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.x + ' sales' } } },
+          scales: {
+            x: { ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+            y: { ticks: { color: '#cbd5e1', font: { size: 11 } }, grid: { display: false } },
+          },
+        },
+      });
+    }
+  }
+
+  // ── Chart 3: Order status doughnut ──
+  const statCanvas = document.getElementById('dm-status-chart');
+  if (statCanvas) {
+    const counts = { approved: 0, pending: 0, rejected: 0, refunded: 0 };
+    myOrders.forEach(o => { if (o.status in counts) counts[o.status]++; });
+    if (_dmStatusChart) { _dmStatusChart.destroy(); _dmStatusChart = null; }
+    _dmStatusChart = new Chart(statCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: ['Approved','Pending','Rejected','Refunded'],
+        datasets: [{
+          data: [counts.approved, counts.pending, counts.rejected, counts.refunded],
+          backgroundColor: ['#10b981','#f59e0b','#ef4444','#6b7280'],
+          borderColor: 'transparent',
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11 }, padding: 10, boxWidth: 12 } },
+        },
+      },
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -10707,6 +10850,39 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
       };
       addBtn.parentElement.insertBefore(btn, addBtn.nextSibling);
     }, 280);
+  };
+})();
+
+// ─── 5b. "BUY NOW" mini button injected on each card ──────────────────
+(function injectBuyNowOnCards() {
+  const orig = window.renderProducts;
+  if (typeof orig !== 'function') return;
+  window.renderProducts = function() {
+    orig.apply(this, arguments);
+    setTimeout(() => {
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (card.querySelector('.dm-card-buynow')) return;
+        const m = (card.getAttribute('onclick') || '').match(/'([^']+)'/);
+        if (!m) return;
+        const id = m[1];
+        const btn = document.createElement('button');
+        btn.className = 'dm-card-buynow';
+        btn.title = 'Buy Now';
+        btn.setAttribute('aria-label', 'Buy now — skip cart and checkout immediately');
+        btn.innerHTML = '<i class="fa-solid fa-bolt" aria-hidden="true"></i>';
+        btn.style.cssText = 'position:absolute;top:0.5rem;right:2.6rem;background:linear-gradient(135deg,#10b981,#16a34a);color:#fff;border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.85rem;z-index:2;opacity:0;transition:opacity 0.2s;box-shadow:0 4px 10px rgba(16,185,129,0.4);';
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          if (!curUser) { toast('Please login to buy.', 'info'); navigate('login'); return; }
+          if (typeof cart !== 'undefined' && !cart.includes(id)) addToCart(id);
+          setTimeout(() => openCheckout([id]), 250);
+        };
+        // Reveal on hover (matches the quick-view button behavior)
+        card.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+        card.addEventListener('mouseleave', () => { btn.style.opacity = '0'; });
+        card.appendChild(btn);
+      });
+    }, 100);
   };
 })();
 
