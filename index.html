@@ -5121,69 +5121,8 @@ function trackRecentlyViewed(productId) {
   renderRecentlyViewed();
 }
 
-function renderRecentlyViewed() {
-  const section = document.getElementById('recently-viewed-section');
-  const grid    = document.getElementById('rv-grid');
-  if (!section || !grid) return;
-  let rv = [];
-  try { rv = JSON.parse(localStorage.getItem(RV_KEY) || '[]'); } catch {}
-  const items = rv.map(id => allProducts.find(p => p.id === id)).filter(Boolean);
-  // Hide unless at least 2 items (nothing interesting to "recommend" from 1 item)
-  if (items.length < 2) { section.classList.add('hidden'); return; }
-  section.classList.remove('hidden');
-  grid.innerHTML = items.map(p => `
-    <div class="rv-card" onclick="openProductDetail('${sanitize(p.id)}')" role="button" tabindex="0"
-         onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')"
-         aria-label="${sanitize(p.name)} — EGP ${Number(p.price||0).toLocaleString()}">
-      <div class="rv-card-img">
-        ${p.imageUrl
-          ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:1.5rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
-          : p.emoji ? `<span style="font-size:1.5rem;">${sanitize(p.emoji)}</span>`
-                    : `<i class="fa-solid fa-file-arrow-down"></i>`}
-      </div>
-      <div class="rv-card-body">
-        <div class="rv-card-name">${sanitize(p.name)}</div>
-        <div class="rv-card-price">EGP ${Number(p.price||0).toLocaleString()}</div>
-      </div>
-    </div>`).join('');
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// RELATED PRODUCTS  (shown at bottom of product detail modal)
-// ═══════════════════════════════════════════════════════════════════
-function renderRelatedProducts(currentProduct) {
-  const section = document.getElementById('product-related-section');
-  if (!section) return;
-  const related = allProducts
-    .filter(p =>
-      p.id !== currentProduct.id &&
-      p.status === 'approved' &&
-      (p.category || '').toLowerCase() === (currentProduct.category || '').toLowerCase()
-    )
-    .sort(() => Math.random() - 0.5) // shuffle
-    .slice(0, 4);
-  if (!related.length) { section.innerHTML = ''; return; }
-  section.innerHTML = `
-    <h4 style="font-size:0.9rem;font-weight:700;color:var(--text-muted);margin-bottom:0.75rem;letter-spacing:0.04em;text-transform:uppercase;">
-      <i class="fa-solid fa-layer-group" style="margin-right:0.35rem;color:var(--primary);"></i>Related Products
-    </h4>
-    <div class="related-grid">
-      ${related.map(p => `
-        <div class="related-card" onclick="openProductDetail('${sanitize(p.id)}')" role="button" tabindex="0"
-             onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')" aria-label="${sanitize(p.name)}">
-          <div class="related-card-img">
-            ${p.imageUrl
-              ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:2rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
-              : p.emoji ? `<span style="font-size:2rem;">${sanitize(p.emoji)}</span>`
-                        : `<i class="fa-solid fa-file-arrow-down"></i>`}
-          </div>
-          <div class="related-card-body">
-            <div class="related-card-name">${sanitize(p.name)}</div>
-            <div class="related-card-price">EGP ${Number(p.price||0).toLocaleString()}</div>
-          </div>
-        </div>`).join('')}
-    </div>`;
-}
+// (Old `renderRecentlyViewed` and `renderRelatedProducts` removed — superseded by
+//  Round 4 implementations later in the file. The newer versions match the live DOM.)
 
 // ═══════════════════════════════════════════════════════════════════
 // JSON-LD STRUCTURED DATA  (Product schema for SEO)
@@ -6064,17 +6003,9 @@ async function resubmitProof(orderId, input) {
 
 // ═══════════════════════════════════════════════════════════════════
 // REFERRAL TRACKING (?ref=)
+// Old parseReferralParam/getReferralId removed — replaced by Round 8 IIFE that
+// reads ?ref= and stores it to dm_referral_id. See later in the file.
 // ═══════════════════════════════════════════════════════════════════
-function parseReferralParam() {
-  try {
-    const ref = new URLSearchParams(window.location.search).get('ref');
-    if (ref) { localStorage.setItem('dm_referral', sanitize(ref)); }
-  } catch(e) {}
-}
-function getReferralId() {
-  return localStorage.getItem('dm_referral') || '';
-}
-parseReferralParam();
 
 // ═══════════════════════════════════════════════════════════════════
 // SELLER PUBLIC STOREFRONT (#seller/shopName routing)
@@ -6826,37 +6757,10 @@ async function loadSellerEarningsBreakdown(sellerId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ROUND 2: 2FA — Email OTP (Firebase phone-auth is paid tier;
-// we implement a lightweight OTP stored in Firestore with 10-min TTL)
+// 2FA — Replaced in Round 10 by Firebase Phone MFA (true SMS-based, not
+// email OTP). The old email-OTP send2FACode/verify2FACode helpers were
+// removed because they shadowed the Round 10 functions of the same name.
 // ═══════════════════════════════════════════════════════════════════
-async function send2FACode() {
-  if (!curUser) return;
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  try {
-    await db.collection('users').doc(curUser.uid).update({
-      otpCode: code,
-      otpExpiresAt: firebase.firestore.Timestamp.fromDate(expiresAt)
-    });
-    // EmailJS to send the OTP
-    await sendOrderEmail('otp_code', { to_email: curUser.email, to_name: curUserData?.name || '', code });
-    toast('OTP sent to your email.', 'info');
-    return true;
-  } catch(e) { toast('Failed to send OTP.', 'danger'); return false; }
-}
-async function verify2FACode(inputCode) {
-  if (!curUser) return false;
-  try {
-    const snap = await db.collection('users').doc(curUser.uid).get();
-    const d = snap.data();
-    if (!d.otpCode || !d.otpExpiresAt) return false;
-    const expired = d.otpExpiresAt.toDate().getTime() < Date.now();
-    if (expired) { toast('OTP expired. Please request a new one.', 'warning'); return false; }
-    if (d.otpCode !== inputCode.trim()) { toast('Incorrect OTP.', 'danger'); return false; }
-    await db.collection('users').doc(curUser.uid).update({ otpCode: null, otpExpiresAt: null });
-    return true;
-  } catch(e) { return false; }
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // ROUND 2: APPLE SIGN-IN
