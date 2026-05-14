@@ -749,6 +749,10 @@
       .modal-overlay { align-items: flex-end; }
       /* bottom nav padding on mobile */
       body { padding-bottom: 60px; }
+      /* Prevent overflow from injected header buttons (currency, ?, etc.) */
+      header, .header-inner, nav { max-width: 100%; overflow-x: hidden; }
+      #dm-currency-btn, #dm-kb-help-btn { font-size: 0.68rem !important; padding: 0.15rem 0.4rem !important; }
+      .nav-link { font-size: 0.85rem; }
     }
 
     /* ── Mobile Bottom Navigation ── */
@@ -1495,24 +1499,24 @@
           <div class="alert" id="seller-settings-alert" role="alert"></div>
           <form onsubmit="saveSellerSettings(event)">
             <div class="form-group">
-              <label class="form-label">Instapay ID</label>
-              <input class="form-control" type="text" id="s-instapay" placeholder="name@instapay.com">
+              <label class="form-label" for="s-instapay">Instapay ID</label>
+              <input class="form-control" type="text" id="s-instapay" placeholder="name@instapay.com" aria-label="Instapay ID">
             </div>
             <div class="form-group">
-              <label class="form-label">Phone Number</label>
-              <input class="form-control" type="tel" id="s-phone" placeholder="01xxxxxxxxx">
+              <label class="form-label" for="s-phone">Phone Number</label>
+              <input class="form-control" type="tel" id="s-phone" placeholder="01xxxxxxxxx" aria-label="Phone Number">
             </div>
             <div class="form-group">
-              <label class="form-label">Bank Name</label>
-              <input class="form-control" type="text" id="s-bank">
+              <label class="form-label" for="s-bank">Bank Name</label>
+              <input class="form-control" type="text" id="s-bank" aria-label="Bank Name">
             </div>
             <div class="form-group">
-              <label class="form-label">Account Number</label>
-              <input class="form-control" type="text" id="s-accnum">
+              <label class="form-label" for="s-accnum">Account Number</label>
+              <input class="form-control" type="text" id="s-accnum" aria-label="Bank Account Number">
             </div>
             <div class="form-group">
-              <label class="form-label">Account Holder Name</label>
-              <input class="form-control" type="text" id="s-accname">
+              <label class="form-label" for="s-accname">Account Holder Name</label>
+              <input class="form-control" type="text" id="s-accname" aria-label="Account Holder Name">
             </div>
             <button type="submit" class="btn btn-primary btn-full" data-i18n="saveSettings">Save Settings</button>
           </form>
@@ -1698,7 +1702,7 @@
           <table>
             <thead>
               <tr>
-                <th style="width:32px;"><input type="checkbox" class="bulk-check" id="bulk-select-all-products" onchange="toggleSelectAllProducts(this)"></th>
+                <th style="width:32px;"><input type="checkbox" class="bulk-check" id="bulk-select-all-products" onchange="toggleSelectAllProducts(this)" aria-label="Select all products"></th>
                 <th data-i18n="product">Product</th><th data-i18n="seller">Seller</th>
                 <th data-i18n="price">Price</th><th data-i18n="status">Status</th><th data-i18n="actions">Actions</th>
               </tr>
@@ -1736,28 +1740,28 @@
           <div class="alert" id="admin-settings-alert" role="alert"></div>
           <form onsubmit="saveAdminSettings(event)">
             <div class="form-group">
-              <label class="form-label">Platform Instapay ID</label>
-              <input class="form-control" type="text" id="a-instapay">
+              <label class="form-label" for="a-instapay">Platform Instapay ID</label>
+              <input class="form-control" type="text" id="a-instapay" aria-label="Platform Instapay ID">
             </div>
             <div class="form-group">
-              <label class="form-label">Platform Phone</label>
-              <input class="form-control" type="tel" id="a-phone">
+              <label class="form-label" for="a-phone">Platform Phone</label>
+              <input class="form-control" type="tel" id="a-phone" aria-label="Platform Phone">
             </div>
             <div class="form-group">
-              <label class="form-label">Bank Name</label>
-              <input class="form-control" type="text" id="a-bank">
+              <label class="form-label" for="a-bank">Bank Name</label>
+              <input class="form-control" type="text" id="a-bank" aria-label="Platform Bank Name">
             </div>
             <div class="form-group">
-              <label class="form-label">Account Number</label>
-              <input class="form-control" type="text" id="a-accnum">
+              <label class="form-label" for="a-accnum">Account Number</label>
+              <input class="form-control" type="text" id="a-accnum" aria-label="Platform Bank Account Number">
             </div>
             <div class="form-group">
-              <label class="form-label">Account Holder</label>
-              <input class="form-control" type="text" id="a-accname">
+              <label class="form-label" for="a-accname">Account Holder</label>
+              <input class="form-control" type="text" id="a-accname" aria-label="Platform Account Holder">
             </div>
             <div class="form-group">
-              <label class="form-label">Commission % <span class="req" aria-hidden="true">*</span></label>
-              <input class="form-control" type="number" id="a-commission" min="0" max="100" step="0.5" value="5">
+              <label class="form-label" for="a-commission">Commission % <span class="req" aria-hidden="true">*</span></label>
+              <input class="form-control" type="number" id="a-commission" min="0" max="100" step="0.5" value="5" aria-label="Platform commission percentage">
             </div>
             <button type="submit" class="btn btn-primary btn-full">Save Platform Settings</button>
           </form>
@@ -1793,8 +1797,8 @@
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Expires At (optional)</label>
-            <input class="form-control" type="datetime-local" id="coupon-expires-input">
+            <label class="form-label" for="coupon-expires-input">Expires At (optional)</label>
+            <input class="form-control" type="datetime-local" id="coupon-expires-input" aria-label="Coupon expiry date and time">
           </div>
           <button class="btn btn-primary btn-full" onclick="createCoupon()"><i class="fa-solid fa-plus"></i> Create Coupon</button>
         </div>
@@ -2093,7 +2097,7 @@
         <i class="fa-solid fa-cloud-arrow-up" style="font-size:1.5rem;color:var(--text-muted);margin-bottom:0.5rem;" aria-hidden="true"></i>
         <p style="font-size:0.85rem;color:var(--text-muted);" data-i18n="clickToUpload">Click to upload screenshot</p>
         <p style="font-size:0.75rem;color:var(--text-muted);">JPG, PNG, WEBP – max 5MB</p>
-        <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)">
+        <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)" aria-label="Upload payment proof image">
         <img id="proof-preview" class="file-preview" alt="Payment proof preview">
       </div>
       <!-- Coupon code -->
@@ -8591,7 +8595,8 @@ async function publishProductUpdate(productId, newVersion, changeNotes, newDownl
 // ─── ROUND 8 Feature 3: WISHLIST PUBLIC SHARING ───────────────────────
 function shareWishlist() {
   let wl = [];
-  try { wl = JSON.parse(localStorage.getItem('dm_wishlist') || '[]'); } catch { wl = []; }
+  // BUGFIX: must read from same key the rest of the app uses (WISHLIST_KEY = 'dms_wishlist_v1')
+  try { wl = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]'); } catch { wl = []; }
   if (!Array.isArray(wl) || !wl.length) { toast('Your wishlist is empty.', 'info'); return; }
   const url = `${location.origin}/?wishlist=${encodeURIComponent(wl.join(','))}`;
   navigator.clipboard.writeText(url)
@@ -9439,7 +9444,9 @@ function formatPriceMulti(egpAmount) {
     btn.id = 'dm-currency-btn';
     btn.className = 'icon-btn';
     btn.title = 'Switch currency';
-    btn.style.cssText = 'background:none;border:1px solid var(--border);border-radius:6px;padding:0.25rem 0.6rem;cursor:pointer;font-size:0.78rem;color:var(--text);margin-left:0.4rem;white-space:nowrap;';
+    btn.style.cssText = 'background:none;border:1px solid var(--border);border-radius:6px;padding:0.2rem 0.45rem;cursor:pointer;font-size:0.72rem;color:var(--text);margin-left:0.3rem;white-space:nowrap;flex-shrink:0;';
+    btn.setAttribute('aria-label', `Switch currency, current is ${cur}`);
+    btn.title = `Switch currency (current: ${cur})`;
     btn.textContent = `${DM_CURRENCIES[cur].flag} ${cur}`;
     btn.onclick = () => {
       const codes = Object.keys(DM_CURRENCIES);
