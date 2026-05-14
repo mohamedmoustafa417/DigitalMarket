@@ -36,7 +36,8 @@
   <link rel="alternate" hreflang="x-default" href="https://digitalmarketstore.shop/">
   <!-- Security Headers via Meta -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+  <!-- X-Frame-Options removed: cannot be set via meta (Chrome warning).
+       Must be set as an HTTP response header — configured at the hosting layer instead. -->
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://digitalmarket-38db5.firebaseapp.com https://accounts.google.com https://appleid.apple.com; object-src 'none'; base-uri 'self';">
   <title>DigitalMarket – Digital Marketplace</title>
