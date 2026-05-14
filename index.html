@@ -8620,8 +8620,9 @@ async function publishProductUpdate(productId, newVersion, changeNotes, newDownl
 
 // ─── ROUND 8 Feature 3: WISHLIST PUBLIC SHARING ───────────────────────
 function shareWishlist() {
-  const wl = JSON.parse(localStorage.getItem('dm_wishlist') || '[]');
-  if (!wl.length) { toast('Your wishlist is empty.', 'info'); return; }
+  let wl = [];
+  try { wl = JSON.parse(localStorage.getItem('dm_wishlist') || '[]'); } catch { wl = []; }
+  if (!Array.isArray(wl) || !wl.length) { toast('Your wishlist is empty.', 'info'); return; }
   const url = `${location.origin}/?wishlist=${encodeURIComponent(wl.join(','))}`;
   navigator.clipboard.writeText(url)
     .then(() => toast('Wishlist link copied! 💌', 'success'))
@@ -8921,8 +8922,12 @@ function openShortcutsModal() {
 document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName;
   if (['INPUT','TEXTAREA','SELECT'].includes(tag)) return;
+  if (document.activeElement?.isContentEditable) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // e.key can be undefined for IME compositions / dead keys / synthetic events
   const k = e.key;
+  if (typeof k !== 'string' || !k) return;
+  if (e.isComposing || e.keyCode === 229) return; // IME composing
   if (k === '?')   { e.preventDefault(); openShortcutsModal(); return; }
   if (k === 'Escape') return; // handled by existing modal close logic
   const K = k.toUpperCase();
