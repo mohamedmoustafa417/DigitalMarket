@@ -1,4 +1,4 @@
-const CACHE_NAME = 'digitalmarket-v8';
+const CACHE_NAME = 'digitalmarket-v9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
