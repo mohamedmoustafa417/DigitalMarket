@@ -71,26 +71,39 @@ service cloud.firestore {
     }
 
     // ── Users ────────────────────────────────────────────────────────
+    // SECURITY: full user doc contains KYC PII (national ID, ID photo URL, selfie URL,
+    // address, DOB), bank account info, phone, email, twoFactorEnabled flag, TIN.
+    // We REQUIRE sign-in to read. For public storefront / product author display, use
+    // the /publicProfiles/{uid} collection which only mirrors safe fields.
     match /users/{userId} {
-      // PUBLIC READ — required so unauthenticated visitors can view seller storefronts,
-      // see product author info, etc. Marketplace UX needs this. Payment info (Instapay,
-      // phone) is visible by design so buyers can pay sellers directly.
-      // Sensitive data (KYC docs, 2FA secrets, OTP codes) should NEVER be stored on this
-      // doc — use the kycRequests collection (admin-only) for KYC.
-      allow read: if true;
+      allow read: if isSignedIn();
 
       allow create: if isSelf(userId)
                     && request.resource.data.role in ['buyer', 'seller'];
 
-      // Users can update their own doc but CANNOT change role, disabled, or KYC fields
-      // (KYC fields are mirrored from kycRequests via the onKYCApproval Cloud Function)
+      // SECURITY: self-update uses an ALLOWLIST — only these keys may be self-modified.
+      // Everything else (verified flag, KYC fields, totalSales, tier, role, disabled,
+      // email, ratingAvg, ratingCount) is managed by admin or Cloud Functions.
       allow update: if isAdmin()
                     || (isSelf(userId)
-                        && !request.resource.data.diff(resource.data).affectedKeys()
-                            .hasAny(['role', 'disabled', 'kycStatus', 'kycRejectReason',
-                                     'kycReviewedAt', 'totalSales', 'tier']));
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['name', 'shopName', 'shopDesc', 'bio',
+                                      'avatarUrl', 'photoURL',
+                                      'instapay', 'phone', 'bank', 'accountNum',
+                                      'accountHolder', 'tin',
+                                      'twoFactorEnabled',
+                                      'loyaltyPoints',
+                                      'updatedAt']));
 
       allow delete: if isAdmin();
+    }
+
+    // ── Public Profiles (safe-field mirror for storefronts) ──────────
+    // Mirrored from /users/{uid} by Cloud Function. Contains ONLY non-sensitive
+    // fields safe for unauthenticated viewing.
+    match /publicProfiles/{userId} {
+      allow read: if true;                          // public — read by guests
+      allow create, update, delete: if isAdmin();   // server-side only via CF
     }
 
     // ── Settings ─────────────────────────────────────────────────────

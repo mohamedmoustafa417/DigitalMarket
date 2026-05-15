@@ -7544,8 +7544,18 @@ async function openStorefront(sellerId) {
   if (gridEl) gridEl.innerHTML = '';
 
   try {
+    // SECURITY: try the public mirror first (works for unauthenticated visitors).
+    // Fall back to /users for signed-in users (which is allow read: if isSignedIn()).
+    const sellerFetch = (async () => {
+      const pubSnap = await db.collection('publicProfiles').doc(sellerId).get().catch(() => null);
+      if (pubSnap?.exists) return pubSnap;
+      // Fallback: only signed-in users can read /users — guests skip with empty data
+      if (!curUser) return null;
+      return db.collection('users').doc(sellerId).get();
+    })();
+
     const [sellerSnap, productsSnap, followsSnap] = await Promise.all([
-      db.collection('users').doc(sellerId).get(),
+      sellerFetch,
       db.collection('products')
         .where('sellerId', '==', sellerId)
         .where('status', '==', 'approved')
@@ -7554,7 +7564,18 @@ async function openStorefront(sellerId) {
       db.collection('follows').where('sellerId', '==', sellerId).get()
     ]);
 
-    if (!sellerSnap.exists) { showToast('Seller not found.', 'danger'); return; }
+    // Guest viewer + no public profile yet — show products only, generic seller card
+    if (!sellerSnap || !sellerSnap.exists) {
+      if (nameEl) nameEl.innerHTML = `Seller <span style="font-size:0.7rem;color:var(--text-muted);">(sign in to see profile)</span>`;
+      if (bioEl)  bioEl.textContent = '';
+      if (statsEl) statsEl.innerHTML = '';
+      const products = productsSnap.docs;
+      if (headingEl) headingEl.textContent = `Products (${products.length})`;
+      _storefrontProducts = products.map(d => ({ id: d.id, ...d.data() }));
+      if (products.length) { emptyEl?.classList.add('hidden'); renderStorefrontGrid(_storefrontProducts); }
+      else                 { emptyEl?.classList.remove('hidden'); }
+      return;
+    }
     const s = sellerSnap.data();
 
     // Avatar

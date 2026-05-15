@@ -365,6 +365,44 @@ exports.cleanupPresence = onSchedule(
 // ─── 9. onKYCApproval ─────────────────────────────────────────────────
 // Fires when admin approves/rejects a KYC request; mirrors decision to user doc.
 
+// ─── 10. mirrorPublicProfile ──────────────────────────────────────────
+// On every /users/{uid} write, mirror ONLY safe fields to /publicProfiles/{uid}
+// so unauthenticated visitors can view seller storefronts WITHOUT exposing
+// KYC docs, bank info, phone, email, etc.
+
+const PUBLIC_FIELDS = [
+  'name', 'shopName', 'shopDesc', 'bio', 'avatarUrl', 'photoURL',
+  'role', 'verified', 'totalSales', 'tier',
+  'ratingAvg', 'ratingCount',
+  'instapay',  // payment-only contact ok to expose so buyers can pay
+  'createdAt',
+];
+
+exports.mirrorPublicProfile = onDocumentWritten(
+  { document: 'users/{userId}', region: 'us-central1' },
+  async event => {
+    const after = event.data?.after?.data();
+    const userId = event.params.userId;
+
+    if (!after) {
+      // User deleted — also delete the public profile
+      await db.collection('publicProfiles').doc(userId).delete().catch(() => {});
+      return;
+    }
+
+    // Skip mirror for buyers (only sellers need a public profile)
+    if (after.role !== 'seller' && after.role !== 'admin') return;
+
+    const publicData = {};
+    for (const k of PUBLIC_FIELDS) {
+      if (k in after) publicData[k] = after[k];
+    }
+    publicData.updatedAt = FieldValue.serverTimestamp();
+
+    await db.collection('publicProfiles').doc(userId).set(publicData, { merge: true });
+  }
+);
+
 exports.onKYCApproval = onDocumentWritten(
   { document: 'kycRequests/{reqId}', region: 'us-central1' },
   async event => {
