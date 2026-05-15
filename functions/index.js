@@ -390,8 +390,13 @@ exports.mirrorPublicProfile = onDocumentWritten(
       return;
     }
 
-    // Skip mirror for buyers (only sellers need a public profile)
-    if (after.role !== 'seller' && after.role !== 'admin') return;
+    // Skip mirror for buyers (only sellers need a public profile).
+    // ALSO delete any stale public profile in case of seller→buyer downgrade,
+    // otherwise the old shop data stays publicly visible indefinitely.
+    if (after.role !== 'seller' && after.role !== 'admin') {
+      await db.collection('publicProfiles').doc(userId).delete().catch(() => {});
+      return;
+    }
 
     const publicData = {};
     for (const k of PUBLIC_FIELDS) {

@@ -10821,31 +10821,23 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
 
 // ─── 3. AUTO-FOCUS FIRST INPUT + FOCUS TRAP in modals (a11y) ──────────
 (function focusTrapInModals() {
-  const observer = new MutationObserver(muts => {
-    muts.forEach(m => m.addedNodes?.forEach(n => {
-      if (n.nodeType !== 1) return;
-      if (!n.classList?.contains('modal-overlay') && !n.classList?.contains('show')) return;
-    }));
-  });
-  observer.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
-
-  // When openModal called, focus first input
+  // Removed: dead-code MutationObserver whose callback body was empty.
+  // The openModal patch below is what actually auto-focuses the first input.
   const origOpen = window.openModal;
-  if (typeof origOpen === 'function') {
-    window.openModal = function(id) {
-      origOpen.apply(this, arguments);
-      setTimeout(() => {
-        const modal = document.getElementById(id);
-        if (!modal) return;
-        const focusable = modal.querySelector('input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable=true]');
-        if (focusable) focusable.focus();
-        else {
-          const closeBtn = modal.querySelector('.btn-icon, .modal-close, [aria-label="Close"]');
-          if (closeBtn) closeBtn.focus();
-        }
-      }, 100);
-    };
-  }
+  if (typeof origOpen !== 'function') return;
+  window.openModal = function(id) {
+    origOpen.apply(this, arguments);
+    setTimeout(() => {
+      const modal = document.getElementById(id);
+      if (!modal) return;
+      const focusable = modal.querySelector('input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable=true]');
+      if (focusable) focusable.focus();
+      else {
+        const closeBtn = modal.querySelector('.btn-icon, .modal-close, [aria-label="Close"]');
+        if (closeBtn) closeBtn.focus();
+      }
+    }, 100);
+  };
 })();
 
 // ─── 4. "BUY NOW" express checkout button on product detail ───────────
@@ -10914,17 +10906,19 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
   window.renderProducts = function() {
     orig.apply(this, arguments);
     setTimeout(async () => {
-      // Group cards by sellerId, fetch tier once per seller
+      // Group cards by sellerId, fetch tier once per seller (PARALLEL — was sequential before)
       const tierCache = window._dmTierCache || (window._dmTierCache = {});
       const sellerIds = [...new Set((window.allProducts || []).map(p => p.sellerId).filter(Boolean))];
-      for (const sid of sellerIds) {
-        if (sid in tierCache) continue;
-        try {
-          const snap = await db.collection('users').doc(sid).get();
-          const sales = snap.data()?.totalSales || 0;
-          tierCache[sid] = (typeof getCreatorTier === 'function') ? getCreatorTier(sales) : null;
-        } catch { tierCache[sid] = null; }
-      }
+      const needsFetch = sellerIds.filter(sid => !(sid in tierCache));
+      // Read from /publicProfiles (public) instead of /users (signed-in only)
+      await Promise.all(needsFetch.map(sid =>
+        db.collection('publicProfiles').doc(sid).get()
+          .then(snap => {
+            const sales = snap.data()?.totalSales || 0;
+            tierCache[sid] = (typeof getCreatorTier === 'function') ? getCreatorTier(sales) : null;
+          })
+          .catch(() => { tierCache[sid] = null; })
+      ));
       // Now inject tier badge into each card
       document.querySelectorAll('.product-card').forEach(card => {
         if (card.querySelector('.dm-tier-pill')) return;
@@ -11092,79 +11086,63 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
 })();
 
 // ─── 5. PAGINATION / INFINITE SCROLL on products grid ─────────────────
+// IMPLEMENTATION NOTE: We let the existing renderProducts (with all wrapper
+// enrichments — Buy Now, Quick View, Tier badges, Compare) render every card,
+// then HIDE the overflow via CSS and reveal more on scroll. This avoids the
+// previous bug where >24 products bypassed the patch chain.
 (function infiniteScrollProducts() {
-  let renderedCount = 0;
   const PAGE_SIZE = 24;
-  let allFiltered = [];
+  let _shown = 0;
 
-  function renderPage() {
+  function applyPagination() {
     const grid = document.getElementById('products-grid');
     if (!grid) return;
-    const next = allFiltered.slice(renderedCount, renderedCount + PAGE_SIZE);
-    if (!next.length) return;
-    if (renderedCount === 0) grid.innerHTML = '';
-    // We let the existing renderProducts function do per-card markup by calling it,
-    // but to avoid recursion + duplication, just append simple cards:
-    next.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'product-card';
-      card.setAttribute('role','listitem');
-      card.setAttribute('tabindex','0');
-      card.setAttribute('onclick', `openProductDetail('${sanitize(p.id)}')`);
-      card.innerHTML = `
-        <button onclick="toggleWishlist('${sanitize(p.id)}',event)" aria-label="Wishlist" title="Wishlist"
-          style="position:absolute;top:0.5rem;right:0.5rem;background:rgba(0,0,0,0.35);border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:2;color:${isWishlisted(p.id)?'#f43f5e':'#fff'};">
-          ${isWishlisted(p.id) ? '♥' : '♡'}
-        </button>
-        ${p.featured ? `<span class="featured-badge">★ Featured</span>` : ''}
-        ${(p.purchaseCount||0) >= 5 ? `<span class="fomo-badge">🔥 ${p.purchaseCount} sold</span>` : ''}
-        <div class="product-img">
-          ${p.imageUrl
-            ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy">`
-            : p.emoji ? `<span style="font-size:3rem;">${sanitize(p.emoji)}</span>` : `<i class="fa-solid fa-file-arrow-down"></i>`}
-        </div>
-        <div class="product-body">
-          <div class="product-title">${sanitize(p.name)}</div>
-          <div class="product-desc">${sanitize(p.description || '')}</div>
-        </div>
-        <div class="product-footer">
-          <span class="product-price">${formatPrice(p.price)}</span>
-          <span class="badge badge-primary">${sanitize(p.category || 'other')}</span>
-        </div>
-        ${p.ratingCount ? `<div class="rating-pill">${starsHtml(p.ratingAvg||0)}<span>${(+(p.ratingAvg||0)).toFixed(1)} (${p.ratingCount})</span></div>` : ''}`;
-      grid.appendChild(card);
-    });
-    renderedCount += next.length;
-  }
+    const cards = grid.querySelectorAll('.product-card');
+    if (cards.length <= PAGE_SIZE) {
+      document.getElementById('dm-infinite-sentinel')?.remove();
+      return;
+    }
+    _shown = PAGE_SIZE;
+    cards.forEach((c, i) => { c.style.display = i < _shown ? '' : 'none'; });
 
-  // Patch renderProducts to use pagination when results > 24
-  const orig = window.renderProducts;
-  if (typeof orig !== 'function') return;
-  window.renderProducts = function() {
-    const list = (typeof getFilteredProducts === 'function') ? getFilteredProducts() : (window.allProducts || []);
-    if (list.length <= PAGE_SIZE) { orig.apply(this, arguments); return; }
-    allFiltered = list;
-    renderedCount = 0;
-    renderPage();
-    // Setup intersection sentinel for infinite scroll
     let sentinel = document.getElementById('dm-infinite-sentinel');
     if (!sentinel) {
       sentinel = document.createElement('div');
       sentinel.id = 'dm-infinite-sentinel';
-      sentinel.style.cssText = 'height:60px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.85rem;';
+      sentinel.style.cssText = 'height:60px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.85rem;grid-column:1/-1;';
       sentinel.textContent = 'Scroll for more…';
-      const grid = document.getElementById('products-grid');
       grid.parentElement.appendChild(sentinel);
-      const obs = new IntersectionObserver(entries => {
-        if (entries[0].isIntersecting && renderedCount < allFiltered.length) {
-          renderPage();
-          if (renderedCount >= allFiltered.length) { sentinel.textContent = '— end of catalog —'; obs.disconnect(); }
-        }
-      }, { rootMargin: '200px' });
-      obs.observe(sentinel);
-    } else {
-      sentinel.textContent = renderedCount >= allFiltered.length ? '— end of catalog —' : 'Scroll for more…';
     }
+    sentinel.textContent = 'Scroll for more…';
+
+    if (window._dmPaginationObs) window._dmPaginationObs.disconnect();
+    window._dmPaginationObs = new IntersectionObserver(entries => {
+      if (!entries[0].isIntersecting) return;
+      const allCards = grid.querySelectorAll('.product-card');
+      if (_shown >= allCards.length) {
+        sentinel.textContent = '— end of catalog —';
+        window._dmPaginationObs?.disconnect();
+        return;
+      }
+      const newShown = Math.min(_shown + PAGE_SIZE, allCards.length);
+      for (let i = _shown; i < newShown; i++) allCards[i].style.display = '';
+      _shown = newShown;
+      if (_shown >= allCards.length) {
+        sentinel.textContent = '— end of catalog —';
+        window._dmPaginationObs?.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    window._dmPaginationObs.observe(sentinel);
+  }
+
+  // Hook into renderProducts: render normally (preserving all enrichments),
+  // then apply pagination AFTER all wrappers have decorated the cards.
+  const orig = window.renderProducts;
+  if (typeof orig !== 'function') return;
+  window.renderProducts = function() {
+    orig.apply(this, arguments);
+    // Run after all other renderProducts wrappers (Buy Now, Quick View, Tier badge) finish
+    setTimeout(applyPagination, 200);
   };
 })();
 
@@ -11184,13 +11162,17 @@ window.dmConfirm = function(message, options = {}) {
       </div>`;
     document.body.appendChild(el);
     el.querySelector('[data-act="ok"]').focus();
-    const close = (val) => { el.remove(); resolve(val); };
+    // Always-removed escape listener (was leaking when user clicked OK/Cancel/backdrop)
+    const escHandler = (ev) => { if (ev.key === 'Escape') close(false); };
+    const close = (val) => {
+      document.removeEventListener('keydown', escHandler);
+      el.remove();
+      resolve(val);
+    };
     el.querySelector('[data-act="ok"]').onclick = () => close(true);
     el.querySelector('[data-act="cancel"]').onclick = () => close(false);
     el.addEventListener('click', e => { if (e.target === el) close(false); });
-    document.addEventListener('keydown', function escHandler(ev) {
-      if (ev.key === 'Escape') { close(false); document.removeEventListener('keydown', escHandler); }
-    });
+    document.addEventListener('keydown', escHandler);
   });
 };
 
@@ -11290,21 +11272,26 @@ window.dmSetLoading = function(btn, loading) {
 })();
 
 // ─── 11. BETTER EMPTY STATES for orders + Q&A ─────────────────────────
+// Hook into openProductDetail (which triggers Q&A load) instead of a global
+// MutationObserver — that was running on EVERY DOM change for the lifetime
+// of the page, a real performance leak.
 (function enhanceMoreEmptyStates() {
-  // Wishlist + cart done earlier. Orders empty handled in patchLoadOrders.
-  // Add Q&A empty state hint
-  const observer = new MutationObserver(() => {
-    const qa = document.getElementById('product-qa-list');
-    if (!qa || qa.dataset.enhanced) return;
-    if (qa.children.length === 0 && qa.textContent.trim() === '') {
-      qa.dataset.enhanced = '1';
-      qa.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">
-        <i class="fa-regular fa-comments" style="font-size:1.6rem;opacity:0.4;display:block;margin-bottom:0.4rem;"></i>
-        No questions yet. Be the first to ask!
-      </div>`;
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  const orig = window.openProductDetail;
+  if (typeof orig !== 'function') return;
+  window.openProductDetail = async function(id) {
+    await orig.apply(this, arguments);
+    setTimeout(() => {
+      const qa = document.getElementById('product-qa-list');
+      if (!qa || qa.dataset.enhanced) return;
+      if (qa.children.length === 0 && qa.textContent.trim() === '') {
+        qa.dataset.enhanced = '1';
+        qa.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.85rem;">
+          <i class="fa-regular fa-comments" style="font-size:1.6rem;opacity:0.4;display:block;margin-bottom:0.4rem;"></i>
+          No questions yet. Be the first to ask!
+        </div>`;
+      }
+    }, 600);
+  };
 })();
 
 // ─── 12. TIER A #4 — ENHANCED FUZZY SEARCH (substring + token + acronym) ──
@@ -11473,7 +11460,7 @@ async function submitDMCA() {
     name:    document.getElementById('dmca-name').value.trim(),
     email:   document.getElementById('dmca-email').value.trim(),
     product: document.getElementById('dmca-product').value.trim(),
-    original:document.getElementById('dmca-details').value.trim(),
+    original:document.getElementById('dmca-original').value.trim(),
     details: document.getElementById('dmca-details').value.trim(),
     attest:  document.getElementById('dmca-attest').checked,
   };
@@ -11565,55 +11552,75 @@ async function openAffiliateDashboard() {
 // Register affiliate click on page load
 (function trackAffClick() {
   const aff = new URLSearchParams(location.search).get('aff');
-  if (!aff || aff === curUser?.uid) return;
+  if (!aff) return;
+  // Persist the cookie-equivalent immediately (works for guests too)
   localStorage.setItem('dm_aff_ref', aff);
-  // Track click in Firestore
-  try {
-    db.collection('affiliates').doc(aff).set({
-      clicks: FV.increment(1),
-      lastClick: FV.serverTimestamp()
-    }, { merge: true }).catch(() => {});
-  } catch {}
+  // Defer the click-credit write until auth state has resolved, so we can
+  // correctly skip self-referral (curUser is null at script-load time).
+  function recordClick() {
+    if (aff === curUser?.uid) return; // don't credit self
+    try {
+      db.collection('affiliates').doc(aff).set({
+        clicks: FV.increment(1),
+        lastClick: FV.serverTimestamp()
+      }, { merge: true }).catch(() => {});
+    } catch {}
+  }
+  if (typeof auth !== 'undefined' && auth.onAuthStateChanged) {
+    // Fire once when auth is resolved (called immediately if already known)
+    const off = auth.onAuthStateChanged(() => { recordClick(); off(); });
+  } else {
+    // Fallback if auth not loaded yet
+    setTimeout(recordClick, 3000);
+  }
 })();
 
 // ─── 17. TIER A #5 — PRODUCT VIDEO PREVIEW (auto-play on hover) ───────
+// FIXED: Single-binding via mouseover delegation, plays IMMEDIATELY on first hover
+// (previous version added a 2nd mouseenter listener inside the 1st, so video never
+// played on first hover; also accumulated listeners on repeat hovers).
 (function videoOnHover() {
-  const orig = window.openProductDetail;
-  if (typeof orig !== 'function') return;
-  // Note: real video previews need video URL field on products + video element.
-  // We already support `previewUrl` (Round 8 #4). This patch adds desktop hover play.
-  document.addEventListener('mouseenter', (e) => {
-    const card = e.target.closest?.('.product-card');
-    if (!card || card.dataset.videoBound) return;
-    card.dataset.videoBound = '1';
+  function playVideo(card) {
     const m = (card.getAttribute('onclick') || '').match(/'([^']+)'/);
     if (!m) return;
     const product = (window.allProducts || []).find(p => p.id === m[1]);
     if (!product?.previewUrl || !/\.(mp4|webm)$/i.test(product.previewUrl)) return;
-    // Replace image with video on hover
-    card.addEventListener('mouseenter', () => {
-      const imgWrap = card.querySelector('.product-img');
-      if (!imgWrap || imgWrap.dataset.videoActive) return;
-      imgWrap.dataset.videoActive = '1';
-      const v = document.createElement('video');
-      v.src = product.previewUrl;
-      v.muted = true; v.autoplay = true; v.loop = true; v.playsInline = true;
-      v.style.cssText = 'width:100%;height:100%;object-fit:cover;';
-      const orig = imgWrap.innerHTML;
-      imgWrap.dataset.originalContent = orig;
-      imgWrap.innerHTML = '';
-      imgWrap.appendChild(v);
-    });
-    card.addEventListener('mouseleave', () => {
-      const imgWrap = card.querySelector('.product-img');
-      if (!imgWrap?.dataset.videoActive) return;
-      delete imgWrap.dataset.videoActive;
-      if (imgWrap.dataset.originalContent) {
-        imgWrap.innerHTML = imgWrap.dataset.originalContent;
-        delete imgWrap.dataset.originalContent;
-      }
-    });
-  }, true);
+    const imgWrap = card.querySelector('.product-img');
+    if (!imgWrap || imgWrap.dataset.videoActive) return;
+    imgWrap.dataset.videoActive = '1';
+    imgWrap.dataset.originalContent = imgWrap.innerHTML;
+    const v = document.createElement('video');
+    v.src = product.previewUrl;
+    v.muted = true; v.autoplay = true; v.loop = true; v.playsInline = true;
+    v.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+    imgWrap.innerHTML = '';
+    imgWrap.appendChild(v);
+  }
+  function restoreImage(card) {
+    const imgWrap = card.querySelector('.product-img');
+    if (!imgWrap?.dataset.videoActive) return;
+    delete imgWrap.dataset.videoActive;
+    if (imgWrap.dataset.originalContent != null) {
+      imgWrap.innerHTML = imgWrap.dataset.originalContent;
+      delete imgWrap.dataset.originalContent;
+    }
+  }
+  // Delegated handlers — no per-card listener accumulation
+  document.addEventListener('mouseover', e => {
+    const card = e.target.closest?.('.product-card');
+    if (!card) return;
+    // Only fire when entering the card (not moving within it)
+    const related = e.relatedTarget;
+    if (related && card.contains(related)) return;
+    playVideo(card);
+  });
+  document.addEventListener('mouseout', e => {
+    const card = e.target.closest?.('.product-card');
+    if (!card) return;
+    const related = e.relatedTarget;
+    if (related && card.contains(related)) return;
+    restoreImage(card);
+  });
 })();
 
 // ─── 18. RECENTLY-SOLD BADGE on product detail ─────────────────────────
