@@ -61,8 +61,11 @@ const EMAIL_SECRETS = [RESEND_KEY];
  * Until a key is set, sendEmail() logs to console (won't crash the function
  * caller, so the broader order/KYC flow keeps working).
  */
-const FROM_EMAIL = 'noreply@digitalmarketstore.shop';
+// FROM uses support@ (not noreply@) — when buyers click Reply, mail goes
+// straight to the PrivateEmail inbox we already have. Higher trust + simpler.
+const FROM_EMAIL = 'support@digitalmarketstore.shop';
 const FROM_NAME  = 'DigitalMarket';
+const REPLY_TO   = 'support@digitalmarketstore.shop';
 
 async function sendEmail({ to, subject, body }) {
   const resendKey   = process.env.RESEND_KEY;
@@ -85,6 +88,7 @@ async function sendEmail({ to, subject, body }) {
         body: JSON.stringify({
           from: `${FROM_NAME} <${FROM_EMAIL}>`,
           to: [to],
+          reply_to: REPLY_TO,
           subject,
           html: body
         })
@@ -109,6 +113,7 @@ async function sendEmail({ to, subject, body }) {
         body: JSON.stringify({
           personalizations: [{ to: [{ email: to }], subject }],
           from: { email: FROM_EMAIL, name: FROM_NAME },
+          reply_to: { email: REPLY_TO },
           content: [{ type: 'text/html', value: body }]
         })
       });
