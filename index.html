@@ -12780,31 +12780,33 @@ window.dmToggleOLED = function() {
 };
 
 // ─── Inject those toggles into the More sheet when it opens ───────────
+// Lightweight childList observer scoped to body — only fires on direct
+// children of body (no subtree), so cost is minimal. We can't directly
+// wrap openHeaderMoreSheet because it's inside an earlier IIFE closure.
 (function injectSustainabilityToggles() {
-  const origOpen = window.openHeaderMoreSheet;
-  // openHeaderMoreSheet is defined inside an IIFE so we can't directly wrap it.
-  // Instead listen for the sheet's appearance and inject buttons.
   const observer = new MutationObserver(muts => {
-    muts.forEach(m => m.addedNodes.forEach(n => {
-      if (n.nodeType !== 1 || n.id !== 'dm-header-sheet') return;
-      const sheet = n.querySelector('div[style*="background:var(--bg2)"]');
-      if (!sheet || sheet.dataset.sustainableInjected) return;
-      sheet.dataset.sustainableInjected = '1';
-      const grid = sheet.querySelector('div[style*="grid"]');
-      if (!grid) return;
-      const saveDataOn = document.body.classList.contains('save-data');
-      const oledOn = document.body.classList.contains('oled');
-      const extras = document.createElement('div');
-      extras.style.cssText = 'display:contents;';
-      extras.innerHTML = `
-        <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="dmToggleSaveData();document.getElementById('dm-header-sheet').remove();">
-          🌱 Data saver · <span style="margin-left:auto;color:var(--text-muted);">${saveDataOn ? 'ON' : 'OFF'}</span>
-        </button>
-        <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="dmToggleOLED();document.getElementById('dm-header-sheet').remove();">
-          ⚫ True-black (OLED) · <span style="margin-left:auto;color:var(--text-muted);">${oledOn ? 'ON' : 'OFF'}</span>
-        </button>`;
-      grid.appendChild(extras);
-    }));
+    for (const m of muts) {
+      for (const n of m.addedNodes) {
+        if (n.nodeType !== 1 || n.id !== 'dm-header-sheet') continue;
+        const sheet = n.querySelector('div[style*="background:var(--bg2)"]');
+        if (!sheet || sheet.dataset.sustainableInjected) continue;
+        sheet.dataset.sustainableInjected = '1';
+        const grid = sheet.querySelector('div[style*="grid"]');
+        if (!grid) continue;
+        const saveDataOn = document.body.classList.contains('save-data');
+        const oledOn = document.body.classList.contains('oled');
+        const extras = document.createElement('div');
+        extras.style.cssText = 'display:contents;';
+        extras.innerHTML = `
+          <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="dmToggleSaveData();document.getElementById('dm-header-sheet').remove();">
+            🌱 Data saver · <span style="margin-left:auto;color:var(--text-muted);">${saveDataOn ? 'ON' : 'OFF'}</span>
+          </button>
+          <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="dmToggleOLED();document.getElementById('dm-header-sheet').remove();">
+            ⚫ True-black (OLED) · <span style="margin-left:auto;color:var(--text-muted);">${oledOn ? 'ON' : 'OFF'}</span>
+          </button>`;
+        grid.appendChild(extras);
+      }
+    }
   });
   observer.observe(document.body, { childList: true, subtree: false });
 })();
@@ -12831,21 +12833,9 @@ window.dmToggleOLED = function() {
   });
 })();
 
-// ─── Lazy hydrate Chart.js — only load on seller/admin views ──────────
-// (Chart.js was already deferred, but it loads on EVERY page. This avoids
-// fetching it for buyers who never visit dashboards.)
-(function lazyChartJS() {
-  const observer = new MutationObserver(() => {
-    const view = document.querySelector('.view.active')?.id;
-    if (view === 'view-seller' || view === 'view-admin') {
-      if (!window.Chart && !window._dmChartLoading) {
-        window._dmChartLoading = true;
-        // Already declared with defer in head; just nudge browser to ensure it's parsed
-      }
-    }
-  });
-  observer.observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
-})();
+// (lazyChartJS removed — it was a dead-code MutationObserver that fired on
+//  every class change site-wide but its callback body did nothing useful.
+//  Chart.js is already <script defer>'d which gives us the same lazy benefit.)
 
 console.log('[DigitalMarket] Trendy/Sustainable/Universal pack loaded ✅ (glass modals, layered shadows, mesh hero, save-data, OLED mode, tablet layout, larger touch targets)');
 </script>
