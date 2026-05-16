@@ -8716,6 +8716,7 @@ function renderFilePreview(product) {
       <a href="mailto:support@digitalmarketstore.shop" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Contact</a>
     </div>
     <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
+      <a href="help.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Help &amp; FAQ</a>
       <a href="terms.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Terms of Service</a>
       <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Privacy Policy</a>
     </div>
@@ -12838,5 +12839,128 @@ window.dmToggleOLED = function() {
 //  Chart.js is already <script defer>'d which gives us the same lazy benefit.)
 
 console.log('[DigitalMarket] Trendy/Sustainable/Universal pack loaded ✅ (glass modals, layered shadows, mesh hero, save-data, OLED mode, tablet layout, larger touch targets)');
+
+// ═════════════════════════════════════════════════════════════════════
+// LAUNCH PREP PACK — GA4 conversion events, PWA install prompt, 2FA nudge
+// ═════════════════════════════════════════════════════════════════════
+
+// ─── GA4: track sign_up + add_to_cart conversions ─────────────────────
+(function ga4Conversions() {
+  // sign_up — fired after successful registration
+  const origReg = window.doRegister;
+  if (typeof origReg === 'function') {
+    window.doRegister = async function() {
+      const result = await origReg.apply(this, arguments);
+      try {
+        if (typeof gtag === 'function') {
+          gtag('event', 'sign_up', { method: 'email' });
+        }
+      } catch {}
+      return result;
+    };
+  }
+  // add_to_cart — fired on every cart addition
+  const origAdd = window.addToCart;
+  if (typeof origAdd === 'function') {
+    window.addToCart = function(productId) {
+      const result = origAdd.apply(this, arguments);
+      try {
+        if (typeof gtag === 'function') {
+          const p = (window.allProducts || []).find(x => x.id === productId);
+          gtag('event', 'add_to_cart', {
+            currency: 'EGP',
+            value: Number(p?.price || 0),
+            items: p ? [{ item_id: productId, item_name: p.name, price: p.price, item_category: p.category }] : [],
+          });
+        }
+      } catch {}
+      return result;
+    };
+  }
+})();
+
+// ─── PWA install prompt — show after 2 visits if user hasn't installed ─
+(function pwaInstallPrompt() {
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();              // prevent the mini-infobar
+    deferredPrompt = e;              // stash for later
+    maybeShowPrompt();
+  });
+  function maybeShowPrompt() {
+    if (!deferredPrompt) return;
+    if (localStorage.getItem('dm_pwa_prompt_dismissed') === '1') return;
+    const visits = parseInt(localStorage.getItem('dm_visit_count') || '0', 10) + 1;
+    localStorage.setItem('dm_visit_count', String(visits));
+    if (visits < 2) return;
+    // Show the custom prompt UI 8 seconds after page load (let user explore first)
+    setTimeout(() => {
+      if (!deferredPrompt) return;
+      const banner = document.createElement('div');
+      banner.id = 'dm-pwa-install';
+      banner.style.cssText = 'position:fixed;bottom:80px;right:16px;background:var(--bg2);border:1px solid var(--primary);border-radius:var(--r-md,12px);padding:0.85rem 1rem;box-shadow:var(--elev-3,0 12px 30px rgba(0,0,0,0.45));z-index:9000;max-width:320px;display:flex;flex-direction:column;gap:0.5rem;animation:dm-toastin 0.3s ease;';
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.5rem;font-weight:600;font-size:0.9rem;">📲 Install DigitalMarket</div>
+        <div style="font-size:0.8rem;color:var(--text-muted);">Get instant access from your home screen, even offline.</div>
+        <div style="display:flex;gap:0.5rem;margin-top:0.25rem;">
+          <button class="btn btn-primary" id="dm-pwa-yes" style="flex:1;padding:0.4rem;font-size:0.82rem;">Install</button>
+          <button class="btn btn-outline" id="dm-pwa-no" style="padding:0.4rem 0.75rem;font-size:0.82rem;">Not now</button>
+        </div>`;
+      document.body.appendChild(banner);
+      document.getElementById('dm-pwa-yes').onclick = async () => {
+        banner.remove();
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          try { gtag?.('event', 'pwa_install_accepted'); } catch {}
+        }
+        deferredPrompt = null;
+      };
+      document.getElementById('dm-pwa-no').onclick = () => {
+        banner.remove();
+        localStorage.setItem('dm_pwa_prompt_dismissed', '1');
+      };
+    }, 8000);
+  }
+})();
+
+// ─── 2FA nudge for sellers after 5 sales ──────────────────────────────
+(function twoFANudgeForSellers() {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    if (!curUser || !curUserData) return;
+    if (curUserData.role !== 'seller') return;
+    if (curUserData.twoFactorEnabled) return;
+    if (localStorage.getItem('dm_2fa_nudge_dismissed') === '1') return;
+    if ((curUserData.totalSales || 0) < 5) return;
+    // Show one-time modal
+    setTimeout(() => {
+      if (document.getElementById('dm-2fa-nudge')) return;
+      const el = document.createElement('div');
+      el.innerHTML = `
+      <div class="modal-overlay show" id="dm-2fa-nudge" role="dialog" aria-modal="true" style="z-index:9500;">
+        <div class="modal" style="max-width:420px;text-align:center;">
+          <div class="modal-header">
+            <h3>🔐 Protect your earnings</h3>
+            <button class="btn-icon" onclick="document.getElementById('dm-2fa-nudge').remove();localStorage.setItem('dm_2fa_nudge_dismissed','1');" aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+            <div style="font-size:2.5rem;margin-bottom:0.75rem;">🛡️</div>
+            <p style="font-size:0.95rem;font-weight:600;margin-bottom:0.5rem;">You've made ${curUserData.totalSales} sales!</p>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.25rem;">Enable Two-Factor Authentication to add an extra layer of security. Required for higher payout limits soon.</p>
+            <button class="btn btn-primary" style="width:100%;" onclick="document.getElementById('dm-2fa-nudge').remove();setupTwoFactor();">
+              Enable 2FA now
+            </button>
+            <button class="btn btn-outline" style="width:100%;margin-top:0.5rem;" onclick="document.getElementById('dm-2fa-nudge').remove();localStorage.setItem('dm_2fa_nudge_dismissed','1');">
+              Remind me later
+            </button>
+          </div>
+        </div>
+      </div>`;
+      document.body.appendChild(el.firstElementChild);
+    }, 3000); // wait 3s after page-ready
+  }, 2000));
+})();
+
+console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA install prompt, 2FA seller nudge)');
 </script>
 </body></html>
