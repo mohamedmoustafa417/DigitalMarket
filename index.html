@@ -885,14 +885,10 @@
       .modal-overlay, .modal-overlay > .modal { animation: none !important; }
     }
 
-    /* Toast slide-in from right (desktop) / bottom (mobile) */
-    .toast { animation: dm-toastin 0.28s var(--ease-spring); }
-    @keyframes dm-toastin {
-      from { opacity: 0; transform: translateX(20px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
+    /* Toast slide-in: desktop uses the existing `toastIn` keyframe (line 258).
+       Only ADD mobile-specific slide-up animation here. */
     @media (max-width: 640px) {
-      .toast { animation-name: dm-toastinm; }
+      .toast { animation: dm-toastinm 0.28s var(--ease-spring); }
       @keyframes dm-toastinm {
         from { opacity: 0; transform: translateY(16px); }
         to   { opacity: 1; transform: translateY(0); }
@@ -906,13 +902,7 @@
     .product-card .quick-view-btn { transition-delay: 0s; }
     .product-card .dm-card-buynow { transition-delay: 0.05s; }
 
-    /* Refined skeleton (cleaner shimmer) */
-    .dm-skel {
-      background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0.04) 100%);
-      background-size: 200% 100%;
-      animation: dm-shimmer 1.4s var(--ease-out) infinite;
-    }
-    @keyframes dm-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    /* (Skeleton .dm-skel + @keyframes already defined at line 772-773 — no duplicate here.) */
 
     /* Trust row on product detail */
     .dm-trust-row {
@@ -955,16 +945,24 @@
     }
     .dm-empty-suggestions .suggest-grid > *:hover { transform: translateY(-2px); box-shadow: var(--shadow-pop); }
 
-    /* View transition (smooth fade between view changes) */
-    .view { transition: opacity 0.18s var(--ease-out); }
-    .view:not(.active) { opacity: 0; }
-    .view.active { opacity: 1; }
+    /* View transition: dead-code removed.
+       The existing .view rule uses display:none, so opacity transition was unreachable.
+       Smooth view fade is now handled by document.startViewTransition() in JS. */
 
     /* Smoother scrolling overall */
     html { scroll-behavior: smooth; }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       .product-card, .btn, .toast, .modal-overlay > .modal, .view { transition: none !important; animation: none !important; }
+    }
+
+    /* Mobile decluttering — moved from JS so it RESPONDS to viewport resize.
+       (The old JS-based approach checked matchMedia once at module load
+       and didn't update when the user rotated the device.) */
+    @media (max-width: 480px) {
+      .product-card .dm-cmp-btn { display: none; }
+      .product-card .quick-view-btn { display: none; }
+      .product-card .dm-card-buynow { opacity: 1 !important; } /* no hover state on touch */
     }
 
     /* ── Mobile Bottom Navigation ── */
@@ -11919,35 +11917,51 @@ function dmRenderEmptySuggestions(targetEl) {
 })();
 
 // ─── 3. Confetti animation on successful order ────────────────────────
+// Reads colors from CSS custom properties for theme consistency, cancels
+// WAAPI animations on cleanup (otherwise they keep running on detached
+// nodes until GC), and guards against overlapping invocations.
+let _dmConfettiActive = false;
 function dmConfetti() {
-  // Lightweight DIY confetti — no library needed
-  const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+  if (_dmConfettiActive) return;       // skip overlapping calls
+  _dmConfettiActive = true;
+  const css = getComputedStyle(document.documentElement);
+  const colors = [
+    (css.getPropertyValue('--primary') || '#6366f1').trim(),
+    (css.getPropertyValue('--success') || '#10b981').trim(),
+    (css.getPropertyValue('--warning') || '#f59e0b').trim(),
+    (css.getPropertyValue('--danger')  || '#ef4444').trim(),
+    '#8b5cf6', '#06b6d4',
+  ];
   const container = document.createElement('div');
   container.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:99999;overflow:hidden;';
   document.body.appendChild(container);
 
+  const anims = [];
   for (let i = 0; i < 80; i++) {
     const piece = document.createElement('div');
-    const size = 6 + Math.random() * 6;
+    const size  = 6 + Math.random() * 6;
     const color = colors[Math.floor(Math.random() * colors.length)];
-    const startX = 20 + Math.random() * 60; // 20-80% from left
-    const drift = (Math.random() - 0.5) * 40;
+    const startX = 20 + Math.random() * 60;
+    const drift  = (Math.random() - 0.5) * 40;
     const duration = 2200 + Math.random() * 1400;
-    const rotate = Math.random() * 720;
-    piece.style.cssText = `position:absolute;top:40%;left:${startX}%;width:${size}px;height:${size*1.5}px;background:${color};border-radius:2px;opacity:0;transform:translateY(0) rotate(0deg);`;
+    const rotate   = Math.random() * 720;
+    piece.style.cssText = `position:absolute;top:40%;left:${startX}%;width:${size}px;height:${size*1.5}px;background:${color};border-radius:2px;`;
     container.appendChild(piece);
-    requestAnimationFrame(() => {
-      piece.animate(
-        [
-          { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
-          { transform: `translateY(-300px) translateX(${drift}vw) rotate(${rotate}deg)`, opacity: 1, offset: 0.4 },
-          { transform: `translateY(100vh) translateX(${drift*1.5}vw) rotate(${rotate*2}deg)`, opacity: 0 }
-        ],
-        { duration, easing: 'cubic-bezier(.2,.6,.4,1)', fill: 'forwards' }
-      );
-    });
+    const a = piece.animate(
+      [
+        { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+        { transform: `translateY(-300px) translateX(${drift}vw) rotate(${rotate}deg)`, opacity: 1, offset: 0.4 },
+        { transform: `translateY(100vh) translateX(${drift*1.5}vw) rotate(${rotate*2}deg)`, opacity: 0 }
+      ],
+      { duration, easing: 'cubic-bezier(.2,.6,.4,1)', fill: 'forwards' }
+    );
+    anims.push(a);
   }
-  setTimeout(() => container.remove(), 4500);
+  setTimeout(() => {
+    anims.forEach(a => { try { a.cancel(); } catch {} }); // free WAAPI refs immediately
+    container.remove();
+    _dmConfettiActive = false;
+  }, 4500);
 }
 
 (function confettiOnOrderSuccess() {
@@ -11959,43 +11973,29 @@ function dmConfetti() {
   };
 })();
 
-// ─── 4. View transition fade (using View Transitions API where available) ─
-(function viewTransitions() {
+// ─── 4+5+6. Single navigate() wrapper — view transitions + scroll-to-top ─
+// Previous version wrapped navigate() TWICE (viewTransitions IIFE then
+// smoothScrollOnNav IIFE), and the second wrapper called orig directly,
+// silently bypassing View Transitions. Merged into one.
+(function navigateEnhancements() {
   const orig = window.navigate;
   if (typeof orig !== 'function') return;
   window.navigate = function(view) {
-    if (document.startViewTransition && view !== document.querySelector('.view.active')?.id?.replace('view-','')) {
-      try { return document.startViewTransition(() => orig.call(this, view)); }
-      catch { return orig.call(this, view); }
+    const currentView = document.querySelector('.view.active')?.id?.replace('view-', '');
+    const doNav = () => {
+      orig.call(this, view);
+      // Scroll runs AFTER the transition's render so it doesn't fight it
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    };
+    if (document.startViewTransition && currentView !== view) {
+      try { return document.startViewTransition(doNav); }
+      catch { /* fall through */ }
     }
-    return orig.call(this, view);
+    doNav();
   };
 })();
-
-// ─── 5. Card decluttering — hide compare button on small screens ──────
-// (decluttering also done via CSS @media earlier)
-(function declutterCardsMobile() {
-  if (window.matchMedia('(max-width: 480px)').matches) {
-    const style = document.createElement('style');
-    style.textContent = `
-      @media (max-width: 480px) {
-        .dm-cmp-btn { display: none; }
-        .dm-card-buynow { opacity: 1 !important; } /* on mobile, always show buy now since no hover */
-        .product-card .quick-view-btn { display: none; }  /* tap card opens detail anyway */
-      }`;
-    document.head.appendChild(style);
-  }
-})();
-
-// ─── 6. Smooth scroll-to-top after navigation ──────────────────────────
-(function smoothScrollOnNav() {
-  const orig = window.navigate;
-  if (typeof orig !== 'function') return;
-  window.navigate = function(view) {
-    orig.apply(this, arguments);
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-  };
-})();
+// (declutterCardsMobile JS removed — replaced by static CSS @media block
+//  which natively responds to viewport resize / device rotation.)
 
 console.log('[DigitalMarket] UX Enhancement Pack loaded ✅ (focus rings, micro-interactions, trust/urgency, confetti, view transitions)');
 </script>
