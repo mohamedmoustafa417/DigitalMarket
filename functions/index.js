@@ -33,6 +33,7 @@ const { onDocumentWritten }      = require('firebase-functions/v2/firestore');
 const { onObjectDeleted }        = require('firebase-functions/v2/storage');
 const { onSchedule }             = require('firebase-functions/v2/scheduler');
 const { onCall }                 = require('firebase-functions/v2/https');
+const { defineSecret }           = require('firebase-functions/params');
 const { initializeApp }          = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage }             = require('firebase-admin/storage');
@@ -40,6 +41,12 @@ const { getStorage }             = require('firebase-admin/storage');
 initializeApp();
 const db      = getFirestore();
 const storage = getStorage();
+
+// Secret bindings — set via:  firebase functions:secrets:set RESEND_KEY
+// (SENDGRID_KEY also supported by sendEmail() via process.env; add to this list
+//  AND set the secret in Firebase if you ever want to use SendGrid as fallback)
+const RESEND_KEY   = defineSecret('RESEND_KEY');
+const EMAIL_SECRETS = [RESEND_KEY];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -122,7 +129,7 @@ async function sendEmail({ to, subject, body }) {
 // ─── 1. onOrderStatusChange ────────────────────────────────────────────────
 
 exports.onOrderStatusChange = onDocumentWritten(
-  { document: 'orders/{orderId}', region: 'us-central1' },
+  { document: 'orders/{orderId}', region: 'us-central1', secrets: EMAIL_SECRETS },
   async event => {
     const before = event.data?.before?.data();
     const after  = event.data?.after?.data();
@@ -333,7 +340,7 @@ exports.onNewReview = onDocumentWritten(
 // Daily check: emails users whose cart has been idle ≥ 24h and isn't notified yet.
 
 exports.abandonedCartReminder = onSchedule(
-  { schedule: 'every day 10:00', region: 'us-central1', timeZone: 'Africa/Cairo' },
+  { schedule: 'every day 10:00', region: 'us-central1', timeZone: 'Africa/Cairo', secrets: EMAIL_SECRETS },
   async () => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const snap = await db.collection('abandonedCarts')
@@ -368,7 +375,7 @@ exports.abandonedCartReminder = onSchedule(
 // Picks up queued campaigns and dispatches via SendGrid (or your provider).
 
 exports.processEmailCampaigns = onSchedule(
-  { schedule: 'every 5 minutes', region: 'us-central1' },
+  { schedule: 'every 5 minutes', region: 'us-central1', secrets: EMAIL_SECRETS },
   async () => {
     const queued = await db.collection('campaigns').where('status','==','queued').limit(5).get();
     if (queued.empty) return;

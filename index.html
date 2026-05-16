@@ -35,6 +35,10 @@
   <link rel="alternate" hreflang="ar" href="https://digitalmarketstore.shop/?lang=ar">
   <link rel="alternate" hreflang="x-default" href="https://digitalmarketstore.shop/">
   <!-- Security Headers via Meta -->
+  <!-- Google Search Console verification — paste your real tag content below when issued -->
+  <!-- <meta name="google-site-verification" content="REPLACE_WITH_YOUR_TOKEN"> -->
+  <!-- Bing Webmaster Tools verification — paste your real tag content below when issued -->
+  <!-- <meta name="msvalidate.01" content="REPLACE_WITH_YOUR_TOKEN"> -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <!-- X-Frame-Options removed: cannot be set via meta (Chrome warning).
        Must be set as an HTTP response header — configured at the hosting layer instead. -->
@@ -12962,5 +12966,125 @@ console.log('[DigitalMarket] Trendy/Sustainable/Universal pack loaded ✅ (glass
 })();
 
 console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA install prompt, 2FA seller nudge)');
+
+// ═════════════════════════════════════════════════════════════════════
+// ONBOARDING TOUR — first-time visitor spotlight (4 steps)
+// ═════════════════════════════════════════════════════════════════════
+(function onboardingTour() {
+  // Skip if user has seen it OR signed in (returning user)
+  if (localStorage.getItem('dm_tour_done') === '1') return;
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    if (curUser) return; // existing user — don't bother
+    if (document.getElementById('dm-tour')) return;
+    // Wait until products are loaded so they have something to learn about
+    if (!window.allProducts?.length) { setTimeout(arguments.callee || (() => {}), 1500); return; }
+    startTour();
+  }, 4000));
+
+  const STEPS = [
+    { target: '.product-card',
+      title:  '👋 Welcome to DigitalMarket!',
+      body:   'Browse digital products from creators across MENA. Click any card to see details, reviews, and seller info.',
+      pos:    'bottom' },
+    { target: '#search-input',
+      title:  '🔍 Search anything',
+      body:   'Find products by name, category, or tag. Try "CV" or "course". Live autocomplete suggests as you type.',
+      pos:    'bottom' },
+    { target: '[onclick*="navigate(\'wishlist\')"], #mbn-wishlist, .nav-link',
+      title:  '♥ Save favourites',
+      body:   'Tap the heart on any product to save it for later. Wishlist syncs across tabs.',
+      pos:    'bottom' },
+    { target: '[onclick*="navigate(\'register\')"], button[onclick*="Sign Up"]',
+      title:  '🚀 Become a seller',
+      body:   'Got digital products to sell? Sign up as a seller. 5% commission, drops to 2.5% as you grow. KYC required after EGP 1,000 in sales.',
+      pos:    'bottom' },
+  ];
+
+  function startTour() {
+    let idx = 0;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'dm-tour';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99500;pointer-events:none;';
+    overlay.innerHTML = `
+      <div id="dm-tour-mask" style="position:absolute;inset:0;background:rgba(0,0,0,0.7);transition:clip-path 0.4s cubic-bezier(.2,.8,.2,1);pointer-events:auto;"></div>
+      <div id="dm-tour-popover" style="position:absolute;background:var(--bg2);border:1px solid var(--primary);border-radius:14px;padding:1rem 1.25rem;box-shadow:0 24px 60px rgba(0,0,0,0.5);max-width:320px;pointer-events:auto;transition:top 0.3s,left 0.3s,opacity 0.2s;opacity:0;z-index:1;">
+        <h4 id="dm-tour-title" style="font-size:1rem;font-weight:700;margin-bottom:0.4rem;"></h4>
+        <p id="dm-tour-body" style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.85rem;line-height:1.5;"></p>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+          <div style="display:flex;gap:0.3rem;">
+            ${STEPS.map((_, i) => `<span class="dm-tour-dot" data-i="${i}" style="width:6px;height:6px;border-radius:50%;background:var(--bg3);transition:background 0.2s;"></span>`).join('')}
+          </div>
+          <div style="display:flex;gap:0.4rem;">
+            <button id="dm-tour-skip" class="btn btn-outline" style="font-size:0.75rem;padding:0.3rem 0.7rem;">Skip</button>
+            <button id="dm-tour-next" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.85rem;">Next →</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    function showStep() {
+      const s = STEPS[idx];
+      const el = document.querySelector(s.target);
+      if (!el) { idx++; if (idx < STEPS.length) return showStep(); return finish(); }
+      // Scroll element into view
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        const r = el.getBoundingClientRect();
+        const pad = 8;
+        // Cut hole via clip-path (CSS evenodd)
+        const mask = document.getElementById('dm-tour-mask');
+        mask.style.clipPath = `polygon(
+          0 0, 0 100%, 100% 100%, 100% 0, 0 0,
+          ${r.left - pad}px ${r.top - pad}px,
+          ${r.left - pad}px ${r.bottom + pad}px,
+          ${r.right + pad}px ${r.bottom + pad}px,
+          ${r.right + pad}px ${r.top - pad}px,
+          ${r.left - pad}px ${r.top - pad}px
+        )`;
+        // Position popover
+        const pop = document.getElementById('dm-tour-popover');
+        const popH = 180, popW = 320;
+        let top = r.bottom + 12;
+        if (top + popH > window.innerHeight - 12) top = Math.max(12, r.top - popH - 12);
+        let left = r.left + (r.width / 2) - (popW / 2);
+        if (left + popW > window.innerWidth - 12)  left = window.innerWidth - popW - 12;
+        if (left < 12) left = 12;
+        pop.style.top = top + 'px';
+        pop.style.left = left + 'px';
+        pop.style.opacity = '1';
+        document.getElementById('dm-tour-title').textContent = s.title;
+        document.getElementById('dm-tour-body').textContent = s.body;
+        document.querySelectorAll('.dm-tour-dot').forEach((d, i) => {
+          d.style.background = i === idx ? 'var(--primary)' : 'var(--bg3)';
+        });
+        document.getElementById('dm-tour-next').textContent = idx === STEPS.length - 1 ? 'Got it ✓' : 'Next →';
+      }, 350);
+    }
+
+    function next() {
+      idx++;
+      if (idx >= STEPS.length) finish();
+      else showStep();
+    }
+
+    function finish() {
+      localStorage.setItem('dm_tour_done', '1');
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.remove(), 250);
+      overlay.style.transition = 'opacity 0.25s';
+      if (typeof toast === 'function') toast('Welcome aboard! 🎉', 'success', 2500);
+      if (typeof gtag === 'function') gtag('event', 'tour_complete');
+    }
+
+    overlay.querySelector('#dm-tour-skip').onclick = finish;
+    overlay.querySelector('#dm-tour-next').onclick = next;
+
+    showStep();
+    if (typeof gtag === 'function') gtag('event', 'tour_start');
+  }
+})();
+
+console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for first-time visitors)');
 </script>
 </body></html>
