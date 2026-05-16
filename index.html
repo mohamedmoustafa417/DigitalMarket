@@ -39,7 +39,7 @@
   <!-- X-Frame-Options removed: cannot be set via meta (Chrome warning).
        Must be set as an HTTP response header — configured at the hosting layer instead. -->
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://digitalmarket-38db5.firebaseapp.com https://accounts.google.com https://appleid.apple.com; object-src 'none'; base-uri 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: 'unsafe-inline'; img-src 'self' data: https:; frame-src https://www.google.com https://recaptcha.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://digitalmarket-38db5.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self';">
   <title>DigitalMarket – Digital Marketplace</title>
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1369,13 +1369,9 @@
       <span style="font-size:0.78rem;color:var(--text-muted);">or</span>
       <hr style="flex:1;border:none;border-top:1px solid var(--border);">
     </div>
-    <button type="button" class="btn btn-outline btn-full" onclick="doGoogleSignIn()" style="gap:0.5rem;font-size:0.9rem;margin-bottom:0.5rem;">
+    <button type="button" class="btn btn-outline btn-full" onclick="doGoogleSignIn()" style="gap:0.5rem;font-size:0.9rem;">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
       Continue with Google
-    </button>
-    <button type="button" class="btn btn-outline btn-full" onclick="doAppleSignIn()" style="gap:0.5rem;font-size:0.9rem;background:#000;color:#fff;border-color:#000;" aria-label="Sign in with Apple">
-      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="#fff"><path d="M17.05 12.04c-.03-2.95 2.41-4.36 2.52-4.43-1.37-2.01-3.5-2.28-4.27-2.31-1.82-.18-3.55 1.07-4.48 1.07-.93 0-2.36-1.04-3.88-1.01-2 .03-3.84 1.16-4.86 2.95C-.05 12.16 1.6 17.51 3.5 20.45c.93 1.44 2.04 3.05 3.49 3 1.41-.06 1.94-.91 3.64-.91s2.18.91 3.66.88c1.51-.03 2.46-1.46 3.39-2.9 1.07-1.66 1.51-3.27 1.54-3.36-.03-.01-2.96-1.13-3-4.42zM14.42 3.7c.77-.94 1.29-2.24 1.14-3.54-1.11.05-2.46.74-3.26 1.68-.71.83-1.34 2.16-1.17 3.42 1.24.1 2.51-.63 3.29-1.56z"/></svg>
-      Continue with Apple
     </button>
 
     <p class="recaptcha-note">
@@ -1495,13 +1491,9 @@
       <span style="font-size:0.78rem;color:var(--text-muted);">or</span>
       <hr style="flex:1;border:none;border-top:1px solid var(--border);">
     </div>
-    <button type="button" class="btn btn-outline btn-full" onclick="doGoogleSignIn()" style="gap:0.5rem;font-size:0.9rem;margin-bottom:0.5rem;">
+    <button type="button" class="btn btn-outline btn-full" onclick="doGoogleSignIn()" style="gap:0.5rem;font-size:0.9rem;margin-bottom:0.75rem;">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
       Sign up with Google
-    </button>
-    <button type="button" class="btn btn-outline btn-full" onclick="doAppleSignIn()" style="gap:0.5rem;font-size:0.9rem;background:#000;color:#fff;border-color:#000;margin-bottom:0.75rem;" aria-label="Sign up with Apple">
-      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="#fff"><path d="M17.05 12.04c-.03-2.95 2.41-4.36 2.52-4.43-1.37-2.01-3.5-2.28-4.27-2.31-1.82-.18-3.55 1.07-4.48 1.07-.93 0-2.36-1.04-3.88-1.01-2 .03-3.84 1.16-4.86 2.95C-.05 12.16 1.6 17.51 3.5 20.45c.93 1.44 2.04 3.05 3.49 3 1.41-.06 1.94-.91 3.64-.91s2.18.91 3.66.88c1.51-.03 2.46-1.46 3.39-2.9 1.07-1.66 1.51-3.27 1.54-3.36-.03-.01-2.96-1.13-3-4.42zM14.42 3.7c.77-.94 1.29-2.24 1.14-3.54-1.11.05-2.46.74-3.26 1.68-.71.83-1.34 2.16-1.17 3.42 1.24.1 2.51-.63 3.29-1.56z"/></svg>
-      Sign up with Apple
     </button>
 
     <div class="divider"><span data-i18n="haveAccount">Already have an account?</span></div>
@@ -7240,39 +7232,7 @@ async function loadSellerEarningsBreakdown(sellerId) {
 // removed because they shadowed the Round 10 functions of the same name.
 // ═══════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════
-// ROUND 2: APPLE SIGN-IN
-// ═══════════════════════════════════════════════════════════════════
-async function doAppleSignIn() {
-  try {
-    const provider = new firebase.auth.OAuthProvider('apple.com');
-    provider.addScope('email');
-    provider.addScope('name');
-    const result = await auth.signInWithPopup(provider);
-    const user = result.user;
-    const snap = await db.collection('users').doc(user.uid).get();
-    if (!snap.exists) {
-      await db.collection('users').doc(user.uid).set({
-        name: user.displayName || user.email?.split('@')[0] || '',
-        email: user.email || '',
-        role: 'buyer',
-        disabled: false,
-        createdAt: FV.serverTimestamp()
-      });
-    }
-    toast(`Welcome!`, 'success');
-    trackEvent('login', { method: 'apple' });
-    // BUGFIX: login/register are VIEWS not modals — navigate home so the user
-    // doesn't get stuck on the login screen after successful Apple sign-in.
-    navigate('home');
-  } catch(e) {
-    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
-    if (e.code === 'auth/popup-blocked') { toast('Pop-up blocked. Please allow pop-ups.', 'warning', 6000); return; }
-    if (e.code === 'auth/unauthorized-domain') { toast('Domain not authorized for Apple sign-in.', 'danger', 6000); return; }
-    toast('Apple sign-in failed: ' + sanitize(e.message), 'danger');
-    console.error('Apple sign-in error:', e);
-  }
-}
+// (Apple Sign-In removed at user request — no UI button, no provider, no function.)
 
 // ═══════════════════════════════════════════════════════════════════
 // ROUND 2: DYNAMIC SITEMAP (writes to Firestore; can be fetched by a CF)
@@ -12207,53 +12167,6 @@ console.log('[DigitalMarket] UX Enhancement Pack loaded ✅ (focus rings, micro-
 
 console.log('[DigitalMarket] Final Polish Pack loaded ✅ (mobile More sheet, recently-viewed, cookie dismiss)');
 
-// ═════════════════════════════════════════════════════════════════════
-// APPLE PAY — UI scaffolding (only renders on Apple devices with capability)
-//
-// IMPORTANT: Apple Pay requires a real payment processor (Stripe, Adyen,
-// Braintree, etc.). It is NOT a standalone payment method — it's just a
-// secure UX layer on top of a payment gateway. Until Stripe/Paymob is
-// wired in, this button shows but explains the situation.
-//
-// To activate after adding Stripe:
-//   1. Register Apple Merchant ID in Apple Developer Portal
-//   2. Add merchant ID to Stripe Dashboard → Apple Pay
-//   3. Upload domain-association file to /.well-known/apple-developer-merchantid-domain-association
-//   4. Replace `_dmApplePayPlaceholder` below with the real Stripe.confirmPayment flow
-// ═════════════════════════════════════════════════════════════════════
-function dmApplePaySupported() {
-  return typeof window.ApplePaySession !== 'undefined'
-    && window.ApplePaySession.canMakePayments?.() === true;
-}
-
-function _dmApplePayPlaceholder(ids) {
-  toast('Apple Pay coming soon — we\'re finalising payment processor setup. Use a manual payment method for now.', 'info', 7000);
-}
-
-(function injectApplePayButton() {
-  if (!dmApplePaySupported()) return; // not on Apple Pay-capable device
-  const orig = window.openCheckout;
-  if (typeof orig !== 'function') return;
-  window.openCheckout = async function(ids) {
-    await orig.apply(this, arguments);
-    setTimeout(() => {
-      const body = document.getElementById('checkout-body');
-      if (!body || document.getElementById('dm-apple-pay-btn')) return;
-      const btn = document.createElement('button');
-      btn.id = 'dm-apple-pay-btn';
-      btn.type = 'button';
-      btn.setAttribute('aria-label', 'Pay with Apple Pay');
-      btn.style.cssText = 'width:100%;background:#000;color:#fff;border:none;border-radius:8px;padding:0.75rem;font-size:0.95rem;font-weight:600;display:flex;align-items:center;justify-content:center;gap:0.5rem;cursor:pointer;margin-bottom:0.85rem;transition:transform 0.15s, box-shadow 0.15s;';
-      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.05 12.04c-.03-2.95 2.41-4.36 2.52-4.43-1.37-2.01-3.5-2.28-4.27-2.31-1.82-.18-3.55 1.07-4.48 1.07-.93 0-2.36-1.04-3.88-1.01-2 .03-3.84 1.16-4.86 2.95C-.05 12.16 1.6 17.51 3.5 20.45c.93 1.44 2.04 3.05 3.49 3 1.41-.06 1.94-.91 3.64-.91s2.18.91 3.66.88c1.51-.03 2.46-1.46 3.39-2.9 1.07-1.66 1.51-3.27 1.54-3.36-.03-.01-2.96-1.13-3-4.42zM14.42 3.7c.77-.94 1.29-2.24 1.14-3.54-1.11.05-2.46.74-3.26 1.68-.71.83-1.34 2.16-1.17 3.42 1.24.1 2.51-.63 3.29-1.56z"/></svg>
-        Pay`;
-      btn.onmouseover = () => btn.style.transform = 'translateY(-1px)';
-      btn.onmouseout  = () => btn.style.transform = '';
-      btn.onclick = () => _dmApplePayPlaceholder(ids);
-      body.insertBefore(btn, body.firstChild);
-    }, 250);
-  };
-})();
-
-console.log('[DigitalMarket] Apple Pay scaffolding loaded ✅ (will activate once payment gateway lands)');
+// (Apple Pay scaffolding removed at user request.)
 </script>
 </body></html>
