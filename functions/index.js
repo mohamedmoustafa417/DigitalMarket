@@ -43,23 +43,80 @@ const storage = getStorage();
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-/** Minimal EmailJS-style email via fetch (replace with nodemailer / SendGrid as needed) */
+/**
+ * Transactional email sender — picks the first configured provider.
+ *
+ * To activate ONE-TIME from your terminal:
+ *   firebase functions:secrets:set RESEND_KEY      # Recommended (3K/mo free)
+ *   firebase functions:secrets:set SENDGRID_KEY    # OR this (100/day free)
+ *   firebase deploy --only functions
+ *
+ * Until a key is set, sendEmail() logs to console (won't crash the function
+ * caller, so the broader order/KYC flow keeps working).
+ */
+const FROM_EMAIL = 'noreply@digitalmarketstore.shop';
+const FROM_NAME  = 'DigitalMarket';
+
 async function sendEmail({ to, subject, body }) {
-  // TODO: swap in your preferred transactional email service
-  // e.g. SendGrid, Resend, Mailgun
-  console.log(`[sendEmail] To: ${to} | Subject: ${subject}`);
-  // Example stub – fire & forget
-  /*
-  await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.SENDGRID_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }], subject }],
-      from: { email: 'noreply@digitalmarketstore.shop', name: 'DigitalMarket' },
-      content: [{ type: 'text/html', value: body }]
-    })
-  });
-  */
+  const resendKey   = process.env.RESEND_KEY;
+  const sendgridKey = process.env.SENDGRID_KEY;
+
+  if (!resendKey && !sendgridKey) {
+    console.warn(`[sendEmail] No email provider configured — skipping email to ${to}. Set RESEND_KEY or SENDGRID_KEY.`);
+    return { ok: false, reason: 'no-provider' };
+  }
+
+  try {
+    // Resend (preferred — clean modern API)
+    if (resendKey) {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: `${FROM_NAME} <${FROM_EMAIL}>`,
+          to: [to],
+          subject,
+          html: body
+        })
+      });
+      if (!r.ok) {
+        const errText = await r.text().catch(() => '');
+        console.error(`[sendEmail] Resend HTTP ${r.status}: ${errText.slice(0, 200)}`);
+        return { ok: false, reason: 'resend-failed', status: r.status };
+      }
+      console.log(`[sendEmail] ✓ Resend sent to ${to}: "${subject.slice(0, 40)}"`);
+      return { ok: true, provider: 'resend' };
+    }
+
+    // SendGrid fallback
+    if (sendgridKey) {
+      const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sendgridKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: to }], subject }],
+          from: { email: FROM_EMAIL, name: FROM_NAME },
+          content: [{ type: 'text/html', value: body }]
+        })
+      });
+      if (!r.ok) {
+        const errText = await r.text().catch(() => '');
+        console.error(`[sendEmail] SendGrid HTTP ${r.status}: ${errText.slice(0, 200)}`);
+        return { ok: false, reason: 'sendgrid-failed', status: r.status };
+      }
+      console.log(`[sendEmail] ✓ SendGrid sent to ${to}: "${subject.slice(0, 40)}"`);
+      return { ok: true, provider: 'sendgrid' };
+    }
+  } catch (e) {
+    console.error(`[sendEmail] Threw for ${to}:`, e.message);
+    return { ok: false, reason: 'exception', error: e.message };
+  }
 }
 
 // ─── 1. onOrderStatusChange ────────────────────────────────────────────────
