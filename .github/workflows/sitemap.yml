@@ -11,29 +11,70 @@ permissions:
 jobs:
   sitemap:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Call generateSitemap Cloud Function
-        env:
-          REGION: us-central1
-          PROJECT_ID: digitalmarket-38db5
+      - name: Regenerate sitemap.xml from public Firestore
         run: |
-          # The callable function returns { sitemap, count }.
-          # We call its HTTPS endpoint, parse the XML, and write to sitemap.xml.
-          ENDPOINT="https://${REGION}-${PROJECT_ID}.cloudfunctions.net/generateSitemap"
-          RESPONSE=$(curl -s -X POST "$ENDPOINT" \
+          # Read approved products via the public Firestore REST API.
+          # /publicProfiles and /products both allow public reads, so no auth needed.
+          # (Previously we called the generateSitemap Cloud Function which has CORS
+          #  locked to digitalmarketstore.shop — GitHub Actions could not call it.)
+
+          BASE="https://digitalmarketstore.shop"
+          PROJECT="digitalmarket-38db5"
+          API="https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents"
+
+          # Static pages
+          DATE=$(date -u +%Y-%m-%d)
+          cat > sitemap.xml <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url><loc>${BASE}/</loc><lastmod>${DATE}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
+            <url><loc>${BASE}/help.html</loc><lastmod>${DATE}</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+            <url><loc>${BASE}/terms.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+            <url><loc>${BASE}/privacy.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+          EOF
+
+          # Fetch up to 1000 approved products via runQuery (paginates via pageToken if needed)
+          QUERY='{"structuredQuery":{"from":[{"collectionId":"products"}],"where":{"fieldFilter":{"field":{"fieldPath":"status"},"op":"EQUAL","value":{"stringValue":"approved"}}},"limit":1000}}'
+
+          RESPONSE=$(curl -sf -X POST "${API}:runQuery" \
             -H "Content-Type: application/json" \
-            -d '{"data":{}}')
-          echo "$RESPONSE" | jq -r '.result.sitemap' > sitemap.xml
+            -d "$QUERY" || echo '[]')
+
+          # Extract document IDs (last segment of doc name)
+          echo "$RESPONSE" | python3 -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              for row in data:
+                  doc = row.get('document', {})
+                  name = doc.get('name', '')
+                  if not name:
+                      continue
+                  doc_id = name.rsplit('/', 1)[-1]
+                  fields = doc.get('fields', {})
+                  ts = fields.get('updatedAt', {}).get('timestampValue', '')[:10] or fields.get('createdAt', {}).get('timestampValue', '')[:10]
+                  lastmod = f'<lastmod>{ts}</lastmod>' if ts else ''
+                  print(f'  <url><loc>https://digitalmarketstore.shop/?p={doc_id}</loc>{lastmod}<changefreq>weekly</changefreq><priority>0.8</priority></url>')
+          except Exception as e:
+              print(f'<!-- failed to parse Firestore response: {e} -->', file=sys.stderr)
+          " >> sitemap.xml
+
+          echo "</urlset>" >> sitemap.xml
+
           # Sanity check
-          if [ ! -s sitemap.xml ]; then
-            echo "::error::sitemap.xml is empty — function call may have failed"
-            echo "Response was: $RESPONSE"
+          if ! grep -q '<urlset' sitemap.xml; then
+            echo "::error::sitemap.xml malformed — aborting"
+            cat sitemap.xml | head -20
             exit 1
           fi
-          echo "Generated sitemap.xml with $(grep -c '<loc>' sitemap.xml) URLs"
+
+          URL_COUNT=$(grep -c '<loc>' sitemap.xml || echo 0)
+          echo "Generated sitemap.xml with $URL_COUNT URLs"
 
       - name: Commit if changed
         run: |

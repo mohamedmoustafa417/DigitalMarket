@@ -4227,8 +4227,14 @@ function copyText(text) {
 function handleProof(e) {
   const file = e.target.files[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { showAlert('checkout-alert', 'danger', 'File too large. Max 5MB.'); return; }
-  if (!['image/jpeg','image/png','image/webp'].includes(file.type)) { showAlert('checkout-alert', 'danger', 'Only JPG, PNG, WEBP allowed.'); return; }
+  if (file.size > 5 * 1024 * 1024) { showAlert('checkout-alert', 'danger', 'File too large. Max 5MB. Try compressing or screenshotting the receipt.'); return; }
+  // Accept common phone-camera formats. HEIC (iPhones) is added — browsers
+  // that can't decode it will fall through to the onerror handler with a clear message.
+  const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/jpg'];
+  if (file.type && !ALLOWED.includes(file.type)) {
+    showAlert('checkout-alert', 'danger', `Format "${file.type}" not supported. Please use JPG, PNG, or WEBP. (If from iPhone, change Camera → Formats → Most Compatible, or screenshot the payment screen instead.)`);
+    return;
+  }
   const objectUrl = URL.createObjectURL(file);
   const img = new Image();
   img.onload = async () => {
@@ -4251,8 +4257,20 @@ function handleProof(e) {
     const preview = document.getElementById('proof-preview');
     preview.src = proofB64;
     preview.style.display = 'block';
+    // Clear any stale error alert from a previous failed upload
+    const alertEl = document.getElementById('checkout-alert');
+    if (alertEl?.className.includes('alert-danger') && alertEl.textContent.includes('image')) {
+      alertEl.style.display = 'none';
+    }
   };
-  img.onerror = () => { URL.revokeObjectURL(objectUrl); showAlert('checkout-alert', 'danger', 'Failed to read image.'); };
+  img.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    // More actionable error message — most common cause is HEIC on Chrome/Firefox
+    const hint = file.name.match(/\.heic|\.heif$/i)
+      ? 'iPhone HEIC images aren\'t supported in your browser. Either: (a) take a SCREENSHOT of the payment confirmation, or (b) on iPhone: Settings → Camera → Formats → "Most Compatible" to switch to JPG.'
+      : 'Could not read this image — the file may be corrupted. Try a fresh screenshot of your payment confirmation in JPG or PNG.';
+    showAlert('checkout-alert', 'danger', hint);
+  };
   img.src = objectUrl;
 }
 
