@@ -11080,12 +11080,43 @@ function openAdminIntegrations() {
         <div style="margin-top:1rem;padding:0.75rem;background:var(--bg3);border-radius:var(--radius);font-size:0.78rem;color:var(--text-muted);">
           ℹ️ Heatmaps and chat are <strong>opt-in</strong>. Without IDs, the scripts never load — no GDPR issue.
         </div>
+        <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border);">
+        <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;">📧 Email deliverability</h4>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">
+          Tests the Resend / SendGrid integration end-to-end by sending a real email to your address.
+        </p>
+        <button class="btn btn-primary" style="width:100%;" onclick="dmEmailHealthCheck()">
+          <i class="fa-solid fa-paper-plane"></i> Send test email to me
+        </button>
+        <div id="dm-email-health-result" style="font-size:0.78rem;margin-top:0.4rem;"></div>
       </div>
     </div>
   </div>`;
   document.body.appendChild(el.firstElementChild);
   openModal('dm-integrations-modal');
 }
+
+window.dmEmailHealthCheck = async function() {
+  const out = document.getElementById('dm-email-health-result');
+  if (!out) return;
+  out.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending…';
+  try {
+    const callable = firebase.functions().httpsCallable('emailHealthCheck');
+    const res = await callable({ to: curUser?.email || '' });
+    const data = res.data || {};
+    if (data.ok) {
+      out.innerHTML = `<span style="color:var(--success);">✅ Sent via ${data.provider}. Check your inbox in 1-3 min.</span>`;
+    } else {
+      out.innerHTML = `<span style="color:var(--danger);">❌ ${data.reason || 'Failed'}${data.status ? ' (HTTP ' + data.status + ')' : ''}</span>`;
+    }
+  } catch(e) {
+    let msg = e.message || 'Failed';
+    if (msg.includes('domain is not verified')) {
+      msg = 'Resend domain not verified yet. Go to resend.com/domains and add the DNS records.';
+    }
+    out.innerHTML = `<span style="color:var(--danger);">❌ ${sanitize(msg)}</span>`;
+  }
+};
 
 // Hidden trigger: triple-click the footer logo (or Ctrl+Shift+I)
 (function addIntegrationsShortcut() {
@@ -12973,13 +13004,15 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
 (function onboardingTour() {
   // Skip if user has seen it OR signed in (returning user)
   if (localStorage.getItem('dm_tour_done') === '1') return;
-  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+  // BUGFIX: was using arguments.callee which throws in strict mode (Sentry-caught).
+  // Use a named function so we can self-reference safely.
+  function maybeStart() {
     if (curUser) return; // existing user — don't bother
     if (document.getElementById('dm-tour')) return;
-    // Wait until products are loaded so they have something to learn about
-    if (!window.allProducts?.length) { setTimeout(arguments.callee || (() => {}), 1500); return; }
+    if (!window.allProducts?.length) { setTimeout(maybeStart, 1500); return; }
     startTour();
-  }, 4000));
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(maybeStart, 4000));
 
   const STEPS = [
     { target: '.product-card',

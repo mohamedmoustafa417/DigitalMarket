@@ -505,6 +505,34 @@ exports.onKYCApproval = onDocumentWritten(
   }
 );
 
+// ─── 11. emailHealthCheck (admin-only callable) ───────────────────────
+// Sends a test email through Resend to verify domain + key setup end-to-end.
+// Call from admin UI after DNS records propagate.
+exports.emailHealthCheck = onCall(
+  { region: 'us-central1', secrets: EMAIL_SECRETS, cors: ['https://digitalmarketstore.shop'] },
+  async req => {
+    // Admin gate
+    const uid = req.auth?.uid;
+    if (!uid) throw new Error('Sign in required');
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.data()?.role !== 'admin') throw new Error('Admin only');
+
+    const to = req.data?.to || req.auth.token.email;
+    if (!to) throw new Error('Provide a "to" email address');
+
+    const result = await sendEmail({
+      to,
+      subject: `DigitalMarket email health check — ${new Date().toISOString().slice(0,16)}`,
+      body: `<div style="font-family:sans-serif;padding:20px;background:#f5f5f5;">
+        <h2 style="color:#6366f1;">✅ Email delivery working!</h2>
+        <p>If you received this, your Resend (or SendGrid) integration is fully operational.</p>
+        <p>Triggered by admin <code>${uid.slice(0,8)}…</code> at ${new Date().toISOString()}.</p>
+      </div>`
+    });
+    return result;
+  }
+);
+
 exports.generateSitemap = onCall(
   { region: 'us-central1', cors: ['https://digitalmarketstore.shop'] },
   async req => {
