@@ -4598,15 +4598,18 @@ async function loadOrders() {
       if (o.status === 'approved' && o.items && o.items.length) {
         const now = Date.now();
         const expiresAt = o.downloadExpiresAt ? (o.downloadExpiresAt.toDate ? o.downloadExpiresAt.toDate().getTime() : new Date(o.downloadExpiresAt).getTime()) : null;
-        if (expiresAt && now > expiresAt) {
-          dlCell = `<span style="font-size:0.75rem;color:var(--danger);"><i class="fa-solid fa-clock"></i> Expired</span>`;
+        if (o.downloadExpired === true || (expiresAt && now > expiresAt)) {
+          dlCell = `<span style="font-size:0.75rem;color:var(--danger);"><i class="fa-solid fa-clock" aria-hidden="true"></i> Expired</span>`;
         } else {
-          const dlLinks = o.items.filter(i => i.downloadUrl).map(i => ({ name: sanitize(i.name), url: i.downloadUrl }));
+          // All downloads go through secureDownload() now — public storage
+          // URLs are no longer exposed in the order list.
+          const dlItems   = o.items.filter(i => i.id);
           const expiryNote = expiresAt ? `<div style="font-size:0.68rem;color:var(--text-muted);">Expires ${new Date(expiresAt).toLocaleDateString()}</div>` : '';
-          if (dlLinks.length === 1) {
-            dlCell = `<a href="${sanitize(dlLinks[0].url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>${expiryNote}`;
-          } else if (dlLinks.length > 1) {
-            dlCell = dlLinks.map(l => `<a href="${sanitize(l.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-bottom:2px;"><i class="fa-solid fa-download" aria-hidden="true"></i> ${l.name}</a>`).join(' ') + expiryNote;
+          if (dlItems.length === 1) {
+            const it = dlItems[0];
+            dlCell = `<button class="btn btn-sm btn-primary" onclick="secureDownload('${d.id}','${sanitize(it.id)}','${sanitize(it.name||'')}')" aria-label="Download ${sanitize(it.name||'file')}"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</button>${expiryNote}`;
+          } else if (dlItems.length > 1) {
+            dlCell = dlItems.map(it => `<button class="btn btn-sm btn-primary" onclick="secureDownload('${d.id}','${sanitize(it.id)}','${sanitize(it.name||'')}')" style="margin-bottom:2px;" aria-label="Download ${sanitize(it.name||'file')}"><i class="fa-solid fa-download" aria-hidden="true"></i> ${sanitize(it.name||'file')}</button>`).join(' ') + expiryNote;
           }
         }
       }
@@ -6410,10 +6413,59 @@ if (new URLSearchParams(window.location.search).get('token')) {
 // Restore lockout banner on page load
 if (isLockedOut()) showLockoutBanner();
 
-// Register service worker for PWA support
+// Register service worker for PWA support.
+// The SW (v27+) no longer auto-claims pages — it waits for the user to opt-in
+// via a "New version available, reload" toast. This prevents mid-session
+// patch-chain mismatch (where v26 HTML loaded into a tab still running v25 JS).
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed:', e));
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+
+      // Helper: prompt the user when a new worker is waiting.
+      const promptUpdate = (worker) => {
+        // Avoid stacking prompts if already shown.
+        if (document.getElementById('dm-sw-update-toast')) return;
+        const t = document.createElement('div');
+        t.id = 'dm-sw-update-toast';
+        t.setAttribute('role', 'status');
+        t.setAttribute('aria-live', 'polite');
+        t.style.cssText = 'position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:99999;background:var(--bg2,#1e293b);color:var(--text,#e2e8f0);border:1px solid var(--primary,#6366f1);border-radius:10px;padding:12px 16px;display:flex;gap:12px;align-items:center;font-size:0.88rem;box-shadow:0 10px 30px rgba(0,0,0,0.4);max-width:92vw;';
+        t.innerHTML = '<span>🔄 A new version is available.</span><button id="dm-sw-update-go" style="background:var(--primary,#6366f1);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer;font-size:0.85rem;">Reload</button><button id="dm-sw-update-dismiss" aria-label="Dismiss update notification" style="background:none;border:none;color:var(--text-muted,#94a3b8);cursor:pointer;font-size:1.2rem;line-height:1;padding:4px;">×</button>';
+        document.body.appendChild(t);
+        document.getElementById('dm-sw-update-go').onclick = () => {
+          worker.postMessage({ type: 'SKIP_WAITING' });
+        };
+        document.getElementById('dm-sw-update-dismiss').onclick = () => t.remove();
+      };
+
+      // A new SW is waiting RIGHT NOW (e.g. user revisited after deploy).
+      if (reg.waiting) promptUpdate(reg.waiting);
+
+      // A new SW just installed in the background.
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            promptUpdate(installing);
+          }
+        });
+      });
+
+      // When the new SW takes control (after user clicks "Reload"), refresh.
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
+      // Periodically check for updates while the tab is open.
+      setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000); // hourly
+    } catch (e) {
+      console.warn('SW registration failed:', e);
+    }
   });
 }
 
@@ -9144,18 +9196,77 @@ function copyOrderDetails(orderId, o) {
     .catch(() => toast('Copy failed.', 'warning'));
 }
 
-// ─── ROUND 7 Feature 4: BULK DOWNLOAD ─────────────────────────────────
+// ─── ROUND 7 Feature 4: BULK DOWNLOAD (now via secure proxy) ──────────
+//
+// IMPORTANT: this no longer hands out the public Firebase Storage URL.
+// Every download goes through the `downloadFile` Cloud Function, which
+// validates order ownership + status + expiry server-side and returns a
+// 5-minute V4-signed URL. The public downloadUrl on the product doc is
+// effectively a fallback for legacy orders only.
+const DOWNLOAD_PROXY_URL = 'https://us-central1-digitalmarket-38db5.cloudfunctions.net/downloadFile';
+
+async function secureDownload(orderId, productId, fileNameHint) {
+  if (!curUser) { toast('Sign in to download.', 'warning'); return; }
+  let token;
+  try {
+    // Read the order's downloadToken (rules let the buyer read their own order)
+    const snap = await db.collection('orders').doc(orderId).get();
+    if (!snap.exists) { toast('Order not found.', 'danger'); return; }
+    const o = snap.data();
+    if (o.buyerId !== curUser.uid) { toast('Not your order.', 'danger'); return; }
+    if (o.status !== 'approved')   { toast('Order not approved yet.', 'warning'); return; }
+    if (o.downloadExpired === true || (o.downloadExpiresAt && o.downloadExpiresAt < Date.now())) {
+      toast('Download window expired (30 days).', 'warning'); return;
+    }
+    token = o.downloadToken;
+    if (!token) { toast('No download token on this order.', 'danger'); return; }
+  } catch (e) {
+    console.error('secureDownload order read:', e);
+    toast('Failed to load order.', 'danger'); return;
+  }
+
+  try {
+    const idToken = await curUser.getIdToken();
+    const r = await fetch(DOWNLOAD_PROXY_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + idToken,
+        'Content-Type':  'application/json'
+      },
+      body: JSON.stringify({ orderId, productId, token })
+    });
+    if (!r.ok) {
+      const errBody = await r.json().catch(() => ({}));
+      const msg = errBody.message || errBody.error || ('HTTP ' + r.status);
+      toast('Download failed: ' + msg, 'danger', 4500);
+      return;
+    }
+    const { signedUrl, filename } = await r.json();
+    if (!signedUrl) { toast('No download URL returned.', 'danger'); return; }
+    // Trigger save dialog. The signed URL has Content-Disposition: attachment.
+    const a = Object.assign(document.createElement('a'), {
+      href: signedUrl,
+      download: filename || fileNameHint || 'file',
+      rel: 'noopener noreferrer'
+    });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch (e) {
+    console.error('secureDownload:', e);
+    toast('Download failed: ' + (e.message || 'network error'), 'danger');
+  }
+}
+
 function bulkDownloadOrder(orderId) {
   const o = (window._cachedOrders || {})[orderId];
   const doDownload = (order) => {
     if (order.status !== 'approved') { toast('Order must be approved.', 'warning'); return; }
-    const links = (order.items || []).filter(i => i.downloadUrl);
-    if (!links.length) { toast('No download links available.', 'warning'); return; }
-    toast(`Downloading ${links.length} file(s)…`, 'info', 2000);
-    links.forEach((item, i) => setTimeout(() => {
-      const a = Object.assign(document.createElement('a'), { href: item.downloadUrl, target: '_blank', rel: 'noopener', download: item.name || `file-${i+1}` });
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }, i * 700));
+    const items = (order.items || []).filter(i => i.id);
+    if (!items.length) { toast('No items in order.', 'warning'); return; }
+    toast(`Downloading ${items.length} file(s)…`, 'info', 2000);
+    // Stagger by 800ms so browser doesn't dedupe / block multi-downloads
+    items.forEach((item, i) => setTimeout(() => {
+      secureDownload(orderId, item.id, item.name || `file-${i+1}`);
+    }, i * 800));
   };
   if (o) { doDownload(o); return; }
   db.collection('orders').doc(orderId).get().then(snap => {
@@ -9189,21 +9300,23 @@ function bulkDownloadOrder(orderId) {
           const badge = (function(s){ const m={approved:'badge-success',pending:'badge-warning',rejected:'badge-danger'}; return `<span class="badge ${m[s]||'badge-primary'}">${sanitize(s||'pending')}</span>`; })(o.status);
           const names = (o.items||[]).map(i=>sanitize(i.name)).join(', ');
 
-          // Download cell
+          // Download cell — now goes through the secure proxy (downloadFile
+          // Cloud Function), never the raw Firebase Storage URL. The proxy
+          // is the authoritative gate for downloadExpired/buyerId checks.
           let dlCell = '—';
           if (o.status === 'approved' && o.items?.length) {
             const now = Date.now();
             const exp = o.downloadExpiresAt ? (o.downloadExpiresAt.toDate ? o.downloadExpiresAt.toDate().getTime() : new Date(o.downloadExpiresAt).getTime()) : null;
-            if (exp && now > exp) {
-              dlCell = `<span style="font-size:0.75rem;color:var(--danger);"><i class="fa-solid fa-clock"></i> Expired</span>`;
+            if (o.downloadExpired === true || (exp && now > exp)) {
+              dlCell = `<span style="font-size:0.75rem;color:var(--danger);"><i class="fa-solid fa-clock" aria-hidden="true"></i> Expired</span>`;
             } else {
-              const links = (o.items||[]).filter(i=>i.downloadUrl);
+              const items   = (o.items || []).filter(i => i.id);
               const expNote = exp ? `<div style="font-size:0.68rem;color:var(--text-muted);">Exp. ${new Date(exp).toLocaleDateString()}</div>` : '';
-              if (links.length === 1) {
-                dlCell = `<a href="${sanitize(links[0].downloadUrl)}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fa-solid fa-download"></i> Download</a>${expNote}`;
-              } else if (links.length > 1) {
-                dlCell = `<button class="btn btn-sm btn-primary" onclick="bulkDownloadOrder('${d.id}')"><i class="fa-solid fa-download"></i> All (${links.length})</button>
-                  <div style="margin-top:0.25rem;">${links.slice(0,3).map(l=>`<a href="${sanitize(l.downloadUrl)}" target="_blank" rel="noopener" style="display:block;font-size:0.7rem;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;">${sanitize(l.name)}</a>`).join('')}</div>${expNote}`;
+              if (items.length === 1) {
+                dlCell = `<button class="btn btn-sm btn-primary" onclick="secureDownload('${d.id}','${sanitize(items[0].id)}', '${sanitize(items[0].name||'')}')" aria-label="Download ${sanitize(items[0].name||'file')}"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</button>${expNote}`;
+              } else if (items.length > 1) {
+                dlCell = `<button class="btn btn-sm btn-primary" onclick="bulkDownloadOrder('${d.id}')" aria-label="Download all ${items.length} files"><i class="fa-solid fa-download" aria-hidden="true"></i> All (${items.length})</button>
+                  <div style="margin-top:0.25rem;">${items.slice(0,3).map(it => `<button onclick="secureDownload('${d.id}','${sanitize(it.id)}','${sanitize(it.name||'')}')" style="display:block;font-size:0.7rem;color:var(--primary);background:none;border:none;cursor:pointer;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;" aria-label="Download ${sanitize(it.name||'file')}">${sanitize(it.name)}</button>`).join('')}</div>${expNote}`;
               }
             }
           }

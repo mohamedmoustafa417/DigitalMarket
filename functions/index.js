@@ -917,11 +917,13 @@ exports.downloadFile = onRequest(
       return res.status(404).json({ error: 'file-not-available' });
     }
 
-    // 8. Issue a short-lived V4 signed URL (5 min) and redirect.
-    //    This is the real access; the public downloadUrl on the product
-    //    can be removed once all clients migrate.
+    // 8. Issue a short-lived V4 signed URL (5 min) and return JSON.
+    //    JSON (vs 302) is the right pattern for fetch-from-SPA because
+    //    a cross-origin 302 won't reliably trigger the browser's "save"
+    //    dialog — the client creates its own <a download> with the URL.
     try {
       const bucket = getStorage().bucket('digitalmarket-38db5.firebasestorage.app');
+      const safeName = (item.name || 'file').replace(/[^\w.\- ]/g, '_');
       const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
         version:  'v4',
         action:   'read',
@@ -929,7 +931,7 @@ exports.downloadFile = onRequest(
                                                    // the download + handle ranged
                                                    // resumes; short enough that
                                                    // a leaked URL is useless.
-        responseDisposition: `attachment; filename="${(item.name || 'file').replace(/[^\w.\- ]/g, '_')}"`
+        responseDisposition: `attachment; filename="${safeName}"`
       });
       // Audit log.
       db.collection('downloadLog').add({
@@ -939,7 +941,12 @@ exports.downloadFile = onRequest(
         at: FieldValue.serverTimestamp(),
         ip: req.ip || req.headers['x-forwarded-for'] || ''
       }).catch(() => {});
-      return res.redirect(302, signedUrl);
+      return res.status(200).json({
+        ok: true,
+        signedUrl,
+        filename: safeName,
+        expiresIn: 300
+      });
     } catch (e) {
       console.error('[downloadFile] signed URL failed:', e.message);
       return res.status(500).json({ error: 'sign-failed' });

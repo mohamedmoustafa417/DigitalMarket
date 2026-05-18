@@ -1,16 +1,18 @@
-const CACHE_NAME = 'digitalmarket-v26';
+const CACHE_NAME = 'digitalmarket-v27';
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
   '/favicon.svg',
   '/manifest.json',
   '/404.html',
   '/terms.html',
-  '/privacy.html'
+  '/privacy.html',
+  '/refund.html',
+  '/help.html'
 ];
+// NOTE: '/index.html' deliberately excluded — it resolves to '/' on GitHub
+// Pages and pre-caching both doubles storage + risks revalidation divergence.
 
-// CDN assets to cache after first load (fonts, icons, libraries)
-const CDN_CACHE = 'digitalmarket-cdn-v4';
+const CDN_CACHE = 'digitalmarket-cdn-v5';
 const CDN_ORIGINS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
@@ -19,88 +21,143 @@ const CDN_ORIGINS = [
   'browser.sentry-cdn.com'
 ];
 
-// Install: pre-cache static shell immediately
+// Hosts that MUST always be network-only — never cached. Signed download
+// URLs, auth tokens, and any cross-user response would otherwise be served
+// to the wrong buyer.
+function isNeverCacheHost(url) {
+  const h = url.hostname;
+  return (
+    h.includes('firebase') ||
+    h.includes('firestore') ||
+    h.includes('firebaseapp') ||
+    h.endsWith('googleapis.com') ||                // ALL Google APIs incl. signed Storage URLs
+    h.endsWith('googleusercontent.com') ||
+    h.includes('emailjs') ||
+    h.includes('sentry.io') ||
+    h.includes('google-analytics.com') ||
+    h.includes('googletagmanager.com')
+  );
+}
+
+// Per-request bypass — even on cacheable hosts, NEVER cache a request that
+// carries an Authorization header or a signing/auth query param.
+function hasAuthSignal(req, url) {
+  if (req.headers.has('authorization')) return true;
+  const qp = url.search.toLowerCase();
+  return qp.includes('token=')
+      || qp.includes('alt=media')
+      || qp.includes('x-goog-')
+      || qp.includes('googleaccessid=')
+      || qp.includes('signature=');
+}
+
+// Install: pre-cache static shell.
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
+    // INTENTIONALLY no skipWaiting() — the page must opt-in via postMessage
+    // (`{type:'SKIP_WAITING'}`) so it can show a "new version available"
+    // toast first. This fixes the mid-session chunk/patch-chain mismatch
+    // where v26 HTML was loaded into a tab running v25 JS.
   );
 });
 
-// Activate: remove ALL stale caches so users always get fresh content
+// Allow the page to ask for an update.
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+// Activate: remove stale caches + enable navigation preload.
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(k => k !== CACHE_NAME && k !== CDN_CACHE)
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.filter(k => k !== CACHE_NAME && k !== CDN_CACHE)
           .map(k => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
-  );
+    );
+    if (self.registration.navigationPreload) {
+      try { await self.registration.navigationPreload.enable(); } catch {}
+    }
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+  const req = e.request;
+  const url = new URL(req.url);
 
-  // ── Firebase / EmailJS / reCAPTCHA: always network-first, no caching ──
-  if (
-    url.hostname.includes('firebase') ||
-    url.hostname.includes('firestore') ||
-    url.hostname.includes('firebaseapp') ||
-    url.hostname.includes('googleapis') && url.pathname.includes('recaptcha') ||
-    url.hostname.includes('emailjs') ||
-    url.hostname.includes('gstatic.com') ||
-    url.hostname.includes('sentry.io')
-  ) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
-    );
-    return;
-  }
+  // ── Hard bypass: non-GET, non-https, range requests, sensitive params ──
+  if (req.method !== 'GET')                   return;             // POST/PUT/DELETE → browser handles
+  if (url.protocol !== 'https:'
+      && url.protocol !== 'http:')            return;             // chrome-extension etc.
+  if (req.headers.has('range'))               return;             // partial content can't be cached as-is
+  if (isNeverCacheHost(url))                  return;             // Firebase, signed-URL hosts, analytics
+  if (hasAuthSignal(req, url))                return;             // auth-carrying URL
 
-  // ── CDN assets (fonts, FA icons, Chart.js, DOMPurify): cache-first, long TTL ──
+  // ── CDN assets: cache-first with quota-safe put ──
   if (CDN_ORIGINS.some(o => url.hostname.includes(o))) {
-    e.respondWith(
-      caches.open(CDN_CACHE).then(cache =>
-        cache.match(e.request).then(cached => {
-          if (cached) return cached;
-          return fetch(e.request).then(res => {
-            if (res && res.status === 200) cache.put(e.request, res.clone());
-            return res;
-          });
-        })
-      )
-    );
+    e.respondWith((async () => {
+      const cache = await caches.open(CDN_CACHE);
+      const cached = await cache.match(req);
+      if (cached) return cached;
+      try {
+        const res = await fetch(req);
+        if (res && res.status === 200 && res.type === 'basic' || res.type === 'cors') {
+          try { await cache.put(req, res.clone()); } catch {}    // ignore quota errors
+        }
+        return res;
+      } catch (e) {
+        return cached || Response.error();
+      }
+    })());
     return;
   }
 
-  // ── Same-origin GET: stale-while-revalidate ──
-  // Serve from cache instantly, refresh in background so next visit is fresh
-  if (e.request.method === 'GET') {
-    e.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(e.request).then(cached => {
-          const fetchPromise = fetch(e.request).then(res => {
-            if (res && res.status === 200 && res.type !== 'opaque') {
-              cache.put(e.request, res.clone());
-            }
-            return res;
-          }).catch(() => cached || caches.match('/404.html'));
-
-          // Return cached immediately if available, otherwise wait for network
-          return cached || fetchPromise;
-        })
-      )
-    );
+  // ── Same-origin navigation: prefer preload response when available ──
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const preload = await e.preloadResponse;
+        if (preload) return preload;
+      } catch {}
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(req, { ignoreSearch: true });
+      try {
+        const net = await fetch(req);
+        if (net && net.ok && net.type === 'basic') {
+          try { await cache.put(req, net.clone()); } catch {}
+        }
+        return net;
+      } catch {
+        return cached || (await caches.match('/404.html'));
+      }
+    })());
+    return;
   }
+
+  // ── Same-origin static GET: stale-while-revalidate, with hard guards ──
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(req);
+    const fetchPromise = fetch(req).then(res => {
+      // Only cache: 200, same-origin basic responses, with no auth/cookie
+      // sensitivity. Reject opaque, redirect, and Vary:* responses.
+      if (res && res.status === 200 && res.type === 'basic') {
+        try { cache.put(req, res.clone()); } catch {}
+      }
+      return res;
+    }).catch(() => cached);
+    return cached || fetchPromise;
+  })());
 });
 
-// ── Push notification handler (future use) ──
+// ── Push notification handler ──
 self.addEventListener('push', e => {
   if (!e.data) return;
-  const data = e.data.json();
+  let data = {};
+  try { data = e.data.json(); }
+  catch { data = { title: 'DigitalMarket', body: String(e.data.text?.() || '').slice(0,140) }; }
   e.waitUntil(
     self.registration.showNotification(data.title || 'DigitalMarket', {
       body: data.body || '',
@@ -114,7 +171,5 @@ self.addEventListener('push', e => {
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(
-    clients.openWindow(e.notification.data.url || '/')
-  );
+  e.waitUntil(self.clients.openWindow(e.notification.data?.url || '/'));
 });
