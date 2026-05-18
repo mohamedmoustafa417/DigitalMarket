@@ -213,9 +213,15 @@ exports.onOrderStatusChange = onDocumentWritten(
       // checkouts cannot double-spend. The earn (loyaltyPoints += total) is
       // computed against the same starting balance.
       if (after.buyerId) {
-        const buyerRef       = db.collection('users').doc(after.buyerId);
-        const ptsRedeemed    = Math.max(0, Math.floor(Number(after.pointsRedeemed || 0)));
-        const ptsEarned      = Math.max(0, Math.floor(Number(after.total || 0)));
+        const buyerRef    = db.collection('users').doc(after.buyerId);
+        const ptsRedeemed = Math.max(0, Math.floor(Number(after.pointsRedeemed || 0)));
+        // CORRECTNESS: earn on the SUBTOTAL (the full value of products
+        // purchased), not on `total` (which has loyalty redeem already
+        // subtracted). This prevents the death-spiral where redeeming
+        // points reduces future earn. Math.round handles the 99.50 case
+        // cleanly (previous Math.floor silently dropped 0.5 → 99 pts).
+        const earnBase    = Number(after.subtotal != null ? after.subtotal : after.total) || 0;
+        const ptsEarned   = Math.max(0, Math.round(earnBase));
         if (ptsRedeemed > 0 || ptsEarned > 0) {
           try {
             await db.runTransaction(async tx => {

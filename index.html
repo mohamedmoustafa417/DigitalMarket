@@ -227,7 +227,12 @@
 
     /* ── Forms ── */
     .form-group { margin-bottom: 1.1rem; }
-    .form-label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.4rem; }
+    /* A11y: form labels use --text (primary foreground) not muted gray.
+       Muted gray (#94a3b8) hits ~5.9:1 on cards which passes AA but reads
+       as "secondary info" to sighted users; labels should look as
+       prominent as the inputs they describe. */
+    .form-label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 0.4rem; }
+    .form-label .form-hint { font-weight: 400; color: var(--text-muted); }
     .form-control { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 0.65rem 0.9rem; color: var(--text); font-size: 0.92rem; transition: border-color var(--transition); outline: none; }
     .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
     .form-control::placeholder { color: var(--text-muted); }
@@ -1353,6 +1358,22 @@
       direction: ltr;
       text-align: start;
     }
+
+    /* A11y: many controls use `outline: none` for visual polish. That breaks
+       keyboard navigation — sighted keyboard users lose the focus indicator.
+       Restore it via :focus-visible (only triggers on keyboard, not mouse). */
+    *:focus-visible {
+      outline: 2px solid #818cf8 !important;
+      outline-offset: 2px;
+    }
+    .form-control:focus-visible,
+    .search-bar input:focus-visible,
+    .sort-select:focus-visible,
+    .newsletter-form input:focus-visible {
+      outline: 2px solid #818cf8 !important;
+      outline-offset: 1px;
+      border-color: var(--primary, #6366f1) !important;
+    }
   </style>
 </head>
 <body>
@@ -1511,7 +1532,7 @@
       <!-- Cart -->
       <button class="btn-icon cart-btn" onclick="navigate('cart')" aria-label="Shopping cart" id="cart-btn-header">
         <i class="fa-solid fa-cart-shopping"></i>
-        <span class="cart-badge hidden" id="cart-count" aria-label="items in cart">0</span>
+        <span class="cart-badge hidden" id="cart-count" role="status" aria-live="polite" aria-atomic="true" aria-label="items in cart">0</span>
       </button>
 
       <!-- User menu (logged out) -->
@@ -9021,7 +9042,7 @@ function renderFilePreview(product) {
     </button>
     <button class="mbn-btn" id="mbn-cart" onclick="navigate('cart');mbnActive('cart')" aria-label="Cart">
       <i class="fa-solid fa-cart-shopping"></i>Cart
-      <span class="mbn-badge" id="mbn-cart-badge">0</span>
+      <span class="mbn-badge" id="mbn-cart-badge" role="status" aria-live="polite" aria-atomic="true" aria-label="items in cart">0</span>
     </button>
     <button class="mbn-btn" id="mbn-orders" onclick="navigate('orders');mbnActive('orders')" aria-label="Orders">
       <i class="fa-solid fa-box"></i>Orders
@@ -10453,10 +10474,15 @@ function formatPriceMulti(egpAmount) {
 // ═════════════════════════════════════════════════════════════════════
 function getBNPLOptions(totalEgp) {
   if (totalEgp < 100) return [];
+  // CORRECTNESS: show ceil(total/n) for the "per installment" figure so
+  // n × per >= total. Previously `(total/3).toFixed(0)` truncated: EGP 100
+  // displayed as "EGP 33 × 3" = EGP 99, under-collecting the buyer by 1
+  // EGP on the final installment.
+  const perInst = (t, n) => Math.ceil(t / n);
   const opts = [];
-  if (totalEgp >= 100)  opts.push({ name: 'Pay in 3', logo: '💳', per: (totalEgp/3).toFixed(0), provider: 'ValU' });
-  if (totalEgp >= 200)  opts.push({ name: 'Pay in 4', logo: '💎', per: (totalEgp/4).toFixed(0), provider: 'Tabby' });
-  if (totalEgp >= 500)  opts.push({ name: '6 months', logo: '📅', per: (totalEgp/6).toFixed(0), provider: 'Tamara' });
+  if (totalEgp >= 100)  opts.push({ name: 'Pay in 3', logo: '💳', per: perInst(totalEgp, 3), provider: 'ValU' });
+  if (totalEgp >= 200)  opts.push({ name: 'Pay in 4', logo: '💎', per: perInst(totalEgp, 4), provider: 'Tabby' });
+  if (totalEgp >= 500)  opts.push({ name: '6 months', logo: '📅', per: perInst(totalEgp, 6), provider: 'Tamara' });
   return opts;
 }
 
