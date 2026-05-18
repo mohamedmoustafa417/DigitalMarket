@@ -6318,7 +6318,7 @@ function showAutocomplete(query) {
   const q = (query || '').toLowerCase().trim();
   if (!q || q.length < 2) { hideAutocomplete(); return; }
   const matches = allProducts.filter(p => p.status === 'approved' &&
-    (p.name.toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q) || (p.tags||[]).some(t => t.includes(q)))
+    ((p.name||'').toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q) || (p.tags||[]).some(t => (t||'').toLowerCase().includes(q)))
   ).slice(0, 7);
   if (!matches.length) { hideAutocomplete(); return; }
   _acSelected = -1;
@@ -6473,7 +6473,8 @@ async function checkFlashSale() {
     if (!snap.exists) return;
     const d = snap.data();
     if (!d.active) return;
-    const endsAt = d.endsAt?.toDate ? d.endsAt.toDate() : new Date(d.endsAt);
+    const endsAt = d.endsAt?.toDate ? d.endsAt.toDate() : (d.endsAt ? new Date(d.endsAt) : null);
+    if (!endsAt || isNaN(endsAt.getTime())) return;   // missing or malformed endsAt
     if (Date.now() > endsAt.getTime()) return;
     const banner = document.getElementById('flash-sale-banner');
     if (!banner) return;
@@ -12962,12 +12963,18 @@ console.log('[DigitalMarket] Trendy/Sustainable/Universal pack loaded ✅ (glass
       document.body.appendChild(banner);
       document.getElementById('dm-pwa-yes').onclick = async () => {
         banner.remove();
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          try { gtag?.('event', 'pwa_install_accepted'); } catch {}
-        }
+        // Race-safe: a second click handler / dismiss can null deferredPrompt
+        // between prompt() and the awaited userChoice. Capture locally + guard.
+        const dp = deferredPrompt;
         deferredPrompt = null;
+        if (!dp || typeof dp.prompt !== 'function') return;
+        try {
+          dp.prompt();
+          const { outcome } = await dp.userChoice;
+          if (outcome === 'accepted') {
+            try { gtag?.('event', 'pwa_install_accepted'); } catch {}
+          }
+        } catch(e) { console.warn('PWA install prompt failed:', e); }
       };
       document.getElementById('dm-pwa-no').onclick = () => {
         banner.remove();
