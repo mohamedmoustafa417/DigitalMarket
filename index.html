@@ -1282,6 +1282,65 @@
         padding-inline: 12px;
       }
     }
+
+    /* ───────────────────────────────────────────────────────────────
+       RTL (Arabic) BUG FIXES — added in deep-audit pass
+       Most RTL bugs in the codebase come from physical CSS properties
+       (margin-left, border-left, transform translateX) that never got
+       a matching `body[dir="rtl"]` override. These overrides patch the
+       worst offenders without rewriting the whole stylesheet.
+       ─────────────────────────────────────────────────────────── */
+    body[dir="rtl"] .toast {
+      /* Severity color stripe must flip to the leading edge for RTL */
+      border-left: none;
+      border-right: 3px solid var(--primary);
+    }
+    body[dir="rtl"] .toast.toast-success { border-right-color: var(--success); }
+    body[dir="rtl"] .toast.toast-danger,
+    body[dir="rtl"] .toast.toast-error   { border-right-color: var(--danger); }
+    body[dir="rtl"] .toast.toast-warning { border-right-color: var(--warning); }
+
+    /* Search and arrow icons mirror so glyphs point the right way */
+    body[dir="rtl"] .fa-magnifying-glass,
+    body[dir="rtl"] .fa-search,
+    body[dir="rtl"] .fa-arrow-right,
+    body[dir="rtl"] .fa-arrow-left,
+    body[dir="rtl"] .fa-chevron-right,
+    body[dir="rtl"] .fa-chevron-left,
+    body[dir="rtl"] .dm-stepper .arrow {
+      transform: scaleX(-1);
+    }
+
+    /* Cart badge: was anchored with `right: -6px`, ends up clipped in RTL */
+    body[dir="rtl"] .cart-badge,
+    body[dir="rtl"] .mbn-badge,
+    body[dir="rtl"] #mbn-cart-badge {
+      right: auto;
+      left: -6px;
+    }
+
+    /* Tables and `.text-left` utility — make leading-edge alignment work
+       in both directions. (CSS `text-align: start` would be cleaner long-term.) */
+    body[dir="rtl"] table td,
+    body[dir="rtl"] table th,
+    body[dir="rtl"] .text-left {
+      text-align: right;
+    }
+    body[dir="rtl"] .text-right {
+      text-align: left;
+    }
+
+    /* Tier progress bar fills from the leading edge */
+    body[dir="rtl"] #dm-tier-progress > div > div {
+      background: linear-gradient(270deg, var(--primary), var(--success));
+    }
+
+    /* Phone / tel inputs always render LTR — the `+20 1xxx` prefix gets
+       bidi-shuffled in RTL context otherwise */
+    input[type="tel"] {
+      direction: ltr;
+      text-align: start;
+    }
   </style>
 </head>
 <body>
@@ -13179,7 +13238,7 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
           </div>
           <div style="display:flex;gap:0.4rem;">
             <button id="dm-tour-skip" class="btn btn-outline" style="font-size:0.75rem;padding:0.3rem 0.7rem;">Skip</button>
-            <button id="dm-tour-next" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.85rem;">Next →</button>
+            <button id="dm-tour-next" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.85rem;">Next <span class="dm-tour-arrow">→</span></button>
           </div>
         </div>
       </div>`;
@@ -13220,7 +13279,12 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
         document.querySelectorAll('.dm-tour-dot').forEach((d, i) => {
           d.style.background = i === idx ? 'var(--primary)' : 'var(--bg3)';
         });
-        document.getElementById('dm-tour-next').textContent = idx === STEPS.length - 1 ? 'Got it ✓' : 'Next →';
+        // Arrow direction respects body dir so Arabic users see ← not →
+        const isRTL = document.body.dir === 'rtl' || document.documentElement.dir === 'rtl';
+        const nextArrow = isRTL ? '←' : '→';
+        document.getElementById('dm-tour-next').innerHTML = idx === STEPS.length - 1
+          ? 'Got it ✓'
+          : `Next <span class="dm-tour-arrow">${nextArrow}</span>`;
       }, 350);
     }
 

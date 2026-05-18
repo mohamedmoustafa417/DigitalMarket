@@ -29,7 +29,7 @@
 
 'use strict';
 
-const { onDocumentWritten }      = require('firebase-functions/v2/firestore');
+const { onDocumentWritten, onDocumentDeleted } = require('firebase-functions/v2/firestore');
 const { onObjectDeleted }        = require('firebase-functions/v2/storage');
 const { onSchedule }             = require('firebase-functions/v2/scheduler');
 const { onCall, HttpsError }     = require('firebase-functions/v2/https');
@@ -67,6 +67,13 @@ const FROM_EMAIL = 'support@digitalmarketstore.shop';
 const FROM_NAME  = 'DigitalMarket';
 const REPLY_TO   = 'support@digitalmarketstore.shop';
 
+/** Short non-reversible hash of an email for logging (GDPR — don't put raw
+ *  buyer email in Cloud Logging where it persists for 30+ days). */
+function hashEmail(e) {
+  if (!e || typeof e !== 'string') return '';
+  return require('crypto').createHash('sha256').update(e.toLowerCase().trim()).digest('hex').slice(0, 16);
+}
+
 async function sendEmail({ to, subject, body }) {
   const resendKey   = process.env.RESEND_KEY;
   const sendgridKey = process.env.SENDGRID_KEY;
@@ -98,7 +105,7 @@ async function sendEmail({ to, subject, body }) {
         console.error(`[sendEmail] Resend HTTP ${r.status}: ${errText.slice(0, 200)}`);
         return { ok: false, reason: 'resend-failed', status: r.status };
       }
-      console.log(`[sendEmail] ✓ Resend sent to ${to}: "${subject.slice(0, 40)}"`);
+      console.log(`[sendEmail] ✓ Resend sent to ${hashEmail(to)}: "${subject.slice(0, 40)}"`);
       return { ok: true, provider: 'resend' };
     }
 
@@ -261,21 +268,47 @@ exports.onOrderStatusChange = onDocumentWritten(
         )
       ).filter(Boolean);
 
+      // RELIABILITY: wrap the post-idempotency side effects in try/catch.
+      // Previously: if sendEmail threw (Resend 5xx, transient network),
+      // the function retried, the idempotency guard short-circuited at
+      // the top, and the buyer email was permanently lost. Now: log the
+      // failure to /emailFailures so an admin can re-send manually, and
+      // let the order finish in a clean state.
       if (buyerEmail && dlLinks.length > 0) {
-        await sendEmail({
-          to:      buyerEmail,
-          subject: '✅ Your DigitalMarket order is ready!',
-          body:    `<p>Hi ${buyerName},</p>
-                   <p>Your order <strong>#${orderId.slice(0,8).toUpperCase()}</strong> has been approved.</p>
-                   <p>Download your files:</p><ul>${dlLinks.join('')}</ul>
-                   <p>Links expire in 30 days. Keep them safe!</p>
-                   <p>— The DigitalMarket Team</p>`
-        });
+        try {
+          const result = await sendEmail({
+            to:      buyerEmail,
+            subject: '✅ Your DigitalMarket order is ready!',
+            body:    `<p>Hi ${buyerName},</p>
+                     <p>Your order <strong>#${orderId.slice(0,8).toUpperCase()}</strong> has been approved.</p>
+                     <p>Download your files:</p><ul>${dlLinks.join('')}</ul>
+                     <p>Links expire in 30 days. Keep them safe!</p>
+                     <p>— The DigitalMarket Team</p>`
+          });
+          if (!result?.ok) {
+            await db.collection('emailFailures').add({
+              type: 'order_approved',
+              orderId,
+              toHash: hashEmail(buyerEmail),
+              reason: result?.err || result?.message || 'unknown',
+              createdAt: FieldValue.serverTimestamp()
+            });
+          }
+        } catch (e) {
+          await db.collection('emailFailures').add({
+            type: 'order_approved',
+            orderId,
+            toHash: hashEmail(buyerEmail),
+            reason: String(e.message || e),
+            createdAt: FieldValue.serverTimestamp()
+          }).catch(() => {});
+          console.error(`[onOrderStatusChange] buyer email threw for ${orderId}:`, e.message);
+        }
       }
 
-      // Notify seller via Firestore notification
+      // Notify seller — also non-throwing.
       const sellerIds = after.sellerIds || [];
-      await Promise.all(sellerIds.map(sid =>
+      await Promise.allSettled(sellerIds.map(sid =>
         db.collection('notifications').add({
           userId:    sid,
           type:      'new_sale',
@@ -347,25 +380,74 @@ exports.onProductFileDelete = onObjectDeleted(
     const filePath = event.data?.name;
     if (!filePath || !filePath.startsWith('products/')) return;
 
-    // Build the public URL pattern that Firestore would hold
-    // (simplified – real URLs have a token query param, so we match on the path portion)
-    const encodedPath = encodeURIComponent(filePath).replace(/%2F/g, '%2F');
-    const urlFragment = `o/${encodedPath}`;
-
-    const snap = await db.collection('products')
-      .where('downloadUrl', '>=', `https://firebasestorage.googleapis.com`)
-      .get();
-
-    const batch = db.batch();
-    let count = 0;
-    snap.docs.forEach(d => {
-      if ((d.data().downloadUrl || '').includes(urlFragment)) {
-        batch.update(d.ref, { downloadUrl: '' });
-        count++;
+    // PERFORMANCE: prefer an indexed lookup by `storagePath`. New uploads
+    // should write this field; for legacy products without it we fall back
+    // to a downloadUrl substring scan (capped) so we don't break anything.
+    let cleared = 0;
+    try {
+      const byPath = await db.collection('products')
+        .where('storagePath', '==', filePath)
+        .limit(50)
+        .get();
+      if (!byPath.empty) {
+        const batch = db.batch();
+        byPath.docs.forEach(d => batch.update(d.ref, { downloadUrl: '', storagePath: FieldValue.delete() }));
+        await batch.commit();
+        cleared += byPath.size;
       }
-    });
-    if (count > 0) await batch.commit();
-    console.log(`[onProductFileDelete] Cleared downloadUrl on ${count} product(s).`);
+    } catch (e) {
+      // Index may not exist yet on first deploy — fall through to legacy scan.
+      console.warn('[onProductFileDelete] storagePath query failed (index missing?):', e.message);
+    }
+
+    if (cleared === 0) {
+      // Legacy fallback: scan products with a Firebase Storage URL. Capped
+      // to 500 docs so a marketplace with 10k+ products doesn't OOM.
+      const encodedPath = encodeURIComponent(filePath);
+      const urlFragment = `o/${encodedPath}`;
+      const snap = await db.collection('products')
+        .where('downloadUrl', '>=', 'https://firebasestorage.googleapis.com')
+        .limit(500)
+        .get();
+      const batch = db.batch();
+      snap.docs.forEach(d => {
+        if ((d.data().downloadUrl || '').includes(urlFragment)) {
+          batch.update(d.ref, { downloadUrl: '' });
+          cleared++;
+        }
+      });
+      if (cleared > 0) await batch.commit();
+    }
+    console.log(`[onProductFileDelete] Cleared downloadUrl on ${cleared} product(s) for ${filePath}.`);
+  }
+);
+
+// ─── 3b. onProductDocDelete — cleans up orphan Storage objects ──────────────
+// Inverse of onProductFileDelete: when a product Firestore doc is deleted,
+// delete its associated Storage file too. Previously a seller could delete
+// the doc, leaving the file orphaned forever (still downloadable via the
+// long-lived token URL — and counted toward the marketplace storage bill).
+exports.onProductDocDelete = onDocumentDeleted(
+  { document: 'products/{productId}', region: 'us-central1' },
+  async event => {
+    const data = event.data?.data();
+    if (!data) return;
+    const path = data.storagePath;
+    if (!path || typeof path !== 'string' || !path.startsWith('products/')) {
+      // No tracked path — nothing to clean. Legacy products without
+      // storagePath leak storage; admin can sweep manually.
+      return;
+    }
+    try {
+      const bucket = require('firebase-admin').storage().bucket('digitalmarket-38db5.firebasestorage.app');
+      await bucket.file(path).delete();
+      console.log(`[onProductDocDelete] Deleted orphan storage object ${path}.`);
+    } catch (e) {
+      // 404 is fine (already deleted via the storage trigger).
+      if (!/No such object|404/.test(String(e.message || e))) {
+        console.error(`[onProductDocDelete] Failed deleting ${path}:`, e.message);
+      }
+    }
   }
 );
 
@@ -450,36 +532,88 @@ exports.abandonedCartReminder = onSchedule(
 // Picks up queued campaigns and dispatches via SendGrid (or your provider).
 
 exports.processEmailCampaigns = onSchedule(
-  { schedule: 'every 5 minutes', region: 'us-central1', secrets: EMAIL_SECRETS },
+  {
+    schedule: 'every 5 minutes',
+    region: 'us-central1',
+    secrets: EMAIL_SECRETS,
+    // RELIABILITY: 2000 recipients × ~200ms/send = 400s. Default 60s timeout
+    // would cut campaigns mid-send and leave them stuck in `sending` forever.
+    // Bumped to 540s (max for 2nd-gen scheduled). Memory bumped to 512MB
+    // because a 2000-doc snapshot of /newsletter or /users with all fields
+    // pulls 10-20MB into JS heap.
+    timeoutSeconds: 540,
+    memory: '512MiB'
+  },
   async () => {
     const queued = await db.collection('campaigns').where('status','==','queued').limit(5).get();
     if (queued.empty) return;
 
     for (const camp of queued.docs) {
-      const c = camp.data();
-      await camp.ref.update({ status: 'sending', startedAt: FieldValue.serverTimestamp() });
+      // RELIABILITY: claim the campaign transactionally so two overlapping
+      // invocations of this scheduler can't both pick up the same row
+      // and double-send. The previous read-then-update was non-atomic.
+      let c;
+      try {
+        c = await db.runTransaction(async tx => {
+          const snap = await tx.get(camp.ref);
+          if (snap.data()?.status !== 'queued') return null; // someone else claimed
+          tx.update(camp.ref, { status: 'sending', startedAt: FieldValue.serverTimestamp() });
+          return snap.data();
+        });
+      } catch (e) {
+        console.warn(`[processEmailCampaigns] claim failed for ${camp.id}:`, e.message);
+        continue;
+      }
+      if (!c) continue; // claimed by a parallel worker
 
       try {
         let emails = [];
+        // MEMORY: use .select() projection so we only pull the email field
+        // (was previously loading entire user docs into memory, including
+        // KYC fields).
         if (c.target === 'all') {
-          const s = await db.collection('newsletter').limit(2000).get();
+          const s = await db.collection('newsletter').select('email').limit(2000).get();
           emails = s.docs.map(d => d.data().email).filter(Boolean);
         } else if (c.target === 'buyers' || c.target === 'sellers') {
           const role = c.target.slice(0, -1);
-          const s = await db.collection('users').where('role','==',role).limit(2000).get();
+          const s = await db.collection('users').where('role','==',role).select('email').limit(2000).get();
           emails = s.docs.map(d => d.data().email).filter(Boolean);
         }
 
-        // Send in batches of 50
+        // OBSERVABILITY: track per-batch failures + write to /emailFailures
+        // for the ones that returned non-ok so an admin can re-send.
+        let failures = 0;
         for (let i = 0; i < emails.length; i += 50) {
           const batch = emails.slice(i, i + 50);
-          await Promise.all(batch.map(to => sendEmail({ to, subject: c.subject, body: c.body }).catch(() => {})));
+          const results = await Promise.all(batch.map(to =>
+            sendEmail({ to, subject: c.subject, body: c.body })
+              .then(r => ({ to, r }))
+              .catch(err => ({ to, r: { ok: false, err: String(err?.message || err) } }))
+          ));
+          for (const { to, r } of results) {
+            if (!r?.ok) {
+              failures++;
+              await db.collection('emailFailures').add({
+                type: 'campaign',
+                campaignId: camp.id,
+                toHash: hashEmail(to),
+                reason: r?.err || r?.reason || `status:${r?.status}` || 'unknown',
+                createdAt: FieldValue.serverTimestamp()
+              }).catch(() => {});
+            }
+          }
         }
 
-        await camp.ref.update({ status: 'sent', sentAt: FieldValue.serverTimestamp(), actualRecipientCount: emails.length });
-        console.log(`[processEmailCampaigns] Sent campaign ${camp.id} to ${emails.length} recipients.`);
+        await camp.ref.update({
+          status: 'sent',
+          sentAt: FieldValue.serverTimestamp(),
+          actualRecipientCount: emails.length,
+          failureCount: failures
+        });
+        console.log(`[processEmailCampaigns] Campaign ${camp.id}: sent ${emails.length - failures}/${emails.length} (${failures} failed).`);
       } catch (err) {
-        await camp.ref.update({ status: 'failed', error: String(err.message || err) });
+        await camp.ref.update({ status: 'failed', error: String(err.message || err) }).catch(() => {});
+        console.error(`[processEmailCampaigns] Campaign ${camp.id} failed:`, err);
       }
     }
   }
