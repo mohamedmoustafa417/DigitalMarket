@@ -146,40 +146,101 @@ exports.onOrderStatusChange = onDocumentWritten(
 
     // ── Order approved → issue download token + license keys + send email ──
     if (after.status === 'approved') {
+      // IDEMPOTENCY: if this order was already processed (admin toggled
+      // pending→approved→pending→approved), don't re-issue tokens, don't
+      // re-bump seller tier, don't re-award loyalty points. The line 143
+      // guard only catches no-status-change events, not pending⇄approved cycles.
+      if (after.approvalProcessedAt && after.downloadToken) {
+        console.log(`[onOrderStatusChange] order ${orderId} already processed at ${after.approvalProcessedAt?.toDate?.()}; skipping re-issue.`);
+        return;
+      }
+
       // Issue a secure download token (30-day expiry)
       const token     = require('crypto').randomUUID();
       const expiresAt = Date.now() + 30 * 86400000;
-      await event.data.after.ref.update({ downloadToken: token, downloadExpiresAt: expiresAt, downloadExpired: false });
 
-      // Issue license keys for each item (if seller has licenseEnabled)
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      const seg   = () => Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      // Issue license keys for each item (if seller has licenseEnabled).
+      // Use crypto.randomBytes (not Math.random) for license-quality entropy.
+      const crypto = require('crypto');
+      const chars  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // dropped 0/O/1/I for legibility
+      const seg    = () => {
+        const buf = crypto.randomBytes(4);
+        return Array.from(buf).map(b => chars[b % chars.length]).join('');
+      };
       const genKey = () => `${seg()}-${seg()}-${seg()}-${seg()}`;
       const licenseKeys = {};
       (after.items || []).forEach(item => { licenseKeys[item.id] = genKey(); });
-      await event.data.after.ref.update({ licenseKeys });
 
-      // Update seller totalSales + tier
+      // BATCH ALL ORDER WRITES into one update so the function self-triggers
+      // exactly once (and that re-trigger returns at the line 143 guard).
+      await event.data.after.ref.update({
+        downloadToken: token,
+        downloadExpiresAt: expiresAt,
+        downloadExpired: false,
+        licenseKeys,
+        approvalProcessedAt: FieldValue.serverTimestamp()
+      });
+
+      // SELLER TIER — fix read-modify-write race. Two concurrent approvals
+      // were both reading the same `totalSales`, computing the same tier,
+      // and missing the boundary promotion (199→200 stuck at Gold). Wrap
+      // in a transaction so the read+compute+write serializes.
       const TIERS = [[200,'Platinum'],[50,'Gold'],[10,'Silver'],[0,'Bronze']];
       for (const sid of (after.sellerIds || [])) {
         try {
-          const sellerRef  = db.collection('users').doc(sid);
-          const sellerSnap = await sellerRef.get();
-          const newCount   = (sellerSnap.data()?.totalSales || 0) + 1;
-          const tier       = (TIERS.find(([min]) => newCount >= min) || TIERS[3])[1];
-          await sellerRef.update({ totalSales: FieldValue.increment(1), tier });
-        } catch {}
+          const sellerRef = db.collection('users').doc(sid);
+          await db.runTransaction(async tx => {
+            const snap     = await tx.get(sellerRef);
+            const newCount = (snap.data()?.totalSales || 0) + 1;
+            const tier     = (TIERS.find(([min]) => newCount >= min) || TIERS[3])[1];
+            tx.update(sellerRef, { totalSales: newCount, tier });
+          });
+        } catch (e) {
+          console.warn(`[onOrderStatusChange] seller tier update failed for ${sid}:`, e.message);
+        }
       }
 
-      // Award loyalty points to buyer
-      if (after.buyerId && after.total) {
-        const pts = Math.floor(Number(after.total));
-        if (pts > 0) {
-          await db.collection('users').doc(after.buyerId).update({ loyaltyPoints: FieldValue.increment(pts) });
-          await db.collection('users').doc(after.buyerId).collection('pointsLog').add({
-            type: 'earn', pts, reason: `Purchase EGP ${after.total}`,
-            createdAt: FieldValue.serverTimestamp()
-          });
+      // Loyalty: settle BOTH the redeem (if any) and the new earn in ONE
+      // transaction. The order doc carries `pointsRedeemed` from the buyer's
+      // submission; we verify the balance before deducting so two parallel
+      // checkouts cannot double-spend. The earn (loyaltyPoints += total) is
+      // computed against the same starting balance.
+      if (after.buyerId) {
+        const buyerRef       = db.collection('users').doc(after.buyerId);
+        const ptsRedeemed    = Math.max(0, Math.floor(Number(after.pointsRedeemed || 0)));
+        const ptsEarned      = Math.max(0, Math.floor(Number(after.total || 0)));
+        if (ptsRedeemed > 0 || ptsEarned > 0) {
+          try {
+            await db.runTransaction(async tx => {
+              const snap        = await tx.get(buyerRef);
+              const currentBal  = Number(snap.data()?.loyaltyPoints || 0);
+              // Deduct only as much as the buyer actually has — never let
+              // a buyer go negative even if the order claimed more than balance.
+              const effectiveRedeem = Math.min(ptsRedeemed, currentBal);
+              const newBal          = currentBal - effectiveRedeem + ptsEarned;
+              tx.update(buyerRef, { loyaltyPoints: newBal });
+              if (effectiveRedeem > 0) {
+                const logRef = buyerRef.collection('pointsLog').doc();
+                tx.set(logRef, {
+                  type: 'redeem', pts: -effectiveRedeem,
+                  reason: `Redeemed on order ${orderId.slice(0,8).toUpperCase()}`,
+                  orderId,
+                  createdAt: FieldValue.serverTimestamp()
+                });
+              }
+              if (ptsEarned > 0) {
+                const logRef = buyerRef.collection('pointsLog').doc();
+                tx.set(logRef, {
+                  type: 'earn', pts: ptsEarned,
+                  reason: `Purchase EGP ${after.total}`,
+                  orderId,
+                  createdAt: FieldValue.serverTimestamp()
+                });
+              }
+            });
+          } catch (e) {
+            console.warn(`[onOrderStatusChange] loyalty settlement failed for order ${orderId}:`, e.message);
+          }
         }
       }
 

