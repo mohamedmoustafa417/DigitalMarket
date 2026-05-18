@@ -2,7 +2,9 @@
 <html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#6366f1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
   <meta name="description" content="DigitalMarket – Your trusted bilingual digital marketplace for buying and selling digital products securely.">
   <meta name="keywords" content="digital market, buy digital products, sell online, marketplace">
   <meta property="og:title" content="DigitalMarket – Digital Marketplace">
@@ -23,7 +25,6 @@
   <meta name="twitter:image" content="https://digitalmarketstore.shop/social_media_thumbnail.svg">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#6366f1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1216,6 +1217,71 @@
     .mbn-btn .mbn-badge { position:absolute; top:6px; right:calc(50% - 14px); background:var(--danger); color:#fff; font-size:0.55rem; font-weight:700; border-radius:50%; width:14px; height:14px; display:none; align-items:center; justify-content:center; }
     .mbn-btn .mbn-badge.show { display:flex; }
     @media(max-width:640px) { #mobile-bottom-nav { display:block; } }
+
+    /* ───────────────────────────────────────────────────────────────
+       MOBILE / RESPONSIVE FIXES — added in deep-audit pass
+       1) iOS Safari: 100dvh instead of 100vh (URL bar collapse safe)
+       2) iPhone notch / Android gesture bar: safe-area-inset on
+          everything pinned to the bottom of the viewport
+       3) Hover-stuck-on-touch: gate :hover effects behind
+          @media (hover: hover) so taps don't leave cards zoomed
+       4) Save-data + @supports fallback for backdrop-filter on
+          low-end Android
+       5) WCAG AAA touch targets: enforce 44×44px on tour buttons
+          and small action buttons on mobile
+       ─────────────────────────────────────────────────────────── */
+    @supports (height: 100dvh) {
+      .modal { max-height: 100dvh; }
+      .modal-content { max-height: calc(100dvh - 32px); }
+    }
+    #mobile-bottom-nav,
+    .dm-sticky-cta,
+    #cookie-banner,
+    #dm-pwa-install,
+    #offline-banner {
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    #mobile-bottom-nav { height: calc(56px + env(safe-area-inset-bottom, 0)); }
+
+    /* Gate hover effects to real pointers — touch devices were getting
+       stuck in :hover state after a tap (cards permanently zoomed). */
+    @media (hover: none) {
+      .product-card:hover,
+      .product-card:hover img,
+      .vm-card:hover,
+      .seller-card:hover,
+      .category-card:hover {
+        transform: none !important;
+        box-shadow: inherit !important;
+      }
+    }
+
+    /* backdrop-filter fallback for browsers/devices that can't render it
+       efficiently (low-end Android, save-data mode). */
+    @supports not (backdrop-filter: blur(1px)) {
+      .glass, .nav-blur, .modal-content, .dm-glass,
+      .header, .dropdown-menu {
+        background: var(--bg2) !important;
+        backdrop-filter: none !important;
+      }
+    }
+    body.save-data * {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    /* Touch target enforcement — tour buttons and .btn-sm were 28–32px,
+       below WCAG AAA 44px. */
+    @media (max-width: 640px) {
+      #dm-tour-skip, #dm-tour-next, #dm-tour-prev,
+      .btn-sm,
+      #cookie-banner button,
+      #dm-pwa-yes, #dm-pwa-no {
+        min-height: 44px;
+        min-width: 44px;
+        padding-inline: 12px;
+      }
+    }
   </style>
 </head>
 <body>

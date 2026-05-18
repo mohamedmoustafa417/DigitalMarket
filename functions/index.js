@@ -32,7 +32,7 @@
 const { onDocumentWritten }      = require('firebase-functions/v2/firestore');
 const { onObjectDeleted }        = require('firebase-functions/v2/storage');
 const { onSchedule }             = require('firebase-functions/v2/scheduler');
-const { onCall }                 = require('firebase-functions/v2/https');
+const { onCall, HttpsError }     = require('firebase-functions/v2/https');
 const { defineSecret }           = require('firebase-functions/params');
 const { initializeApp }          = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -258,9 +258,12 @@ exports.cleanExpiredDownloads = onSchedule(
   { schedule: 'every day 00:00', region: 'us-central1', timeZone: 'UTC' },
   async () => {
     const now  = Date.now();
+    // SECURITY/CORRECTNESS: `!=` in Firestore skips docs missing the field.
+    // Match on the explicit `false` value that onOrderStatusChange writes
+    // at approval time (line 152: `downloadExpired: false`).
     const snap = await db.collection('orders')
       .where('downloadExpiresAt', '<=', now)
-      .where('downloadExpired', '!=', true)
+      .where('downloadExpired', '==', false)
       .limit(500)
       .get();
 
@@ -359,18 +362,24 @@ exports.abandonedCartReminder = onSchedule(
       const updatedMs = c.updatedAt?.toMillis ? c.updatedAt.toMillis() : 0;
       if (updatedMs > cutoff) continue; // too recent
 
-      if (c.email) {
-        await sendEmail({
-          to:      c.email,
-          subject: '🛒 You left something in your cart',
-          body:    `<p>Hi there,</p>
-                   <p>You left <strong>${(c.items||[]).length} item${(c.items||[]).length===1?'':'s'}</strong> in your cart at DigitalMarket.</p>
-                   <p>Use code <code>COMEBACK10</code> for 10% off — valid for 48 hours.</p>
-                   <p><a href="https://digitalmarketstore.shop/?utm_source=cart_recovery">Return to your cart →</a></p>`
-        });
+      // CORRECTNESS: only mark `notified` after a successful send. Previous
+      // logic flipped the flag unconditionally, so carts with no email
+      // (or where Resend returned 4xx/5xx) were permanently silenced.
+      if (!c.email) continue;
+      const result = await sendEmail({
+        to:      c.email,
+        subject: '🛒 You left something in your cart',
+        body:    `<p>Hi there,</p>
+                 <p>You left <strong>${(c.items||[]).length} item${(c.items||[]).length===1?'':'s'}</strong> in your cart at DigitalMarket.</p>
+                 <p>Use code <code>COMEBACK10</code> for 10% off — valid for 48 hours.</p>
+                 <p><a href="https://digitalmarketstore.shop/?utm_source=cart_recovery">Return to your cart →</a></p>`
+      }).catch(e => ({ ok: false, err: String(e?.message || e) }));
+      if (result?.ok) {
         sent++;
+        await doc.ref.update({ notified: true, notifiedAt: FieldValue.serverTimestamp() });
+      } else {
+        console.warn(`[abandonedCartReminder] Send failed for ${c.email}:`, result?.err || result);
       }
-      await doc.ref.update({ notified: true });
     }
     console.log(`[abandonedCartReminder] Sent ${sent} reminder(s).`);
   }
@@ -536,8 +545,17 @@ exports.emailHealthCheck = onCall(
 exports.generateSitemap = onCall(
   { region: 'us-central1', cors: ['https://digitalmarketstore.shop'] },
   async req => {
-    // Optional: admin-only guard
-    // if (req.auth?.token?.role !== 'admin') throw new HttpsError('permission-denied', 'Admins only.');
+    // SECURITY: admin-only. Previously this was effectively public — every
+    // call ran an unbounded 1000-doc Firestore read, so an attacker could
+    // amplify Firestore reads from outside the org. The GitHub Actions
+    // sitemap workflow uses Firestore REST directly (see .github/workflows/
+    // sitemap.yml) so this callable is now an admin-side utility only.
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+    const userDoc = await db.collection('users').doc(uid).get();
+    if (userDoc.data()?.role !== 'admin') {
+      throw new HttpsError('permission-denied', 'Admins only.');
+    }
 
     const BASE = 'https://digitalmarketstore.shop';
     const snap = await db.collection('products')
