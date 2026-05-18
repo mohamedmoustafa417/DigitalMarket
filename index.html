@@ -8870,26 +8870,73 @@ function renderFilePreview(product) {
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 <!-- FOOTER                                                              -->
 <!-- ═══════════════════════════════════════════════════════════════════ -->
-<footer style="background:var(--bg2);border-top:1px solid var(--border);padding:1.5rem 1rem;margin-top:3rem;text-align:center;">
-  <div style="max-width:1200px;margin:0 auto;">
-    <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-bottom:0.75rem;">
-      <i class="fa-solid fa-store" style="color:var(--primary);" aria-hidden="true"></i>
-      <span style="font-weight:700;color:var(--primary);font-size:1.1rem;">DigitalMarket</span>
+<footer style="background:var(--bg2);border-top:1px solid var(--border);padding:2rem 1rem;margin-top:3rem;">
+  <div style="max-width:1200px;margin:0 auto;display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));text-align:start;">
+
+    <!-- About / Activities — required by payment processors (Kashier) for
+         merchant approval. Spells out clearly what is and is NOT sold here. -->
+    <div>
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+        <i class="fa-solid fa-store" style="color:var(--primary);" aria-hidden="true"></i>
+        <span style="font-weight:700;color:var(--primary);font-size:1.05rem;">DigitalMarket</span>
+      </div>
+      <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.55;margin:0 0 0.5rem;" data-i18n="footerAbout">
+        An Egyptian bilingual marketplace for licensed digital products and services. We list:
+      </p>
+      <ul style="color:var(--text-muted);font-size:0.78rem;line-height:1.7;margin:0;padding-inline-start:1.1rem;">
+        <li data-i18n="footerCat1">Software &amp; licensed applications</li>
+        <li data-i18n="footerCat2">E-books and digital publications</li>
+        <li data-i18n="footerCat3">Online courses &amp; tutorials</li>
+        <li data-i18n="footerCat4">Graphics, templates &amp; design assets</li>
+        <li data-i18n="footerCat5">Web themes, code snippets &amp; tools</li>
+      </ul>
+      <p style="color:var(--text-muted);font-size:0.72rem;margin:0.6rem 0 0;font-style:italic;" data-i18n="footerProhibited">
+        We do not allow social media engagement services (followers, likes, views), gambling, adult content, or pirated material.
+      </p>
     </div>
-    <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
-      <a href="#" onclick="navigate('home');return false;" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Home</a>
-      <a href="#" onclick="navigate('register');return false;" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Start Selling</a>
-      <a href="#" onclick="navigate('cart');return false;" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Cart</a>
-      <a href="mailto:support@digitalmarketstore.shop" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Contact</a>
+
+    <!-- Contact — required by Kashier: mobile, email, business address -->
+    <div>
+      <h4 style="margin:0 0 0.6rem;font-size:0.95rem;color:var(--text);">Contact</h4>
+      <ul style="list-style:none;padding:0;margin:0;color:var(--text-muted);font-size:0.82rem;line-height:1.8;">
+        <li><i class="fa-solid fa-phone" style="width:18px;color:var(--primary);" aria-hidden="true"></i>
+          <a href="tel:+20XXXXXXXXXX" style="color:var(--text-muted);text-decoration:none;" dir="ltr">+20 XXX XXX XXXX</a>
+        </li>
+        <li><i class="fa-solid fa-envelope" style="width:18px;color:var(--primary);" aria-hidden="true"></i>
+          <a href="mailto:support@digitalmarketstore.shop" style="color:var(--text-muted);text-decoration:none;">support@digitalmarketstore.shop</a>
+        </li>
+        <li><i class="fa-solid fa-location-dot" style="width:18px;color:var(--primary);" aria-hidden="true"></i>
+          <span>Cairo, Egypt</span>
+        </li>
+      </ul>
     </div>
-    <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:0.75rem;">
-      <a href="help.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Help &amp; FAQ</a>
-      <a href="terms.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Terms of Service</a>
-      <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">Privacy Policy</a>
+
+    <!-- Quick links -->
+    <div>
+      <h4 style="margin:0 0 0.6rem;font-size:0.95rem;color:var(--text);">Marketplace</h4>
+      <ul style="list-style:none;padding:0;margin:0;font-size:0.82rem;line-height:1.9;">
+        <li><a href="#" onclick="navigate('home');return false;" style="color:var(--text-muted);text-decoration:none;">Browse Products</a></li>
+        <li><a href="#" onclick="navigate('register');return false;" style="color:var(--text-muted);text-decoration:none;">Become a Seller</a></li>
+        <li><a href="#" onclick="navigate('cart');return false;" style="color:var(--text-muted);text-decoration:none;">My Cart</a></li>
+        <li><a href="help.html" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Help &amp; FAQ</a></li>
+      </ul>
     </div>
-    <p style="color:var(--text-muted);font-size:0.8rem;">
-      &copy; <span id="footer-year"></span> DigitalMarket. All rights reserved.
-    </p>
+
+    <!-- Legal — Kashier requires visible refund + T&C -->
+    <div>
+      <h4 style="margin:0 0 0.6rem;font-size:0.95rem;color:var(--text);">Legal</h4>
+      <ul style="list-style:none;padding:0;margin:0;font-size:0.82rem;line-height:1.9;">
+        <li><a href="terms.html" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Terms of Service</a></li>
+        <li><a href="privacy.html" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Privacy Policy</a></li>
+        <li><a href="refund.html" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Refund &amp; Cancellation</a></li>
+        <li><a href="terms.html#acceptable-use" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Acceptable Use Policy</a></li>
+      </ul>
+    </div>
+
+  </div>
+  <div style="max-width:1200px;margin:1.5rem auto 0;padding-top:1rem;border-top:1px solid var(--border);text-align:center;color:var(--text-muted);font-size:0.78rem;">
+    <p style="margin:0 0 0.25rem;">Payments processed securely. All prices in Egyptian Pounds (EGP).</p>
+    <p style="margin:0;">&copy; <span id="footer-year"></span> DigitalMarket. All rights reserved.</p>
   </div>
 </footer>
 <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>

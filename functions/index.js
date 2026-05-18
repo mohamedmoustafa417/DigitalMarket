@@ -32,7 +32,7 @@
 const { onDocumentWritten, onDocumentDeleted } = require('firebase-functions/v2/firestore');
 const { onObjectDeleted }        = require('firebase-functions/v2/storage');
 const { onSchedule }             = require('firebase-functions/v2/scheduler');
-const { onCall, HttpsError }     = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret }           = require('firebase-functions/params');
 const { initializeApp }          = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -786,5 +786,163 @@ exports.generateSitemap = onCall(
     ].join('\n');
 
     return { sitemap: xml, count: allUrls.length };
+  }
+);
+
+// ─── 11. downloadFile — gated proxy for product downloads ──────────────────
+//
+// SECURITY: Firebase Storage's `getDownloadURL()` returns a token URL that
+// never expires. Once a buyer (or anyone with the URL) has it, they keep
+// access forever — making the `downloadExpired` flag on orders cosmetic.
+//
+// This HTTPS endpoint replaces direct URL handoff: every download request
+// must include the order's `downloadToken` and the requester must be the
+// order's buyerId. We then re-verify:
+//   (a) order status == 'approved'
+//   (b) downloadExpired == false
+//   (c) downloadExpiresAt > now
+//   (d) productId is in order.items
+// before streaming the file from a server-side-only Storage path. The
+// public `downloadUrl` field is no longer the source of truth.
+//
+// Client usage:
+//   POST /downloadFile
+//   Authorization: Bearer <firebase-id-token>
+//   { orderId, productId, token }
+//
+// Returns: a 302 redirect to a fresh 5-minute signed URL (V4) so the
+// browser can perform the actual download with full streaming + Range
+// header support. The signed URL is single-use-ish (still valid 5 min
+// for resumes) and tied to a specific Storage path that buyers cannot
+// guess.
+
+exports.downloadFile = onRequest(
+  {
+    region: 'us-central1',
+    cors: ['https://digitalmarketstore.shop'],
+    timeoutSeconds: 60,
+    memory: '256MiB'
+  },
+  async (req, res) => {
+    // Manual CORS handling — onRequest's `cors` config covers preflight but
+    // we set explicit headers for the actual response.
+    res.set('Access-Control-Allow-Origin', 'https://digitalmarketstore.shop');
+    res.set('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      return res.status(204).send('');
+    }
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method-not-allowed' });
+
+    // 1. Auth: require a Firebase ID token.
+    const authHeader = req.headers.authorization || '';
+    const idToken    = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!idToken) return res.status(401).json({ error: 'unauthenticated', message: 'Bearer token required.' });
+
+    let decoded;
+    try {
+      decoded = await require('firebase-admin').auth().verifyIdToken(idToken);
+    } catch (e) {
+      return res.status(401).json({ error: 'invalid-token', message: 'ID token failed verification.' });
+    }
+    const uid = decoded.uid;
+
+    // 2. Body validation.
+    const { orderId, productId, token } = req.body || {};
+    if (!orderId || !productId || !token) {
+      return res.status(400).json({ error: 'missing-fields', message: 'orderId, productId, token are all required.' });
+    }
+
+    // 3. Order lookup + ownership check.
+    let order;
+    try {
+      const snap = await db.collection('orders').doc(orderId).get();
+      if (!snap.exists) return res.status(404).json({ error: 'order-not-found' });
+      order = snap.data();
+    } catch (e) {
+      console.error('[downloadFile] order lookup failed:', e.message);
+      return res.status(500).json({ error: 'lookup-failed' });
+    }
+
+    if (order.buyerId !== uid) {
+      return res.status(403).json({ error: 'not-your-order' });
+    }
+    if (order.status !== 'approved') {
+      return res.status(403).json({ error: 'order-not-approved', status: order.status });
+    }
+
+    // 4. Token check (constant-time).
+    const crypto = require('crypto');
+    const okToken = (() => {
+      const a = Buffer.from(String(order.downloadToken || ''), 'utf8');
+      const b = Buffer.from(String(token), 'utf8');
+      if (a.length !== b.length) return false;
+      try { return crypto.timingSafeEqual(a, b); } catch { return false; }
+    })();
+    if (!okToken) return res.status(403).json({ error: 'bad-token' });
+
+    // 5. Expiry check (now the AUTHORITATIVE gate — replaces the cosmetic
+    //    downloadExpired flag that the public URL ignored entirely).
+    const now = Date.now();
+    if (order.downloadExpired === true) return res.status(410).json({ error: 'expired', message: 'Download window closed.' });
+    if (order.downloadExpiresAt && order.downloadExpiresAt < now) {
+      // Mark expired so the daily cleaner doesn't have to.
+      await db.collection('orders').doc(orderId).update({ downloadExpired: true }).catch(() => {});
+      return res.status(410).json({ error: 'expired', message: 'Download window closed.' });
+    }
+
+    // 6. Product must be in this order.
+    const item = (order.items || []).find(i => i.id === productId);
+    if (!item) return res.status(403).json({ error: 'product-not-in-order' });
+
+    // 7. Resolve storage path. New uploads write `storagePath`; for legacy
+    //    products without it, fall back to parsing the public URL.
+    let storagePath;
+    try {
+      const prodSnap = await db.collection('products').doc(productId).get();
+      const prod     = prodSnap.data() || {};
+      if (prod.storagePath) {
+        storagePath = prod.storagePath;
+      } else if (prod.downloadUrl) {
+        // Parse `o/products%2F{uid}%2F{file}` out of the public URL.
+        const m = String(prod.downloadUrl).match(/\/o\/([^?]+)/);
+        if (m) storagePath = decodeURIComponent(m[1]);
+      }
+    } catch (e) {
+      console.error('[downloadFile] product lookup failed:', e.message);
+      return res.status(500).json({ error: 'product-lookup-failed' });
+    }
+    if (!storagePath || !storagePath.startsWith('products/')) {
+      return res.status(404).json({ error: 'file-not-available' });
+    }
+
+    // 8. Issue a short-lived V4 signed URL (5 min) and redirect.
+    //    This is the real access; the public downloadUrl on the product
+    //    can be removed once all clients migrate.
+    try {
+      const bucket = getStorage().bucket('digitalmarket-38db5.firebasestorage.app');
+      const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
+        version:  'v4',
+        action:   'read',
+        expires:  Date.now() + 5 * 60 * 1000,    // 5 min — long enough to start
+                                                   // the download + handle ranged
+                                                   // resumes; short enough that
+                                                   // a leaked URL is useless.
+        responseDisposition: `attachment; filename="${(item.name || 'file').replace(/[^\w.\- ]/g, '_')}"`
+      });
+      // Audit log.
+      db.collection('downloadLog').add({
+        orderId,
+        productId,
+        buyerId: uid,
+        at: FieldValue.serverTimestamp(),
+        ip: req.ip || req.headers['x-forwarded-for'] || ''
+      }).catch(() => {});
+      return res.redirect(302, signedUrl);
+    } catch (e) {
+      console.error('[downloadFile] signed URL failed:', e.message);
+      return res.status(500).json({ error: 'sign-failed' });
+    }
   }
 );
