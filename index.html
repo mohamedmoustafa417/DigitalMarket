@@ -1572,6 +1572,143 @@
         to   { opacity: 1; transform: translateY(0); }
       }
     }
+
+    /* ───────────────────────────────────────────────────────────────
+       PRODUCT CARD v2 — visual upgrade
+       Done purely in CSS so the existing JS template at line 4289
+       doesn't need refactoring.
+       ─────────────────────────────────────────────────────────── */
+    .product-card {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    /* Price tag is the eye anchor — bigger, brand-tinted, monotone weight */
+    .product-card .product-price {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--primary-light, #818cf8);
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+    .product-card .product-title {
+      font-weight: 700;
+      font-size: 0.94rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 2.5em;
+    }
+    .product-card .product-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.45;
+      min-height: 2.3em;
+    }
+    /* Subtle gradient overlay at top of card image to make badges
+       readable against any background. */
+    .product-card .product-img::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 56px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.45), transparent);
+      z-index: 1;
+      pointer-events: none;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    /* Badge stacking — top-left column. featured > fomo > countdown */
+    .product-card .featured-badge,
+    .product-card .fomo-badge,
+    .product-card .card-countdown {
+      position: absolute;
+      left: 0.6rem;
+      z-index: 2;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.25rem 0.55rem;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .product-card .featured-badge   { top: 0.6rem;  background: rgba(245,158,11,0.92); color: #1a0f00; }
+    .product-card .fomo-badge       { top: 2.2rem; background: rgba(239,68,68,0.92);  color: #fff; }
+    .product-card .card-countdown   { top: 3.8rem; background: rgba(99,102,241,0.92); color: #fff; padding: 0.25rem 0.5rem; }
+    body[dir="rtl"] .product-card .featured-badge,
+    body[dir="rtl"] .product-card .fomo-badge,
+    body[dir="rtl"] .product-card .card-countdown {
+      left: auto; right: 0.6rem;
+    }
+    /* Wishlist heart — top-right, mirrored in RTL via inline-end */
+    .product-card > button[aria-label="Wishlist"] {
+      inset-inline-end: 0.5rem;
+      inset-inline-start: auto;
+      right: auto !important; /* override the inline style */
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+    .product-card > button[aria-label="Wishlist"]:hover {
+      transform: scale(1.1);
+      background: rgba(0,0,0,0.55) !important;
+    }
+    body[dir="rtl"] .product-card > button[aria-label="Wishlist"] {
+      left: 0.5rem;
+      right: auto !important;
+    }
+    /* Rating pill — bottom-right of card */
+    .product-card .rating-pill {
+      position: absolute;
+      bottom: 0.55rem;
+      right: 0.6rem;
+      font-size: 0.7rem;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      color: #fff;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-weight: 600;
+    }
+    body[dir="rtl"] .product-card .rating-pill {
+      right: auto; left: 0.6rem;
+    }
+    /* Bundle/COM/PWYW micro-badges next to title */
+    .product-card .bundle-badge {
+      display: inline-block;
+      font-size: 0.55rem;
+      font-weight: 800;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      margin-inline-start: 0.35rem;
+      vertical-align: middle;
+      background: var(--info, #3b82f6);
+      color: #fff;
+      letter-spacing: 0.05em;
+    }
+    /* Image placeholder when no image — mesh-gradient backdrop */
+    .product-card .product-img {
+      background:
+        radial-gradient(at 20% 20%, rgba(99,102,241,0.18), transparent 60%),
+        radial-gradient(at 80% 80%, rgba(168,85,247,0.18), transparent 60%),
+        var(--bg2, #1e293b);
+    }
+    /* Category badge in footer — outlined, less visually heavy than solid */
+    .product-card .product-footer .badge {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.55rem;
+    }
   </style>
 </head>
 <body>
