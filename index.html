@@ -1491,6 +1491,8 @@
 
     <div class="search-bar" role="search">
       <input type="search" id="search-input" placeholder="Search products…" aria-label="Search products"
+        role="combobox" aria-controls="autocomplete-dropdown" aria-autocomplete="list"
+        aria-expanded="false" aria-haspopup="listbox"
         autocomplete="off" oninput="showAutocomplete(this.value)" onkeydown="handleAutocompleteKey(event)"
         onfocus="showAutocomplete(this.value)" onblur="setTimeout(hideAutocomplete,200)">
       <button onclick="doSearch()" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
@@ -1543,7 +1545,7 @@
 
       <!-- User menu (logged in) -->
       <div id="header-auth-user" class="user-menu hidden">
-        <div class="user-avatar" id="user-avatar" onclick="toggleUserMenu()" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">U</div>
+        <div class="user-avatar" id="user-avatar" onclick="toggleUserMenu()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleUserMenu();}" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">U</div>
         <div class="dropdown-menu" id="user-dropdown" role="menu">
           <div class="dropdown-item" id="user-name-display"><i class="fa-solid fa-user" aria-hidden="true"></i> <span>User</span></div>
           <hr class="dropdown-divider">
@@ -3315,14 +3317,45 @@ const showToast = toast;
 // ═══════════════════════════════════════════════════════════════════
 // ALERT HELPER
 // ═══════════════════════════════════════════════════════════════════
-function showAlert(id, type, msg) {
+function showAlert(id, type, msg, opts) {
   const el = document.getElementById(id);
   if (!el) return;
   el.className = `alert alert-${type}`;
   el.textContent = msg;
   el.style.display = 'block';
+  // A11y: announce to screen readers. role=alert for danger/warning,
+  // role=status for info/success (less interruptive).
+  el.setAttribute('role', (type === 'danger' || type === 'warning' || type === 'error') ? 'alert' : 'status');
+  el.setAttribute('aria-live', type === 'danger' ? 'assertive' : 'polite');
+  // A11y: tie alert to one or more inputs so screen readers, when the
+  // user tabs back to the input, hear the field-level error. Pass
+  // { describes: ['email-input','password-input'] } from the caller.
+  if (opts && Array.isArray(opts.describes)) {
+    opts.describes.forEach(inputId => {
+      const inp = document.getElementById(inputId);
+      if (!inp) return;
+      if (type === 'danger' || type === 'error') {
+        inp.setAttribute('aria-invalid', 'true');
+        const prev = inp.getAttribute('aria-describedby') || '';
+        if (!prev.split(/\s+/).includes(id)) {
+          inp.setAttribute('aria-describedby', (prev + ' ' + id).trim());
+        }
+      } else {
+        inp.removeAttribute('aria-invalid');
+      }
+    });
+  }
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  setTimeout(() => { if (el) el.style.display = 'none'; }, 6000);
+  setTimeout(() => {
+    if (!el) return;
+    el.style.display = 'none';
+    if (opts && Array.isArray(opts.describes)) {
+      opts.describes.forEach(inputId => {
+        const inp = document.getElementById(inputId);
+        if (inp) inp.removeAttribute('aria-invalid');
+      });
+    }
+  }, 6000);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -6548,7 +6581,18 @@ function trackEvent(name, params = {}) {
 // ═══════════════════════════════════════════════════════════════════
 // SEARCH AUTOCOMPLETE
 // ═══════════════════════════════════════════════════════════════════
+// A11y: full ARIA 1.2 combobox pattern. Search input is role="combobox"
+// with aria-controls→dropdown, aria-expanded toggled on show/hide, and
+// aria-activedescendant updated to point at the highlighted option so
+// screen readers announce the selection without focus actually moving.
 let _acSelected = -1;
+function _acSetExpanded(open, activeId) {
+  const inp = document.getElementById('search-input');
+  if (!inp) return;
+  inp.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (activeId) inp.setAttribute('aria-activedescendant', activeId);
+  else          inp.removeAttribute('aria-activedescendant');
+}
 function showAutocomplete(query) {
   const dd = document.getElementById('autocomplete-dropdown');
   if (!dd) return;
@@ -6560,33 +6604,49 @@ function showAutocomplete(query) {
   if (!matches.length) { hideAutocomplete(); return; }
   _acSelected = -1;
   dd.innerHTML = matches.map((p, i) => `
-    <div class="autocomplete-item" role="option" id="ac-item-${i}" onclick="selectAutocomplete('${p.id}')">
+    <div class="autocomplete-item" role="option" id="ac-item-${i}" aria-selected="false" onclick="selectAutocomplete('${p.id}')">
       ${p.imageUrl ? `<img class="autocomplete-item img" src="${sanitize(p.imageUrl)}" alt="" loading="lazy">` : `<span style="font-size:1.2rem;">${p.emoji||'📦'}</span>`}
       <div class="autocomplete-item-info">
         <div>${sanitize(p.name)}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);">EGP ${Number(p.price||0).toLocaleString()} · ${sanitize(p.category||'')}</div>
+        <div style="font-size:0.72rem;color:var(--text-muted);">${formatPrice(p.price || 0)} · ${sanitize(p.category||'')}</div>
       </div>
     </div>`).join('');
   dd.classList.add('open');
+  _acSetExpanded(true);
 }
 function hideAutocomplete() {
   const dd = document.getElementById('autocomplete-dropdown');
   if (dd) dd.classList.remove('open');
   _acSelected = -1;
+  _acSetExpanded(false);
 }
 function handleAutocompleteKey(e) {
   const dd = document.getElementById('autocomplete-dropdown');
   if (!dd || !dd.classList.contains('open')) return;
   const items = dd.querySelectorAll('.autocomplete-item');
   if (!items.length) return;
+  const applySelection = () => {
+    items.forEach((it, i) => {
+      const active = i === _acSelected;
+      it.classList.toggle('active', active);
+      it.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    _acSetExpanded(true, _acSelected >= 0 ? `ac-item-${_acSelected}` : null);
+  };
   if (e.key === 'ArrowDown') {
     e.preventDefault();
     _acSelected = Math.min(_acSelected + 1, items.length - 1);
-    items.forEach((it, i) => it.classList.toggle('active', i === _acSelected));
+    applySelection();
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
     _acSelected = Math.max(_acSelected - 1, -1);
-    items.forEach((it, i) => it.classList.toggle('active', i === _acSelected));
+    applySelection();
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    _acSelected = 0; applySelection();
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    _acSelected = items.length - 1; applySelection();
   } else if (e.key === 'Enter' && _acSelected >= 0) {
     e.preventDefault();
     items[_acSelected].click();
@@ -8648,12 +8708,30 @@ function toggleCurrency() {
   showToast(`Showing prices in ${code}`, 'info', 2000);
 }
 
+// ─── CANONICAL price formatter ───────────────────────────────────────
+// Every price displayed anywhere in the SPA (cart, checkout, invoice,
+// email, order list, product card, search dropdown) MUST go through
+// formatPrice() so that what the buyer sees at every step is identical.
+//
+// Format rules:
+//   - EGP integer values: "EGP 99"        (whole pounds, no decimals)
+//   - EGP fractional:     "EGP 99.50"     (cents shown only when needed)
+//   - Non-EGP:            "$5.78"         (always 2 decimals)
+// Uses Intl.NumberFormat with min=0 / max=2 so trailing-zero waste is
+// avoided AND a 99.5 value never displays as just "99".
 function formatPrice(egpAmount) {
   const code  = CURRENCIES[_currencyIdx];
   const rate  = CURRENCY_RATES[code] || 1;
   const sym   = CURRENCY_SYMS[code]  || code;
-  const val   = (Number(egpAmount || 0) * rate).toFixed(code === 'EGP' ? 0 : 2);
-  return `${sym} ${Number(val).toLocaleString()}`;
+  const val   = Number(egpAmount || 0) * rate;
+  // Round to 2 decimals first to absorb float-accumulation drift
+  // (e.g. 0.1 + 0.2 = 0.30000000000004 → 0.30).
+  const rounded = Math.round(val * 100) / 100;
+  const fmt = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: code === 'EGP' ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+  return `${sym} ${fmt.format(rounded)}`;
 }
 
 // Init from localStorage
@@ -9154,9 +9232,19 @@ function _renderInvoice(orderId, o) {
   // exfiltrates the buyer's session when they print the invoice.
   const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-EG') : new Date().toLocaleDateString();
   const safeOrderId = sanitize(String(orderId || '').slice(0,8).toUpperCase());
+  // CONSISTENCY: route every price through formatPrice() — same helper
+  // the cart/checkout uses, so the buyer sees identical formatting from
+  // browse → cart → checkout → invoice → email. Previously the invoice
+  // used `Number(x).toLocaleString()` which dropped trailing zeros
+  // (99.50 → "99.5") and varied by Arabic vs English locale.
+  const fmt = (n) => {
+    const r = Math.round(Number(n || 0) * 100) / 100;
+    const f = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return f.format(r);
+  };
   const items = (o.items || []).map(i =>
     `<tr><td style="padding:0.5rem;border-bottom:1px solid #eee;">${sanitize(i.name || '')}</td>
-         <td style="padding:0.5rem;border-bottom:1px solid #eee;text-align:right;">EGP ${Number(i.price||0).toLocaleString()}</td></tr>`
+         <td style="padding:0.5rem;border-bottom:1px solid #eee;text-align:right;">EGP ${fmt(i.price)}</td></tr>`
   ).join('');
   const status = sanitize(o.status || 'pending');
   const statusColor = o.status === 'approved' ? '#10b981' : o.status === 'pending' ? '#f59e0b' : '#ef4444';
@@ -9184,8 +9272,9 @@ function _renderInvoice(orderId, o) {
          ${refNum ? `<br><strong>Ref:</strong> ${refNum}` : ''}</div>
   </div>
   <table><thead><tr><th>Item</th><th style="text-align:right;">Price</th></tr></thead><tbody>${items}
-  ${o.discount ? `<tr><td style="padding:0.5rem;color:#10b981;">Discount Applied</td><td style="padding:0.5rem;text-align:right;color:#10b981;">-EGP ${Number(o.discount).toLocaleString()}</td></tr>` : ''}
-  </tbody><tfoot><tr class="total"><td>Total</td><td style="text-align:right;">EGP ${Number(o.total||0).toLocaleString()}</td></tr></tfoot></table>
+  ${o.discount ? `<tr><td style="padding:0.5rem;color:#10b981;">Discount Applied</td><td style="padding:0.5rem;text-align:right;color:#10b981;">−EGP ${fmt(o.discount)}</td></tr>` : ''}
+  ${o.pointsRedeemed ? `<tr><td style="padding:0.5rem;color:#6366f1;">Loyalty Points Used</td><td style="padding:0.5rem;text-align:right;color:#6366f1;">${fmt(o.pointsRedeemed)} pts</td></tr>` : ''}
+  </tbody><tfoot><tr class="total"><td>Total Paid</td><td style="text-align:right;">EGP ${fmt(o.total)}</td></tr></tfoot></table>
   <div class="footer"><p>Thank you for shopping with DigitalMarket!</p>
   <p>support@digitalmarketstore.shop · digitalmarketstore.shop</p>
   <p>This is a computer-generated invoice.</p></div>
@@ -10431,10 +10520,16 @@ function setCurrency(code) {
 }
 
 function formatPriceMulti(egpAmount) {
+  // Mirror formatPrice() rules: EGP shows decimals only when needed,
+  // other currencies always show 2. Eliminates the "EGP 99.5" / "EGP 99"
+  // inconsistency between the cart and invoice that buyers saw before.
   const c = DM_CURRENCIES[getCurrentCurrency()];
-  if (!c || c.rate === 1) return `EGP ${Number(egpAmount||0).toLocaleString()}`;
-  const converted = Number(egpAmount||0) * c.rate;
-  return `${c.symbol} ${converted.toFixed(2)}`;
+  const rounded = Math.round(Number(egpAmount || 0) * 100) / 100;
+  if (!c || c.rate === 1) {
+    return `EGP ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(rounded)}`;
+  }
+  const converted = Math.round(rounded * c.rate * 100) / 100;
+  return `${c.symbol} ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(converted)}`;
 }
 
 // Patch formatPrice to use currency

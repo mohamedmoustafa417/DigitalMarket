@@ -30,7 +30,7 @@
 'use strict';
 
 const { onDocumentWritten, onDocumentDeleted } = require('firebase-functions/v2/firestore');
-const { onObjectDeleted }        = require('firebase-functions/v2/storage');
+const { onObjectDeleted, onObjectFinalized } = require('firebase-functions/v2/storage');
 const { onSchedule }             = require('firebase-functions/v2/scheduler');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret }           = require('firebase-functions/params');
@@ -384,7 +384,33 @@ exports.onProductFileDelete = onObjectDeleted(
   { bucket: 'digitalmarket-38db5.firebasestorage.app', region: 'us-east1' },
   async event => {
     const filePath = event.data?.name;
+    const size     = Number(event.data?.size || 0);
     if (!filePath || !filePath.startsWith('products/')) return;
+
+    // Mirror of onProductFileFinalized: decrement the seller's quota counter
+    // when a product file is removed, and re-enable uploads if they go back
+    // below the cap.
+    const m = filePath.match(/^products\/([^\/]+)\//);
+    if (m && size > 0) {
+      const sellerId = m[1];
+      try {
+        const userRef = db.collection('users').doc(sellerId);
+        await db.runTransaction(async tx => {
+          const snap = await tx.get(userRef);
+          const prev = Number(snap.data()?.uploadBytesUsed || 0);
+          const next = Math.max(0, prev - size);
+          const update = { uploadBytesUsed: next };
+          if (next < SELLER_UPLOAD_CAP_BYTES
+              && snap.data()?.uploadDisabledReason === 'quota_exceeded') {
+            update.uploadDisabled = false;
+            update.uploadDisabledReason = FieldValue.delete();
+          }
+          tx.update(userRef, update);
+        });
+      } catch (e) {
+        console.warn(`[onProductFileDelete] tally decrement failed for ${sellerId}:`, e.message);
+      }
+    }
 
     // PERFORMANCE: prefer an indexed lookup by `storagePath`. New uploads
     // should write this field; for legacy products without it we fall back
@@ -425,6 +451,107 @@ exports.onProductFileDelete = onObjectDeleted(
       if (cleared > 0) await batch.commit();
     }
     console.log(`[onProductFileDelete] Cleared downloadUrl on ${cleared} product(s) for ${filePath}.`);
+  }
+);
+
+// ─── 3a. onProductFileFinalized — tally seller bytes + MIME magic check ────
+//
+// Every successful upload triggers this. We:
+//   (1) Tally the seller's running storage usage. If they pass the cap,
+//       set `uploadDisabled: true` on their /users doc; the client UI uses
+//       this to short-circuit further upload attempts. Hard cap: 10 GiB
+//       per seller.
+//   (2) Sniff the first 16 bytes of the file and verify the magic number
+//       matches the claimed contentType. Catches `evil.exe` uploaded with
+//       contentType: 'image/jpeg' (which bypassed our storage.rules MIME
+//       allow-list since contentType is client-supplied).
+//   (3) Stamp the product doc with a generated thumbnail/preview path if
+//       relevant later; for now just an upload audit.
+
+const SELLER_UPLOAD_CAP_BYTES = 10 * 1024 * 1024 * 1024; // 10 GiB / seller
+
+// First-bytes magic numbers for the common contentTypes the storage rule
+// allows. If the claimed type maps to a list of prefixes, ANY match passes.
+const MAGIC = {
+  'image/jpeg':       [[0xFF, 0xD8, 0xFF]],
+  'image/jpg':        [[0xFF, 0xD8, 0xFF]],
+  'image/png':        [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+  'image/gif':        [[0x47, 0x49, 0x46, 0x38, 0x37, 0x61], [0x47, 0x49, 0x46, 0x38, 0x39, 0x61]],
+  'image/webp':       [[0x52, 0x49, 0x46, 0x46]], // RIFF + WEBP later in header
+  'application/pdf':  [[0x25, 0x50, 0x44, 0x46]],
+  'application/zip':  [[0x50, 0x4B, 0x03, 0x04], [0x50, 0x4B, 0x05, 0x06], [0x50, 0x4B, 0x07, 0x08]],
+  'video/mp4':        [[0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]],
+  'audio/mpeg':       [[0x49, 0x44, 0x33], [0xFF, 0xFB], [0xFF, 0xF3]]
+};
+
+function matchesMagic(declared, headBytes) {
+  // Normalize: text/*, font/* are usually fine without magic check.
+  if (!declared) return true;
+  if (declared.startsWith('text/')) return true;
+  if (declared.startsWith('font/')) return true;
+  // Some Office docs report application/octet-stream or vendor types — skip.
+  if (declared === 'application/octet-stream') return true;
+  const expected = MAGIC[declared];
+  if (!expected) return true; // unknown declared type — don't false-positive
+  return expected.some(prefix =>
+    prefix.every((byte, i) => headBytes[i] === byte)
+  );
+}
+
+exports.onProductFileFinalized = onObjectFinalized(
+  { bucket: 'digitalmarket-38db5.firebasestorage.app', region: 'us-east1' },
+  async event => {
+    const path  = event.data?.name;
+    const size  = Number(event.data?.size || 0);
+    const ctype = event.data?.contentType || '';
+    if (!path) return;
+
+    // Only meter /products/{uid}/* and /kyc/{uid}/* (where rules say sellers
+    // can upload). Skip /proofs (small images, capped, not seller storage).
+    const m = path.match(/^(products|kyc)\/([^\/]+)\//);
+    if (!m) return;
+    const sellerId = m[2];
+
+    // MIME magic check (skip if file too small to bother).
+    if (size > 16) {
+      try {
+        const bucket = getStorage().bucket(event.data.bucket);
+        const [headBuf] = await bucket.file(path).download({ start: 0, end: 15 });
+        if (!matchesMagic(ctype, headBuf)) {
+          console.warn(`[onProductFileFinalized] MIME mismatch: declared=${ctype} for ${path} — deleting`);
+          await bucket.file(path).delete().catch(() => {});
+          await db.collection('uploadViolations').add({
+            sellerId,
+            path,
+            declaredType: ctype,
+            firstBytes: Array.from(headBuf.slice(0, 8)).map(b => b.toString(16).padStart(2,'0')).join(''),
+            createdAt: FieldValue.serverTimestamp()
+          }).catch(() => {});
+          return;
+        }
+      } catch (e) {
+        console.warn(`[onProductFileFinalized] magic-check failed for ${path}:`, e.message);
+      }
+    }
+
+    // Tally seller bytes and gate further uploads at the cap.
+    try {
+      const userRef = db.collection('users').doc(sellerId);
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(userRef);
+        const prev = Number(snap.data()?.uploadBytesUsed || 0);
+        const next = prev + size;
+        const update = { uploadBytesUsed: next };
+        if (next >= SELLER_UPLOAD_CAP_BYTES && !snap.data()?.uploadDisabled) {
+          update.uploadDisabled = true;
+          update.uploadDisabledReason = 'quota_exceeded';
+          update.uploadDisabledAt = FieldValue.serverTimestamp();
+        }
+        tx.update(userRef, update);
+      });
+    } catch (e) {
+      console.warn(`[onProductFileFinalized] tally failed for ${sellerId}:`, e.message);
+    }
   }
 );
 
