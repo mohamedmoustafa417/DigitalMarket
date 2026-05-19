@@ -2697,6 +2697,14 @@
            onkeydown="if(event.key==='Enter')adminTab('carts')">
         <i class="fa-solid fa-cart-arrow-down" aria-hidden="true"></i> <span>Abandoned Carts</span>
       </div>
+      <div class="sidebar-link" id="al-stats" onclick="adminTab('stats')" role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter')adminTab('stats')">
+        <i class="fa-solid fa-chart-line" aria-hidden="true"></i> <span>Stats</span>
+      </div>
+      <div class="sidebar-link" id="al-emails" onclick="adminTab('emails')" role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter')adminTab('emails')">
+        <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i> <span>Email Failures</span>
+      </div>
     </aside>
     <div>
       <div class="stats-row">
@@ -3003,6 +3011,116 @@
           </button>
           <button class="btn btn-outline btn-sm" onclick="loadAbandonedCarts(true)" id="ac-show-notified-btn">
             Show already-nudged
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats tab -->
+      <div id="admin-tab-stats" class="hidden">
+        <h3 style="margin-bottom:1.2rem;">
+          <i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:0.5rem;" aria-hidden="true"></i>
+          Marketplace Stats
+        </h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
+          Live snapshot of the last 30 days. Updates every time you open this tab.
+        </p>
+        <div class="stats-row" style="margin-bottom:1.5rem;">
+          <div class="stat-card">
+            <div class="stat-number" id="dm-stat-orders30">—</div>
+            <div class="stat-label">Orders (30 d)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="dm-stat-revenue30">—</div>
+            <div class="stat-label">Revenue (30 d)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="dm-stat-avgorder">—</div>
+            <div class="stat-label">Avg. order value</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="dm-stat-conv">—</div>
+            <div class="stat-label">Approved / submitted</div>
+          </div>
+        </div>
+
+        <div class="chart-wrap" style="margin-bottom:1.5rem;">
+          <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.5rem;">
+            <i class="fa-solid fa-chart-column" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>
+            Daily Orders — last 30 days
+          </h4>
+          <canvas id="dm-daily-orders-chart" height="100"></canvas>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:1rem;">
+          <div class="auth-card">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">
+              <i class="fa-solid fa-crown" style="color:var(--warning);margin-right:0.4rem;" aria-hidden="true"></i>
+              Top Sellers (30 d)
+            </h4>
+            <ol id="dm-top-sellers" style="list-style:none;padding:0;margin:0;font-size:0.85rem;line-height:1.9;">
+              <li style="color:var(--text-muted);">Loading…</li>
+            </ol>
+          </div>
+          <div class="auth-card">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">
+              <i class="fa-solid fa-fire" style="color:var(--danger);margin-right:0.4rem;" aria-hidden="true"></i>
+              Top Products (30 d)
+            </h4>
+            <ol id="dm-top-products" style="list-style:none;padding:0;margin:0;font-size:0.85rem;line-height:1.9;">
+              <li style="color:var(--text-muted);">Loading…</li>
+            </ol>
+          </div>
+          <div class="auth-card">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">
+              <i class="fa-solid fa-chart-pie" style="color:var(--info);margin-right:0.4rem;" aria-hidden="true"></i>
+              Order Status Mix
+            </h4>
+            <div id="dm-status-mix" style="font-size:0.85rem;line-height:1.9;">
+              <div style="color:var(--text-muted);">Loading…</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:1rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadAdminStats(true)">
+            <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh stats
+          </button>
+        </div>
+      </div>
+
+      <!-- Email Failures tab -->
+      <div id="admin-tab-emails" class="hidden">
+        <h3 style="margin-bottom:1.2rem;">
+          <i class="fa-solid fa-envelope-open-text" style="color:var(--primary);margin-right:0.5rem;" aria-hidden="true"></i>
+          Email Delivery Failures
+        </h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
+          Sends that failed at the Resend layer (4xx/5xx) are queued here. Investigate the reason and either retry from this dashboard or contact the recipient another way.
+        </p>
+        <div class="stats-row" style="margin-bottom:1.25rem;">
+          <div class="stat-card"><div class="stat-number" id="ef-stat-total">0</div><div class="stat-label">Total failures</div></div>
+          <div class="stat-card"><div class="stat-number" id="ef-stat-24h">0</div><div class="stat-label">Last 24 hours</div></div>
+          <div class="stat-card"><div class="stat-number" id="ef-stat-bounces">0</div><div class="stat-label">Hard bounces</div></div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Type</th>
+                <th>Order / Campaign</th>
+                <th>Recipient (hashed)</th>
+                <th>Reason</th>
+                <th style="text-align:end;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="email-failures-tbody">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;">Click "Refresh" to load.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+          <button class="btn btn-primary btn-sm" onclick="loadEmailFailures()">
+            <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh
           </button>
         </div>
       </div>
@@ -3406,11 +3524,14 @@ function sendOrderEmail(eventType, params) {
   const downloadLink = params.download_link || (siteUrl + '/#orders');
 
   const subjects = {
-    order_submitted:   `DigitalMarket – Order Received #${params.order_id}`,
-    order_approved:    `✅ Your order is approved – Download ready! | DigitalMarket`,
-    order_rejected:    `Order Update – DigitalMarket`,
-    admin_new_order:   `[Admin] New Order EGP ${params.total} – ${params.items}`,
-    seller_new_order:  `[Seller] New Order EGP ${params.total} – ${params.items}`
+    order_submitted:    `DigitalMarket – Order Received #${params.order_id}`,
+    order_approved:     `✅ Your order is approved – Download ready! | DigitalMarket`,
+    order_rejected:     `Order Update – DigitalMarket`,
+    admin_new_order:    `[Admin] New Order EGP ${params.total} – ${params.items}`,
+    seller_new_order:   `[Seller] New Order EGP ${params.total} – ${params.items}`,
+    product_approved:   `✅ Your product "${params.items}" is live on DigitalMarket`,
+    product_rejected:   `Product Update – Please review "${params.items}"`,
+    abandoned_cart:     `🛒 You left items in your cart at DigitalMarket`
   };
 
   // Template variables that match the EmailJS template fields exactly:
@@ -4742,7 +4863,7 @@ function openProductDetail(id) {
     ${p.descriptionAr ? `<div style="margin-bottom:1rem;color:var(--text-muted);font-size:0.9rem;direction:rtl;text-align:right;font-family:var(--font-ar);">${sanitize(p.descriptionAr)}</div>` : ''}
     <div class="flex gap-2" style="flex-wrap:wrap;margin-bottom:1rem;">
       <span class="badge badge-primary"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${sanitize(p.category || 'other')}</span>
-      <span class="badge badge-success" style="font-size:1rem;padding:0.3rem 0.75rem;"><strong>EGP ${Number(p.price||0).toLocaleString()}</strong></span>
+      <span class="badge badge-success" style="font-size:1rem;padding:0.3rem 0.75rem;"><strong>${formatPrice(p.price)}</strong></span>
     </div>
     ${p.sellerName ? `<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem;">
       <i class="fa-solid fa-shop" aria-hidden="true"></i>
@@ -4761,7 +4882,7 @@ function openProductDetail(id) {
     </div>` : ''}
     <!-- PWYW custom amount -->
     ${p.pwyw ? `<div class="pwyw-wrap" id="pwyw-wrap">
-      <label style="font-size:0.82rem;color:var(--text-muted);">Pay what you want (min EGP ${Number(p.price||0).toLocaleString()}):</label>
+      <label style="font-size:0.82rem;color:var(--text-muted);">Pay what you want (min ${formatPrice(p.price)}):</label>
       <input class="form-control" type="number" id="pwyw-amount" min="${p.price||0}" step="1" value="${p.price||0}" style="max-width:120px;" oninput="onPwywChange(this.value,'${p.price||0}')">
     </div>` : ''}
     <!-- Social share -->
@@ -5037,7 +5158,7 @@ function renderCart() {
       </div>
       <div class="cart-item-info">
         <div class="cart-item-title">${sanitize(p.name)}</div>
-        <div class="cart-item-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+        <div class="cart-item-price">${formatPrice(p.price)}</div>
       </div>
       <button class="btn btn-sm btn-danger" onclick="removeFromCart('${sanitize(p.id)}')" aria-label="Remove ${sanitize(p.name)} from cart">
         <i class="fa-solid fa-trash" aria-hidden="true"></i>
@@ -5768,7 +5889,7 @@ async function deleteProduct(id) {
 // ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function adminTab(tab) {
-  ['orders','products','users','settings','coupons','announcements','disputes','payouts','reports','collections','carts'].forEach(t => {
+  ['orders','products','users','settings','coupons','announcements','disputes','payouts','reports','collections','carts','stats','emails'].forEach(t => {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
@@ -5786,6 +5907,211 @@ function adminTab(tab) {
     if (tab === 'reports')       loadAdminReports();
     if (tab === 'collections')   loadAdminCollections();
     if (tab === 'carts')         loadAbandonedCarts();
+    if (tab === 'stats')         loadAdminStats();
+    if (tab === 'emails')        loadEmailFailures();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN STATS — 30-day snapshot
+// ═══════════════════════════════════════════════════════════════════
+let _dmStatsChart = null;
+let _dmStatsCache = null;
+async function loadAdminStats(forceRefresh) {
+  if (_dmStatsCache && !forceRefresh) {
+    _renderAdminStats(_dmStatsCache);
+    return;
+  }
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // ONE query for the period — index `createdAt desc` already exists.
+    const snap = await db.collection('orders')
+      .where('createdAt', '>=', cutoff)
+      .orderBy('createdAt', 'desc')
+      .limit(3000)
+      .get();
+    const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Daily buckets
+    const daily = {};
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(Date.now() - i * 86400000);
+      const k = d.toISOString().slice(0, 10);
+      daily[k] = 0;
+    }
+    let totalRevenue = 0;
+    let totalApproved = 0;
+    let totalSubmitted = 0;
+    const sellerTotals  = {};
+    const productCounts = {};
+    const statusMix     = {};
+    for (const o of orders) {
+      const ts = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+      if (!ts) continue;
+      const key = ts.toISOString().slice(0, 10);
+      if (key in daily) daily[key]++;
+      totalSubmitted++;
+      statusMix[o.status || 'pending'] = (statusMix[o.status || 'pending'] || 0) + 1;
+      if (o.status === 'approved') {
+        totalApproved++;
+        totalRevenue += Number(o.total || 0);
+        (o.sellerIds || []).forEach(sid => {
+          sellerTotals[sid] = (sellerTotals[sid] || 0) + Number(o.total || 0) / Math.max(1, (o.sellerIds || []).length);
+        });
+        (o.items || []).forEach(it => {
+          productCounts[it.id] = productCounts[it.id] || { count: 0, name: it.name || '(unnamed)' };
+          productCounts[it.id].count++;
+        });
+      }
+    }
+    _dmStatsCache = { daily, totalRevenue, totalApproved, totalSubmitted, sellerTotals, productCounts, statusMix };
+    _renderAdminStats(_dmStatsCache);
+  } catch (e) {
+    console.error('loadAdminStats:', e);
+    toast('Stats failed: ' + (e.message || 'unknown'), 'danger');
+  }
+}
+
+async function _renderAdminStats(s) {
+  document.getElementById('dm-stat-orders30').textContent  = s.totalSubmitted;
+  document.getElementById('dm-stat-revenue30').textContent = formatPrice(s.totalRevenue);
+  document.getElementById('dm-stat-avgorder').textContent  =
+    s.totalApproved ? formatPrice(s.totalRevenue / s.totalApproved) : '—';
+  document.getElementById('dm-stat-conv').textContent      =
+    s.totalSubmitted ? Math.round((s.totalApproved / s.totalSubmitted) * 100) + '%' : '—';
+
+  // Chart — sorted oldest → newest left to right
+  const labels = Object.keys(s.daily).sort();
+  const data   = labels.map(k => s.daily[k]);
+  const ctx = document.getElementById('dm-daily-orders-chart');
+  if (ctx && typeof Chart !== 'undefined') {
+    if (_dmStatsChart) _dmStatsChart.destroy();
+    _dmStatsChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels.map(k => k.slice(5)), // MM-DD
+        datasets: [{
+          label: 'Orders',
+          data,
+          backgroundColor: 'rgba(99,102,241,0.55)',
+          borderColor: 'rgba(99,102,241,1)',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: 'rgba(255,255,255,0.6)', maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.6)', precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        },
+        maintainAspectRatio: false
+      }
+    });
+  }
+
+  // Top sellers — need name resolution
+  const topSellers = Object.entries(s.sellerTotals).sort((a,b) => b[1] - a[1]).slice(0, 5);
+  const sellerListEl = document.getElementById('dm-top-sellers');
+  sellerListEl.innerHTML = topSellers.length
+    ? (await Promise.all(topSellers.map(async ([uid, rev], i) => {
+        let name = uid.slice(0, 6);
+        try {
+          const u = await db.collection('publicProfiles').doc(uid).get();
+          if (u.exists) name = u.data().shopName || u.data().name || name;
+        } catch {}
+        return `<li><strong style="color:var(--primary-light);">#${i+1}</strong> ${sanitize(name)} — <span style="color:var(--success);font-weight:600;">${formatPrice(rev)}</span></li>`;
+      }))).join('')
+    : '<li style="color:var(--text-muted);">No approved orders in the last 30 days.</li>';
+
+  // Top products
+  const topProducts = Object.entries(s.productCounts).sort((a,b) => b[1].count - a[1].count).slice(0, 5);
+  document.getElementById('dm-top-products').innerHTML = topProducts.length
+    ? topProducts.map(([id, p], i) =>
+        `<li><strong style="color:var(--primary-light);">#${i+1}</strong> ${sanitize(p.name)} <span style="color:var(--text-muted);">— ${p.count} sold</span></li>`
+      ).join('')
+    : '<li style="color:var(--text-muted);">No sales yet.</li>';
+
+  // Status mix as a small bar chart
+  const total = Object.values(s.statusMix).reduce((a,b) => a+b, 0) || 1;
+  const COLORS = { approved: '#22c55e', pending: '#f59e0b', rejected: '#ef4444', refunded: '#a855f7' };
+  document.getElementById('dm-status-mix').innerHTML = Object.entries(s.statusMix)
+    .sort((a,b) => b[1] - a[1])
+    .map(([status, n]) => {
+      const pct = Math.round((n / total) * 100);
+      const col = COLORS[status] || '#6366f1';
+      return `<div style="margin-bottom:0.5rem;">
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem;margin-bottom:0.2rem;">
+          <span style="text-transform:capitalize;">${sanitize(status)}</span>
+          <span><strong>${n}</strong> <span style="color:var(--text-muted);">(${pct}%)</span></span>
+        </div>
+        <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${col};"></div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EMAIL FAILURES — admin queue from CF /emailFailures collection
+// ═══════════════════════════════════════════════════════════════════
+async function loadEmailFailures() {
+  const tbody = document.getElementById('email-failures-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…</td></tr>`;
+  try {
+    const snap = await db.collection('emailFailures').orderBy('createdAt', 'desc').limit(100).get();
+    const rows = [];
+    const now = Date.now();
+    let count24h = 0;
+    let countBounces = 0;
+    for (const d of snap.docs) {
+      const f = d.data();
+      const ts = f.createdAt?.toDate ? f.createdAt.toDate() : null;
+      const ago = ts ? Math.round((now - ts.getTime()) / 60000) : null;
+      const agoStr = ago == null ? '—'
+        : ago < 60 ? `${ago} min ago`
+        : ago < 1440 ? `${Math.floor(ago/60)} h ago`
+        : `${Math.floor(ago/1440)} d ago`;
+      if (ago != null && ago < 1440) count24h++;
+      const isBounce = /bounce|550|invalid|undeliverable|no such user/i.test(f.reason || '');
+      if (isBounce) countBounces++;
+      const orderId = f.orderId || f.campaignId || '—';
+      rows.push(`<tr>
+        <td style="font-size:0.78rem;color:var(--text-muted);">${agoStr}</td>
+        <td><span class="badge" style="background:var(--bg3);font-size:0.7rem;">${sanitize(f.type || 'unknown')}</span></td>
+        <td style="font-family:monospace;font-size:0.76rem;">${sanitize(String(orderId).slice(0, 14))}</td>
+        <td style="font-family:monospace;font-size:0.74rem;color:var(--text-muted);">${sanitize(f.toHash || '—')}</td>
+        <td style="font-size:0.78rem;max-width:280px;word-break:break-word;">${sanitize((f.reason || '—').slice(0, 200))}</td>
+        <td style="text-align:end;">
+          <button class="btn btn-outline btn-sm" onclick="dismissEmailFailure('${sanitize(d.id)}', this)" aria-label="Mark resolved">
+            Dismiss
+          </button>
+        </td>
+      </tr>`);
+    }
+    tbody.innerHTML = rows.length
+      ? rows.join('')
+      : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;">No email failures recorded. 🎉</td></tr>`;
+    document.getElementById('ef-stat-total').textContent   = snap.size;
+    document.getElementById('ef-stat-24h').textContent     = count24h;
+    document.getElementById('ef-stat-bounces').textContent = countBounces;
+  } catch (e) {
+    console.error('loadEmailFailures:', e);
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:2rem;">Failed: ${sanitize(e.message || 'unknown')}</td></tr>`;
+  }
+}
+
+async function dismissEmailFailure(id, btn) {
+  if (btn) dmBtnLoading(btn, true);
+  try {
+    await db.collection('emailFailures').doc(id).delete();
+    toast('Dismissed.', 'info');
+    await loadEmailFailures();
+  } catch (e) {
+    toast('Failed: ' + (e.message || 'unknown'), 'danger');
+  } finally {
+    if (btn) dmBtnLoading(btn, false);
   }
 }
 
@@ -6238,7 +6564,11 @@ async function updateProductStatus(productId, status) {
         const sellerSnap = await db.collection('users').doc(pdSnap.data().sellerId).get();
         if (sellerSnap.exists) {
           const sd = sellerSnap.data();
-          sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
+          // Distinct event names from order_approved/order_rejected so the
+          // CF_HANDLED dedup filter doesn't silence them. This notifies the
+          // SELLER about their PRODUCT listing status — different concern
+          // from order approval (which CF Resend handles).
+          sendOrderEmail(status === 'approved' ? 'product_approved' : 'product_rejected', {
             to_email:      sd.email,
             to_name:       sd.shopName || sd.name || 'Seller',
             order_id:      productId,
@@ -6297,10 +6627,10 @@ function showOrderReceipt(orderId, items, total) {
       ${items.map(p => `
         <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:0.25rem 0;border-bottom:1px solid var(--border);">
           <span>${sanitize(p.name)}</span>
-          <span>EGP ${Number(p.price||0).toLocaleString()}</span>
+          <span>${formatPrice(p.price)}</span>
         </div>`).join('')}
       <div style="display:flex;justify-content:space-between;font-weight:700;padding-top:0.5rem;font-size:0.9rem;">
-        <span>Total</span><span>EGP ${Number(total||0).toLocaleString()}</span>
+        <span>Total</span><span>${formatPrice(total)}</span>
       </div>
     </div>
     <div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius);padding:0.85rem 1rem;font-size:0.83rem;color:var(--text-muted);">
@@ -7630,7 +7960,7 @@ async function loadTrendingProducts() {
         <div class="trending-body">
           <div class="trending-name">${sanitize(p.name)}</div>
           <div class="trending-meta">${sanitize(p.category||'')} · ${p.viewCount||0} views</div>
-          <div class="trending-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+          <div class="trending-price">${formatPrice(p.price)}</div>
         </div>
       </div>`;
     }).join('');
@@ -8077,12 +8407,12 @@ function renderCheckoutLicense(product) {
     <div class="license-card selected" id="lic-personal" onclick="selectLicense('personal','${product.id}')">
       <h5>Personal License</h5>
       <p>For personal use only. No redistribution.</p>
-      <div class="license-price">EGP ${Number(product.price||0).toLocaleString()}</div>
+      <div class="license-price">${formatPrice(product.price)}</div>
     </div>
     <div class="license-card" id="lic-commercial" onclick="selectLicense('commercial','${product.id}')">
       <h5>Commercial License</h5>
       <p>Use in client projects, products for resale.</p>
-      <div class="license-price">EGP ${Number(product.commercialPrice||0).toLocaleString()}</div>
+      <div class="license-price">${formatPrice(product.commercialPrice||0)}</div>
     </div>`;
   _selectedLicense = 'personal';
   wrap.classList.remove('hidden');
