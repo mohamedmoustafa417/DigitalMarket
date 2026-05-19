@@ -71,8 +71,47 @@
           Sentry.init({
             dsn: 'https://e706b2f8f08782cedf4ad1400747ddd9@o4511384678694912.ingest.us.sentry.io/4511384696258560',
             tracesSampleRate: 0.2,
-            environment: location.hostname === 'localhost' ? 'development' : 'production'
+            environment: location.hostname === 'localhost' ? 'development' : 'production',
+            // Release tag = SW cache version, so we can correlate errors
+            // with the deploy that introduced them. Bump alongside CACHE_NAME.
+            release: 'digitalmarket@v30',
+            // PII scrubbing: Sentry captures breadcrumbs that include DOM
+            // values (form inputs) and URL query strings. Block known-PII
+            // before transmission.
+            beforeSend(event, hint) {
+              try {
+                // Drop common transient browser noise we can't fix
+                const msg = (hint?.originalException?.message || event?.message || '').toString();
+                if (/ResizeObserver loop|Non-Error promise rejection captured/i.test(msg)) return null;
+                // Scrub breadcrumbs: clear data on input/click for sensitive fields
+                if (event.breadcrumbs) {
+                  event.breadcrumbs = event.breadcrumbs.map(b => {
+                    if (b.category === 'ui.input' || b.category === 'ui.click') {
+                      const msg = b.message || '';
+                      if (/password|otp|kyc|cvv|card|bank|account|tin|nat-id|nat_id|phone|email|reg-email|login-email/i.test(msg)) {
+                        return { ...b, data: undefined, message: '[redacted-sensitive-field]' };
+                      }
+                    }
+                    return b;
+                  });
+                }
+                // Scrub URLs that carry tokens or order IDs
+                if (event.request?.url) {
+                  event.request.url = event.request.url.replace(/(token|key|signature)=[^&]+/gi, '$1=[redacted]');
+                }
+              } catch {}
+              return event;
+            },
+            initialScope: {
+              tags: { app: 'digitalmarket-spa' }
+            }
           });
+          // Tag the current user (UID only — never email/name).
+          if (window.firebase?.auth) {
+            firebase.auth().onAuthStateChanged(u => {
+              try { Sentry.setUser(u ? { id: u.uid } : null); } catch {}
+            });
+          }
         } catch(e) {}
       };
       document.head.appendChild(s);
