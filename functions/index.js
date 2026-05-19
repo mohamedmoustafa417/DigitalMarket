@@ -1111,100 +1111,112 @@ exports.downloadFile = onRequest(
     const item = (order.items || []).find(i => i.id === productId);
     if (!item) return res.status(403).json({ error: 'product-not-in-order' });
 
-    // 7. Resolve storage path. Try three sources in priority order:
-    //    a) product.storagePath (new uploads)
-    //    b) product.downloadUrl (legacy products)
-    //    c) order item's snapshot of downloadUrl (in case the product was
-    //       deleted/edited after the order was placed)
+    // 7. Resolve the download URL.
+    //
+    // The seller chooses where the file actually lives: Google Drive,
+    // Dropbox, S3, Firebase Storage, anything reachable by URL. We just
+    // pass through whatever `product.downloadUrl` is set to (with auth
+    // + ownership + expiry gates already validated above).
+    //
+    // If the URL points at Firebase Storage we still want to issue a
+    // short-lived signed URL (so it expires + carries
+    // Content-Disposition: attachment); for everything else we return
+    // the URL as-is and the browser opens it in a new tab.
+    let downloadUrl;
     let storagePath;
+    let provider = 'unknown';
     let diagnostic = '';
     try {
       const prodSnap = await db.collection('products').doc(productId).get();
       const prod     = prodSnap.data() || {};
-      const candidates = [
-        prod.storagePath,
-        prod.downloadUrl,
-        item.downloadUrl,    // snapshot from order creation time
-        item.storagePath     // some old orders carried this
-      ].filter(Boolean);
-
-      for (const c of candidates) {
-        const s = String(c);
-        if (s.startsWith('products/')) { storagePath = s; break; }
-        // Parse `/o/{encoded-path}?...` out of a Firebase Storage public URL.
-        const m = s.match(/\/o\/([^?]+)/);
-        if (m) {
-          const decoded = decodeURIComponent(m[1]);
-          if (decoded.startsWith('products/')) { storagePath = decoded; break; }
-        }
-      }
-      diagnostic = `candidates_tried=${candidates.length}, prod_has_storagePath=${!!prod.storagePath}, prod_has_downloadUrl=${!!prod.downloadUrl}`;
+      // Prefer the seller's current setting; fall back to the order's
+      // snapshot at purchase time if the product was edited or removed.
+      downloadUrl = prod.downloadUrl || item.downloadUrl || '';
+      storagePath = prod.storagePath || item.storagePath || '';
+      diagnostic = `prod_has_url=${!!prod.downloadUrl}, prod_has_path=${!!prod.storagePath}, item_has_url=${!!item.downloadUrl}`;
     } catch (e) {
       console.error('[downloadFile] product lookup failed:', e.message);
       return res.status(500).json({ error: 'product-lookup-failed', detail: e.message });
     }
-    if (!storagePath) {
-      console.warn(`[downloadFile] no storage path for product ${productId} in order ${orderId} — ${diagnostic}`);
+
+    if (!downloadUrl && !storagePath) {
+      console.warn(`[downloadFile] no URL for product ${productId} in order ${orderId} — ${diagnostic}`);
       return res.status(404).json({
         error: 'file-not-available',
-        message: 'The seller has not uploaded a file for this product yet, or the file was removed. Please contact support.',
+        message: 'The seller has not set a download link for this product yet, or it was removed. Please contact support.',
         diagnostic
       });
     }
 
-    // Verify the file actually exists in Storage BEFORE we issue a signed URL
-    // — signing a URL for a missing object gives the buyer a 404 they can't
-    // make sense of. Pre-check + return a clear error.
-    try {
-      const bucket = getStorage().bucket('digitalmarket-38db5.firebasestorage.app');
-      const [exists] = await bucket.file(storagePath).exists();
-      if (!exists) {
-        console.warn(`[downloadFile] file does not exist in Storage: ${storagePath}`);
-        return res.status(404).json({
-          error: 'file-not-available',
-          message: 'The file referenced by this product is missing from storage. Please contact support so the seller can re-upload.',
-          path: storagePath
-        });
-      }
-    } catch (e) {
-      console.error('[downloadFile] file existence check failed:', e.message);
-      // Fall through to signing — the .exists() call sometimes throws on
-      // permission edge cases but the signed URL might still work.
+    // Detect provider for analytics + correct handling.
+    const safeName = (item.name || 'file').replace(/[^\w.\- ]/g, '_');
+    if (/drive\.google\.com|docs\.google\.com/i.test(downloadUrl)) {
+      provider = 'gdrive';
+    } else if (/firebasestorage\.googleapis\.com/i.test(downloadUrl) || storagePath) {
+      provider = 'firebase';
+    } else if (/dropbox\.com/i.test(downloadUrl)) {
+      provider = 'dropbox';
+    } else if (downloadUrl) {
+      provider = 'external';
     }
 
-    // 8. Issue a short-lived V4 signed URL (5 min) and return JSON.
-    //    JSON (vs 302) is the right pattern for fetch-from-SPA because
-    //    a cross-origin 302 won't reliably trigger the browser's "save"
-    //    dialog — the client creates its own <a download> with the URL.
-    try {
-      const bucket = getStorage().bucket('digitalmarket-38db5.firebasestorage.app');
-      const safeName = (item.name || 'file').replace(/[^\w.\- ]/g, '_');
-      const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
-        version:  'v4',
-        action:   'read',
-        expires:  Date.now() + 5 * 60 * 1000,    // 5 min — long enough to start
-                                                   // the download + handle ranged
-                                                   // resumes; short enough that
-                                                   // a leaked URL is useless.
-        responseDisposition: `attachment; filename="${safeName}"`
-      });
-      // Audit log.
-      db.collection('downloadLog').add({
-        orderId,
-        productId,
-        buyerId: uid,
-        at: FieldValue.serverTimestamp(),
-        ip: req.ip || req.headers['x-forwarded-for'] || ''
-      }).catch(() => {});
-      return res.status(200).json({
-        ok: true,
-        signedUrl,
-        filename: safeName,
-        expiresIn: 300
-      });
-    } catch (e) {
-      console.error('[downloadFile] signed URL failed:', e.message);
-      return res.status(500).json({ error: 'sign-failed' });
+    // Audit every successful download attempt (CF reaches this only after
+    // all auth/ownership/expiry gates passed).
+    db.collection('downloadLog').add({
+      orderId,
+      productId,
+      buyerId:  uid,
+      provider,
+      at:       FieldValue.serverTimestamp(),
+      ip:       req.ip || req.headers['x-forwarded-for'] || ''
+    }).catch(() => {});
+
+    // Firebase Storage → issue a 5-minute signed URL so it expires.
+    if (provider === 'firebase' && storagePath && storagePath.startsWith('products/')) {
+      try {
+        const bucket = getStorage().bucket('digitalmarket-38db5.firebasestorage.app');
+        const [exists] = await bucket.file(storagePath).exists();
+        if (!exists) {
+          return res.status(404).json({
+            error: 'file-not-available',
+            message: 'The file is missing from storage. Please contact support so the seller can re-upload.',
+            path: storagePath
+          });
+        }
+        const [signedUrl] = await bucket.file(storagePath).getSignedUrl({
+          version:  'v4',
+          action:   'read',
+          expires:  Date.now() + 5 * 60 * 1000,
+          responseDisposition: `attachment; filename="${safeName}"`
+        });
+        return res.status(200).json({ ok: true, signedUrl, filename: safeName, provider, expiresIn: 300, openIn: 'download' });
+      } catch (e) {
+        console.error('[downloadFile] firebase sign failed:', e.message);
+        // Fall through to returning the public URL as a last resort
+      }
     }
+
+    // Google Drive / Dropbox / external URL → return as-is, let the
+    // client open it in a new tab. Buyer's Drive/Dropbox sharing
+    // controls determine whether they can actually access the file.
+    if (!downloadUrl) {
+      // No external URL and Firebase path didn't sign — unusual.
+      return res.status(404).json({
+        error: 'file-not-available',
+        message: 'No working download link is available. Please contact support.',
+        diagnostic
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      signedUrl: downloadUrl,
+      filename:  safeName,
+      provider,
+      // For Drive/Dropbox/external we open in a new tab — the platform's
+      // own viewer / download button takes over. For firebase we trigger
+      // the save dialog directly.
+      openIn: provider === 'firebase' ? 'download' : 'tab'
+    });
   }
 );

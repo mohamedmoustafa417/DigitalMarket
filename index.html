@@ -11053,15 +11053,26 @@ async function secureDownload(orderId, productId, fileNameHint) {
       }
       return;
     }
-    const { signedUrl, filename } = await r.json();
+    const { signedUrl, filename, provider, openIn } = await r.json();
     if (!signedUrl) { toast('No download URL returned.', 'danger'); return; }
-    // Trigger save dialog. The signed URL has Content-Disposition: attachment.
-    const a = Object.assign(document.createElement('a'), {
-      href: signedUrl,
-      download: filename || fileNameHint || 'file',
-      rel: 'noopener noreferrer'
-    });
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    // Two delivery modes depending on where the file lives:
+    //   • Firebase Storage signed URL → trigger save dialog directly
+    //     (the URL carries Content-Disposition: attachment).
+    //   • Google Drive / Dropbox / external → open in a new tab,
+    //     because those services serve their own viewer + the
+    //     <a download> attribute is ignored cross-origin anyway.
+    if (openIn === 'tab' || (provider && provider !== 'firebase')) {
+      const w = window.open(signedUrl, '_blank', 'noopener,noreferrer');
+      if (!w) toast('Allow pop-ups, or copy this URL to download: ' + signedUrl, 'warning', 8000);
+      else    toast(`Opening ${provider === 'gdrive' ? 'Google Drive' : provider} in a new tab…`, 'info', 2500);
+    } else {
+      const a = Object.assign(document.createElement('a'), {
+        href:     signedUrl,
+        download: filename || fileNameHint || 'file',
+        rel:      'noopener noreferrer'
+      });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
   } catch (e) {
     console.error('secureDownload:', e);
     toast('Download failed: ' + (e.message || 'network error'), 'danger');
