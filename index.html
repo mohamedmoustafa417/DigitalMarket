@@ -2005,6 +2005,9 @@
     <span class="nav-link hidden" id="nav-orders" onclick="navigate('orders')" role="button" tabindex="0">
       <i class="fa-solid fa-box" aria-hidden="true"></i> <span data-i18n="orders">Orders</span>
     </span>
+    <span class="nav-link hidden" id="nav-inbox" onclick="navigate('inbox')" role="button" tabindex="0" title="Messages">
+      <i class="fa-solid fa-inbox" aria-hidden="true"></i> <span>Inbox</span><span class="cart-badge hidden" id="inbox-nav-count" role="status" aria-live="polite">0</span>
+    </span>
     <span class="nav-link" id="nav-wishlist" onclick="navigate('wishlist')" role="button" tabindex="0" title="My Wishlist">
       <i class="fa-solid fa-heart" aria-hidden="true"></i> <span>Wishlist</span><span class="wishlist-count hidden" id="wishlist-nav-count">0</span>
     </span>
@@ -2444,6 +2447,35 @@
     <button class="btn btn-primary" onclick="navigate('home')">Browse Products</button>
   </div>
   <div class="products-grid" id="wishlist-grid" role="list"></div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- VIEW: INBOX (messaging threads)                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="view-inbox" class="view" aria-label="Inbox">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.75rem;">
+    <h2 style="font-size:1.3rem;font-weight:700;">
+      <i class="fa-solid fa-inbox" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>
+      Inbox
+    </h2>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+      <label for="inbox-filter" style="font-size:0.82rem;color:var(--text-muted);">Filter:</label>
+      <select id="inbox-filter" class="form-control" style="width:auto;font-size:0.85rem;" onchange="loadInbox()">
+        <option value="all">All conversations</option>
+        <option value="unread">Unread only</option>
+        <option value="buying">My purchases (buyer)</option>
+        <option value="selling">My sales (seller)</option>
+      </select>
+    </div>
+  </div>
+  <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
+    All your conversations with buyers, sellers, and customer support.
+  </p>
+  <div id="inbox-list" role="list">
+    <div style="text-align:center;color:var(--text-muted);padding:2rem;">
+      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…
+    </div>
+  </div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -4425,13 +4457,13 @@ function initHeroCanvas() {
 // ═══════════════════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════════════
-const VIEWS = ['home','login','register','forgot','cart','orders','wishlist','seller','admin'];
+const VIEWS = ['home','login','register','forgot','cart','orders','wishlist','inbox','seller','admin'];
 
 function navigate(view) {
   if (!VIEWS.includes(view)) view = 'home';
 
   // Gate protected views
-  if (['orders','seller','admin'].includes(view) && !curUser) {
+  if (['orders','inbox','seller','admin'].includes(view) && !curUser) {
     navigate('login'); toast('Please login first', 'info'); return;
   }
   if (view === 'seller' && curUserData?.role !== 'seller' && !isAdmin()) {
@@ -4460,6 +4492,7 @@ function navigate(view) {
   if (view === 'cart')     renderCart();
   if (view === 'orders')   loadOrders();
   if (view === 'wishlist') renderWishlist();
+  if (view === 'inbox')    loadInbox();
   if (view === 'seller')   loadSellerDashboard();
   if (view === 'admin')    loadAdminDashboard();
 }
@@ -4506,6 +4539,7 @@ function updateHeaderForUser() {
   const navOrders  = document.getElementById('nav-orders');
 
   if (navOrders) navOrders.classList.remove('hidden');
+  document.getElementById('nav-inbox')?.classList.remove('hidden');
   if (role === 'seller' || isAdmin()) {
     if (sellerLink) sellerLink.classList.remove('hidden');
     if (navSeller)  navSeller.classList.remove('hidden');
@@ -4536,6 +4570,7 @@ function updateHeaderForGuest() {
   document.getElementById('header-auth-guest').classList.remove('hidden');
   document.getElementById('header-auth-user').classList.add('hidden');
   document.getElementById('nav-orders')?.classList.add('hidden');
+  document.getElementById('nav-inbox')?.classList.add('hidden');
   document.getElementById('nav-seller')?.classList.add('hidden');
   document.getElementById('nav-admin')?.classList.add('hidden');
   document.getElementById('email-verify-banner')?.remove();
@@ -7322,20 +7357,26 @@ function renderWishlist() {
     return;
   }
   empty?.classList.add('hidden');
-  grid.innerHTML = items.map(p => `
-    <div class="product-card" onclick="openProductDetail('${sanitize(p.id)}')" role="listitem" tabindex="0"
+  // Same template as the main product grid so the v2 polish applies
+  // (stacked badges, rating pill, hover lift, mesh-gradient backdrop).
+  // Plus a "Move to cart" button below the price for quick conversion.
+  grid.innerHTML = items.map(p => {
+    const inCart = cart.includes(p.id);
+    return `<div class="product-card" onclick="openProductDetail('${sanitize(p.id)}')" role="listitem" tabindex="0"
          onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')"
-         aria-label="${sanitize(p.name)}" style="position:relative;">
-      <button onclick="toggleWishlist('${sanitize(p.id)}',event);renderWishlist();" aria-label="Remove from wishlist"
+         aria-label="${sanitize(p.name)} - ${formatPrice(p.price||0)}" style="position:relative;">
+      <button onclick="toggleWishlist('${sanitize(p.id)}',event);renderWishlist();" aria-label="Remove from wishlist" title="Remove from wishlist"
         style="position:absolute;top:0.5rem;right:0.5rem;background:rgba(0,0,0,0.35);border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:2;color:#f43f5e;">
         ♥
       </button>
+      ${p.featured ? `<span class="featured-badge">★ Featured</span>` : ''}
+      ${(p.purchaseCount||0) >= 5 ? `<span class="fomo-badge">🔥 ${p.purchaseCount} sold</span>` : ''}
       <div class="product-img">
         ${p.imageUrl
           ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\"font-size:3rem;\\">${sanitize(p.emoji||'📦')}</span>'">`
           : p.emoji
-            ? `<span style="font-size:3rem;line-height:1;">${sanitize(p.emoji)}</span>`
-            : `<i class="fa-solid fa-file-arrow-down"></i>`}
+            ? `<span style="font-size:3rem;line-height:1;" aria-hidden="true">${sanitize(p.emoji)}</span>`
+            : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
       </div>
       <div class="product-body">
         <div class="product-title">${sanitize(p.name)}</div>
@@ -7345,7 +7386,15 @@ function renderWishlist() {
         <span class="product-price">${formatPrice(p.price)}</span>
         <span class="badge badge-primary">${sanitize(p.category || 'other')}</span>
       </div>
-    </div>`).join('');
+      <button class="btn btn-primary btn-sm" style="margin:0.5rem 0.75rem 0.75rem;width:calc(100% - 1.5rem);"
+              onclick="event.stopPropagation();${inCart ? `removeFromCart('${sanitize(p.id)}');renderWishlist()` : `addToCart('${sanitize(p.id)}');renderWishlist()`}"
+              aria-label="${inCart ? 'Remove from cart' : 'Add to cart'}: ${sanitize(p.name)}">
+        <i class="fa-solid fa-${inCart ? 'check' : 'cart-plus'}" aria-hidden="true"></i>
+        ${inCart ? 'In Cart' : 'Move to Cart'}
+      </button>
+      ${p.ratingCount ? `<div class="rating-pill">${starsHtml(p.ratingAvg||0)}<span>${(+(p.ratingAvg||0)).toFixed(1)} (${p.ratingCount})</span></div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -11147,6 +11196,208 @@ function bulkDownloadOrder(orderId) {
 // ─── ROUND 7 Feature 5: BUYER ↔ SELLER DIRECT MESSAGING ────────────────
 let _msgUnsub  = null;
 let _msgThread = null;
+let _inboxUnsub = null;
+
+// ═══════════════════════════════════════════════════════════════════
+// INBOX — list of all conversations user is participating in
+// ═══════════════════════════════════════════════════════════════════
+async function loadInbox() {
+  if (!curUser) { navigate('login'); return; }
+  const filterEl = document.getElementById('inbox-filter');
+  const filter   = filterEl?.value || 'all';
+  const list     = document.getElementById('inbox-list');
+  if (!list) return;
+  list.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2rem;"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…</div>`;
+
+  // Tear down any previous listener before re-subscribing (filter changes).
+  if (_inboxUnsub) { _inboxUnsub(); _inboxUnsub = null; }
+
+  try {
+    // Live subscription so unread counts + new messages update without reload.
+    _inboxUnsub = db.collection('messages')
+      .where('participants', 'array-contains', curUser.uid)
+      .orderBy('updatedAt', 'desc')
+      .limit(100)
+      .onSnapshot(async snap => {
+        if (snap.empty) {
+          dmEmpty(list, {
+            icon: '📭',
+            title: 'No conversations yet',
+            text: 'When you message a seller (or a buyer messages you), threads appear here.',
+            ctaLabel: 'Browse products',
+            ctaOnClick: () => navigate('home')
+          });
+          updateInboxBadge(0);
+          return;
+        }
+        // Cache resolved participant names so we don't re-fetch per render.
+        const nameCache = {};
+        const filtered = snap.docs.filter(d => {
+          const t = d.data();
+          if (filter === 'unread' && !(t.unreadFor && t.unreadFor.includes(curUser.uid))) return false;
+          if (filter === 'buying'  && t.buyerId !== curUser.uid)  return false;
+          if (filter === 'selling' && t.sellerId !== curUser.uid) return false;
+          return true;
+        });
+        if (!filtered.length) {
+          dmEmpty(list, { icon: '🔍', title: 'No threads match this filter', text: 'Try a different filter or hit Refresh.' });
+          return;
+        }
+        let unreadTotal = 0;
+        const rows = await Promise.all(filtered.map(async d => {
+          const t = d.data();
+          // Resolve the OTHER participant (not me)
+          const otherUid = (t.participants || []).find(uid => uid !== curUser.uid) || curUser.uid;
+          if (!(otherUid in nameCache)) {
+            try {
+              const p = await db.collection('publicProfiles').doc(otherUid).get();
+              nameCache[otherUid] = p.exists ? (p.data().shopName || p.data().name || otherUid.slice(0, 6)) : otherUid.slice(0, 6);
+            } catch { nameCache[otherUid] = otherUid.slice(0, 6); }
+          }
+          const otherName = nameCache[otherUid];
+          const ts = t.updatedAt?.toDate ? t.updatedAt.toDate() : null;
+          const ago = ts ? _timeAgo(ts) : '';
+          const isUnread = (t.unreadFor || []).includes(curUser.uid);
+          if (isUnread) unreadTotal++;
+          const productRef = t.productName ? `<div style="font-size:0.72rem;color:var(--primary);margin-top:0.15rem;">📦 Re: ${sanitize(t.productName)}</div>` : '';
+          const preview = sanitize((t.lastMessage || '(No messages yet)').slice(0, 80));
+
+          // Determine "buying" vs "selling" hint
+          const roleHint = (t.sellerId === curUser.uid)
+            ? '<span style="font-size:0.65rem;color:var(--success);font-weight:700;letter-spacing:0.05em;">SELLING</span>'
+            : (t.buyerId === curUser.uid)
+              ? '<span style="font-size:0.65rem;color:var(--info);font-weight:700;letter-spacing:0.05em;">BUYING</span>'
+              : '';
+          // Support thread badge
+          const supportBadge = (t.kind === 'support')
+            ? '<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.4rem;border-radius:4px;margin-inline-start:0.4rem;">SUPPORT</span>'
+            : '';
+
+          return `<div role="listitem" tabindex="0"
+                       onclick="openInboxThread('${sanitize(d.id)}','${sanitize(otherUid)}','${sanitize(otherName)}','${sanitize(t.productId||'')}','${sanitize(t.productName||'')}')"
+                       onkeydown="if(event.key==='Enter')this.click()"
+                       style="display:flex;gap:0.85rem;padding:0.85rem 1rem;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:0.6rem;cursor:pointer;background:${isUnread ? 'rgba(99,102,241,0.06)' : 'var(--bg2)'};transition:transform 0.15s ease, border-color 0.15s ease;"
+                       onmouseenter="this.style.transform='translateY(-1px)';this.style.borderColor='var(--primary-light)';"
+                       onmouseleave="this.style.transform='';this.style.borderColor='var(--border)';">
+            <div style="width:42px;height:42px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);flex-shrink:0;font-size:1.05rem;">
+              ${sanitize((otherName || '?').charAt(0).toUpperCase())}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:center;">
+                <strong style="font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  ${sanitize(otherName)}
+                  ${supportBadge}
+                </strong>
+                <span style="font-size:0.7rem;color:var(--text-muted);white-space:nowrap;flex-shrink:0;">${ago}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:center;margin-top:0.1rem;">
+                <span style="font-size:0.82rem;color:${isUnread ? 'var(--text)' : 'var(--text-muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:${isUnread ? '600' : '400'};">
+                  ${preview}
+                </span>
+                ${isUnread ? '<span style="background:var(--primary);color:#fff;border-radius:999px;font-size:0.65rem;padding:0.1rem 0.45rem;font-weight:700;flex-shrink:0;">NEW</span>' : ''}
+              </div>
+              <div style="display:flex;gap:0.5rem;align-items:center;">${roleHint}${productRef}</div>
+            </div>
+          </div>`;
+        }));
+        list.innerHTML = rows.join('');
+        updateInboxBadge(unreadTotal);
+      }, err => {
+        console.error('inbox listener:', err);
+        list.innerHTML = `<div style="text-align:center;color:var(--danger);padding:2rem;">Failed: ${sanitize(err.message || 'unknown')}</div>`;
+      });
+  } catch (e) {
+    console.error('loadInbox:', e);
+    list.innerHTML = `<div style="text-align:center;color:var(--danger);padding:2rem;">Failed: ${sanitize(e.message || 'unknown')}</div>`;
+  }
+}
+
+function updateInboxBadge(count) {
+  const badge = document.getElementById('inbox-nav-count');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 9 ? '9+' : String(count);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function openInboxThread(threadId, otherUid, otherName, productId, productName) {
+  // Mark this thread as read for me
+  db.collection('messages').doc(threadId).update({
+    unreadFor: firebase.firestore.FieldValue.arrayRemove(curUser.uid)
+  }).catch(() => {});
+  // Open the existing 1-on-1 modal — pre-set _msgThread so we don't make
+  // a new thread ID.
+  _msgThread = threadId;
+  if (!document.getElementById('dm-msg-modal')) _buildMsgModal();
+  document.getElementById('dm-msg-title').textContent = `💬 ${otherName || 'Conversation'}`;
+  const refEl = document.getElementById('dm-msg-product-ref');
+  if (refEl) {
+    refEl.textContent = productName ? `Re: ${productName}` : '';
+    refEl.style.display = productName ? 'block' : 'none';
+  }
+  openModal('dm-msg-modal');
+  _subscribeMessages(threadId, otherUid, productId, productName);
+}
+
+/** Pretty short "5 m ago" / "2 h ago" / "3 d ago" formatter. */
+function _timeAgo(d) {
+  const diff = Date.now() - d.getTime();
+  if (diff < 60_000)   return 'just now';
+  if (diff < 3.6e6)    return Math.floor(diff / 60_000) + ' m';
+  if (diff < 8.64e7)   return Math.floor(diff / 3.6e6) + ' h';
+  if (diff < 6.05e8)   return Math.floor(diff / 8.64e7) + ' d';
+  return d.toLocaleDateString();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SUPPORT HELPDESK — single thread between buyer and admin
+// Lighter-weight than the dispute flow: buyers can open a question
+// thread about an order, a product, or a general issue. Admin answers
+// in the same Inbox. Uses the same /messages collection schema with
+// kind:'support' marker.
+// ═══════════════════════════════════════════════════════════════════
+function openSupportThread(topic = '', productId = '', productName = '') {
+  if (!curUser) { navigate('login'); toast('Please sign in to contact support.', 'info'); return; }
+  const ADMIN_UID_SENTINEL = 'support';  // not a real UID — admin sees via /messages where(...) listener
+  const threadId = curUser.uid + '__support' + (productId ? '__' + productId.slice(0, 8) : '');
+  // Resolve admin UID by querying for role=admin (cached for session)
+  _resolveAdminUid().then(adminUid => {
+    if (!adminUid) { toast('Support is unavailable right now.', 'danger'); return; }
+    const participants = [curUser.uid, adminUid].sort();
+    db.collection('messages').doc(threadId).set({
+      participants,
+      buyerId: curUser.uid,
+      sellerId: adminUid,
+      kind: 'support',
+      topic: topic || 'General question',
+      productId: productId || null,
+      productName: productName || null,
+      updatedAt: FV.serverTimestamp()
+    }, { merge: true })
+      .then(() => openInboxThread(threadId, adminUid, 'Customer Support', productId, productName || topic))
+      .catch(e => { console.error('support thread:', e); toast('Failed to open support thread.', 'danger'); });
+  });
+}
+
+let _cachedAdminUid = null;
+async function _resolveAdminUid() {
+  if (_cachedAdminUid) return _cachedAdminUid;
+  try {
+    // ADMIN_ONLY_EMAIL is hardcoded in the SPA — find the user with that email.
+    const adminEmail = (typeof ADMIN_ONLY_EMAIL !== 'undefined') ? ADMIN_ONLY_EMAIL : 'mohamed.moustafa417@gmail.com';
+    const snap = await db.collection('users').where('email', '==', adminEmail).limit(1).get();
+    if (!snap.empty) {
+      _cachedAdminUid = snap.docs[0].id;
+      return _cachedAdminUid;
+    }
+  } catch (e) {
+    console.warn('_resolveAdminUid:', e.message);
+  }
+  return null;
+}
 
 function openMessagesView(sellerId, sellerName, productId, productName) {
   if (!curUser) { toast('Please login to send messages.', 'info'); navigate('login'); return; }
@@ -11223,14 +11474,25 @@ async function dmSendMsg() {
   if (!text || !_msgThread || !curUser) return;
   input.value = ''; input.disabled = true;
   try {
-    await db.collection('messages').doc(_msgThread).collection('msgs').add({
+    // Read parent thread to learn the OTHER participants — we mark them
+    // unread so their inbox badge updates in real time.
+    const threadRef  = db.collection('messages').doc(_msgThread);
+    const threadSnap = await threadRef.get();
+    const participants = threadSnap.exists ? (threadSnap.data().participants || []) : [];
+    const others = participants.filter(uid => uid !== curUser.uid);
+
+    await threadRef.collection('msgs').add({
       senderId:   curUser.uid,
       senderName: curUserData?.name || curUser.email || 'User',
       text:       text.slice(0, 500),
       createdAt:  FV.serverTimestamp()
     });
-    await db.collection('messages').doc(_msgThread).update({
-      updatedAt: FV.serverTimestamp(), lastMessage: text.slice(0, 80)
+    await threadRef.update({
+      updatedAt:   FV.serverTimestamp(),
+      lastMessage: text.slice(0, 80),
+      // Flag the recipients as unread — they'll see a NEW pill in inbox.
+      // Use arrayUnion to merge with any existing unread state.
+      unreadFor:   firebase.firestore.FieldValue.arrayUnion(...others)
     });
   } catch(e) { toast('Send failed: ' + sanitize(e.message), 'danger'); }
   finally { input.disabled = false; input.focus(); }
@@ -11249,13 +11511,21 @@ async function dmSendMsg() {
     if (!body) return;
     setTimeout(() => {
       if (document.getElementById('dm-msg-btn-' + id)) return;
-      const btn = document.createElement('button');
-      btn.id = 'dm-msg-btn-' + id;
-      btn.className = 'btn btn-outline';
-      btn.style.cssText = 'width:100%;margin-top:0.4rem;font-size:0.85rem;';
-      btn.innerHTML = '<i class="fa-solid fa-comment-dots" style="margin-right:0.4rem;"></i>Message Seller';
-      btn.onclick = () => openMessagesView(p.sellerId, p.sellerName || p.shopName || 'Seller', id, p.name);
-      body.appendChild(btn);
+      const wrap = document.createElement('div');
+      wrap.id = 'dm-msg-btn-' + id;
+      wrap.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.6rem;';
+      const sellerBtn = document.createElement('button');
+      sellerBtn.className = 'btn btn-outline';
+      sellerBtn.style.cssText = 'font-size:0.85rem;';
+      sellerBtn.innerHTML = '<i class="fa-solid fa-comment-dots" style="margin-right:0.4rem;" aria-hidden="true"></i>Message Seller';
+      sellerBtn.onclick = () => openMessagesView(p.sellerId, p.sellerName || p.shopName || 'Seller', id, p.name);
+      const supportBtn = document.createElement('button');
+      supportBtn.className = 'btn btn-outline';
+      supportBtn.style.cssText = 'font-size:0.85rem;';
+      supportBtn.innerHTML = '<i class="fa-solid fa-headset" style="margin-right:0.4rem;" aria-hidden="true"></i>Ask Support';
+      supportBtn.onclick = () => openSupportThread('Question about ' + p.name, id, p.name);
+      wrap.appendChild(sellerBtn); wrap.appendChild(supportBtn);
+      body.appendChild(wrap);
     }, 250);
   };
 })();
