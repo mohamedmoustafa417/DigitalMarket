@@ -549,7 +549,20 @@
     .bulk-toolbar.show { display:flex; }
 
     /* ── Chart container ── */
-    .chart-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.5rem; }
+    .chart-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; margin-bottom:1.5rem; position:relative; }
+    /* Chart.js + maintainAspectRatio:false enters an infinite resize loop
+       (flicker / black canvas) unless the canvas has an EXPLICIT height
+       in CSS. Scoped to the two new stats canvases so the existing
+       revenue charts keep their html `height` attribute.
+       Wrapping the canvas in a fixed-height block also avoids the
+       resize feedback. */
+    #dm-daily-orders-chart,
+    #ss-daily-rev-chart {
+      max-width: 100% !important;
+      width: 100% !important;
+      height: 260px !important;
+      display: block;
+    }
     .chart-wrap h4 { font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--text-muted); }
 
     /* ── Related products ── */
@@ -5780,6 +5793,7 @@ function sellerTab(tab) {
     document.getElementById(`seller-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`sl-${t}`)?.classList.toggle('active', t === tab);
   });
+  if (tab !== 'stats' && _ssChart) { _ssChart.destroy(); _ssChart = null; }
   if (tab === 'orders') {
     stopSellerOrdersListener();  // stop any stale listener first
     startSellerOrdersListener(); // start real-time listener
@@ -5860,18 +5874,22 @@ async function loadSellerStats(forceRefresh) {
   }
 }
 
-function _renderSellerStats(s) {
+async function _renderSellerStats(s) {
   document.getElementById('ss-stat-orders').textContent  = s.total;
   document.getElementById('ss-stat-revenue').textContent = formatPrice(s.totalRev);
   document.getElementById('ss-stat-aov').textContent     = s.approved ? formatPrice(s.totalRev / s.approved) : '—';
   document.getElementById('ss-stat-conv').textContent    = s.total ? Math.round((s.approved / s.total) * 100) + '%' : '—';
 
+  // Wait one paint frame so the tab panel has real dimensions before
+  // Chart.js measures it (otherwise canvas mounts at 0×0 → black flicker).
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
   // Daily-revenue chart
   const labels = Object.keys(s.dailyRev).sort();
   const data   = labels.map(k => Math.round(s.dailyRev[k] * 100) / 100);
   const ctx = document.getElementById('ss-daily-rev-chart');
-  if (ctx && typeof Chart !== 'undefined') {
-    if (_ssChart) _ssChart.destroy();
+  if (ctx && typeof Chart !== 'undefined' && ctx.offsetWidth > 0) {
+    if (_ssChart) { _ssChart.destroy(); _ssChart = null; }
     _ssChart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -6227,6 +6245,10 @@ function adminTab(tab) {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
+  // Tear down the Stats chart if we're leaving Stats — otherwise Chart.js
+  // keeps a ResizeObserver bound to the now-hidden canvas, which can
+  // re-fire on the next layout pass and flicker.
+  if (tab !== 'stats' && _dmStatsChart) { _dmStatsChart.destroy(); _dmStatsChart = null; }
   if (tab === 'orders') {
     startAdminOrdersListener();
   } else {
@@ -6429,12 +6451,17 @@ async function _renderAdminStats(s) {
   document.getElementById('dm-stat-conv').textContent      =
     s.totalSubmitted ? Math.round((s.totalApproved / s.totalSubmitted) * 100) + '%' : '—';
 
+  // Wait one paint frame — the .hidden class on the tab panel was just
+  // toggled by adminTab(), but the layout hasn't settled yet. Without
+  // this rAF, the canvas mounts at 0×0 → black screen + flicker.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
   // Chart — sorted oldest → newest left to right
   const labels = Object.keys(s.daily).sort();
   const data   = labels.map(k => s.daily[k]);
   const ctx = document.getElementById('dm-daily-orders-chart');
-  if (ctx && typeof Chart !== 'undefined') {
-    if (_dmStatsChart) _dmStatsChart.destroy();
+  if (ctx && typeof Chart !== 'undefined' && ctx.offsetWidth > 0) {
+    if (_dmStatsChart) { _dmStatsChart.destroy(); _dmStatsChart = null; }
     _dmStatsChart = new Chart(ctx, {
       type: 'bar',
       data: {
