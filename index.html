@@ -4270,10 +4270,18 @@ async function loadAndRenderReviews(productId) {
   if (!sec) return;
   sec.innerHTML = `<div style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem 0;">Loading reviews…</div>`;
   try {
-    // Fetch reviews + buyer's approved orders in parallel (saves one round-trip)
-    const reviewsPromise = db.collection('reviews').where('productId', '==', productId).get();
+    // COST: cap reviews to most-recent 100 per product. ratingAvg +
+    // ratingCount on the product doc are the source of truth for the
+    // "X out of 5 (Y reviews)" badge — only the recent few are rendered
+    // anyway. Same cap on buyer's approved orders (used only to detect
+    // "has this user bought this product?").
+    const reviewsPromise = db.collection('reviews')
+      .where('productId', '==', productId)
+      .orderBy('createdAt', 'desc')
+      .limit(100)
+      .get();
     const ordersPromise  = curUser
-      ? db.collection('orders').where('buyerId', '==', curUser.uid).where('status', '==', 'approved').get()
+      ? db.collection('orders').where('buyerId', '==', curUser.uid).where('status', '==', 'approved').limit(500).get()
       : Promise.resolve(null);
     const [snap, ordSnap] = await Promise.all([reviewsPromise, ordersPromise]);
     const rawReviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -5072,15 +5080,26 @@ async function submitDraft(id) {
 }
 
 async function deleteProduct(id) {
-  if (!confirm('Delete this product?')) return;
+  // Look up review count FIRST so the confirm can be honest about
+  // cascading delete. Previously admins clicked "Delete this product?"
+  // not realising every review (with possibly years of buyer feedback)
+  // was wiped silently too.
+  let reviewCount = 0;
   try {
-    // Delete associated reviews to avoid orphaned data
+    const c = await db.collection('reviews').where('productId','==',id).limit(500).get();
+    reviewCount = c.size;
+  } catch {}
+  const msg = reviewCount
+    ? `Delete this product?\n\nThis will also permanently delete ${reviewCount} buyer review${reviewCount === 1 ? '' : 's'}. This cannot be undone.`
+    : 'Delete this product? This cannot be undone.';
+  if (!confirm(msg)) return;
+  try {
     const reviewSnap = await db.collection('reviews').where('productId','==',id).get();
     const batch = db.batch();
     reviewSnap.docs.forEach(d => batch.delete(d.ref));
     batch.delete(db.collection('products').doc(id));
     await batch.commit();
-    toast('Product deleted.', 'info');
+    toast(`Product deleted${reviewCount ? ` (${reviewCount} reviews removed)` : ''}.`, 'info');
     await loadProducts();
     loadSellerDashboard();
   } catch(err) { toast(err.message, 'danger'); }
@@ -5678,7 +5697,14 @@ function stopAdminOrdersListener() {
 async function exportOrdersCSV() {
   toast('Preparing CSV…', 'info');
   try {
-    const snap = await db.collection('orders').orderBy('createdAt','desc').get();
+    // COST: cap export to most-recent 5000 orders so a runaway DB doesn't
+    // burn through reads. If we hit the cap we surface that to the admin
+    // so they know the CSV isn't the full history.
+    const EXPORT_LIMIT = 5000;
+    const snap = await db.collection('orders').orderBy('createdAt','desc').limit(EXPORT_LIMIT).get();
+    if (snap.size === EXPORT_LIMIT) {
+      toast(`CSV capped at ${EXPORT_LIMIT} most-recent orders. Contact dev for full history.`, 'warning', 6000);
+    }
     const rows = [['Order ID','Date','Buyer Email','Buyer Name','Items','Total (EGP)','Status','Payment Method','Ref Num']];
     snap.docs.forEach(d => {
       const o = d.data();
@@ -7817,7 +7843,14 @@ async function deleteCollection(id) {
 // ═══════════════════════════════════════════════════════════════════
 async function loadSellerEarningsBreakdown(sellerId) {
   try {
-    const snap = await db.collection('orders').where('sellerIds','array-contains',sellerId).where('status','==','approved').get();
+    // COST: cap to 1000 most-recent approved orders. Sellers with bigger
+    // catalogs should see paginated reports — adding here would need a
+    // composite index `sellerIds(array-contains) + status + createdAt`.
+    const snap = await db.collection('orders')
+      .where('sellerIds','array-contains',sellerId)
+      .where('status','==','approved')
+      .limit(1000)
+      .get();
     const byProduct = {};
     snap.docs.forEach(d => {
       const o = d.data();
@@ -9737,8 +9770,15 @@ async function publishProductUpdate(productId, newVersion, changeNotes, newDownl
     const updates = { version: newVersion||'2.0', changeNotes: changeNotes||'', updatedAt: FV.serverTimestamp() };
     if (newDownloadUrl) updates.downloadUrl = newDownloadUrl;
     await db.collection('products').doc(productId).update(updates);
-    // Notify past buyers
-    const ordersSnap = await db.collection('orders').where('status','==','approved').get();
+    // COST: scanning all approved orders to find buyers of one product
+    // grows linearly with marketplace size. Capped at 2000 most-recent
+    // orders. For a long-tail catalog, switch to a denormalized
+    // `productBuyers/{productId}` index updated by Cloud Function.
+    const ordersSnap = await db.collection('orders')
+      .where('status','==','approved')
+      .orderBy('createdAt','desc')
+      .limit(2000)
+      .get();
     const buyerIds = new Set();
     ordersSnap.docs.forEach(d => { const o = d.data(); if ((o.items||[]).some(i=>i.id===productId)) buyerIds.add(o.buyerId); });
     if (buyerIds.size) {
