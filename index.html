@@ -6993,38 +6993,12 @@ async function updateOrderStatus(orderId, status) {
       } catch(e) { console.warn('purchaseCount increment failed:', e); }
     }
     toast(`Order ${status}.`, 'success');
-    // Real-time onSnapshot listener auto-refreshes admin orders table — no manual reload needed
-    // Send email to buyer
-    if (o.buyerEmail) {
-      let downloadLink = 'https://digitalmarketstore.shop/#orders';
-      // For approved orders: fetch actual download URLs from each product
-      if (status === 'approved' && o.items && o.items.length) {
-        const dlUrls = [];
-        for (const item of o.items) {
-          try {
-            const pdSnap = await db.collection('products').doc(item.id).get();
-            if (pdSnap.exists && pdSnap.data().downloadUrl) dlUrls.push(pdSnap.data().downloadUrl);
-          } catch(e) { console.warn('Could not fetch product download URL:', e); }
-        }
-        if (dlUrls.length === 1) downloadLink = dlUrls[0];
-        else if (dlUrls.length > 1) downloadLink = dlUrls.map((u, i) => `${i + 1}. ${u}`).join('<br>');
-      }
-      try {
-        await sendOrderEmail(status === 'approved' ? 'order_approved' : 'order_rejected', {
-          to_email:      o.buyerEmail,
-          to_name:       o.buyerName || o.buyerEmail,
-          order_id:      orderId,
-          items:         (o.items || []).map(i => i.name).join(', '),
-          total:         o.total || 0,
-          download_link: downloadLink,
-          ...(rejectionReason ? { rejection_reason: rejectionReason } : {})
-        });
-        toast('Notification email sent to buyer.', 'success');
-      } catch(emailErr) {
-        console.error('Failed to send order email:', emailErr);
-        toast('Order updated but email notification failed. Check console.', 'danger');
-      }
-    }
+    // Buyer email is sent by the Cloud Function (onOrderStatusChange).
+    // The EmailJS pathway used to run here in parallel — caused duplicate
+    // approval emails for stale browsers loading pre-v37 code. Removing
+    // the call entirely so even stale clients can't fire the legacy path.
+    // CF logs to /emailFailures if the Resend send fails — admin can
+    // re-send manually from the Email Failures dashboard.
     try { loadSellerOrders(); } catch {}
   } catch(err) { toast(err.message, 'danger'); }
 }
