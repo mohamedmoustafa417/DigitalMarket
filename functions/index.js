@@ -424,19 +424,18 @@ exports.onOrderStatusChange = onDocumentWritten(
       const items      = after.items || [];
       const buyerEmail = after.buyerEmail || '';
       const buyerName  = after.buyerName  || 'Valued Customer';
+      const orderShort = orderId.slice(0,8).toUpperCase();
+      const ordersUrl  = 'https://digitalmarketstore.shop/#orders';
 
-      // Fetch fresh download URLs from product docs (more secure than storing in order)
-      const dlLinks = (
-        await Promise.all(
-          items.map(async item => {
-            try {
-              const snap = await db.collection('products').doc(item.id).get();
-              const url  = snap.data()?.downloadUrl || item.downloadUrl || '';
-              return url ? `<li><a href="${url}">${item.name}</a></li>` : null;
-            } catch { return null; }
-          })
-        )
-      ).filter(Boolean);
+      // SECURITY: the email used to embed raw product.downloadUrl values
+      // — defeating the auth + per-buyer Drive sharing + 30-day expiry
+      // gates we built into the downloadFile CF. ANYONE the buyer
+      // forwarded the email to could hit those raw links.
+      // Now we send a single CTA pointing buyers to /orders, where the
+      // Download button routes through secureDownload → CF →
+      // per-buyer Drive grant → audit log. Plus we list what they
+      // bought as plain text so the email is still useful.
+      const itemList = items.map(i => `<li>${(i.name || 'Product')}</li>`).join('');
 
       // RELIABILITY: wrap the post-idempotency side effects in try/catch.
       // Previously: if sendEmail threw (Resend 5xx, transient network),
@@ -444,16 +443,24 @@ exports.onOrderStatusChange = onDocumentWritten(
       // the top, and the buyer email was permanently lost. Now: log the
       // failure to /emailFailures so an admin can re-send manually, and
       // let the order finish in a clean state.
-      if (buyerEmail && dlLinks.length > 0) {
+      if (buyerEmail) {
         try {
           const result = await sendEmail({
             to:      buyerEmail,
             subject: '✅ Your DigitalMarket order is ready!',
-            body:    `<p>Hi ${buyerName},</p>
-                     <p>Your order <strong>#${orderId.slice(0,8).toUpperCase()}</strong> has been approved.</p>
-                     <p>Download your files:</p><ul>${dlLinks.join('')}</ul>
-                     <p>Links expire in 30 days. Keep them safe!</p>
-                     <p>— The DigitalMarket Team</p>`
+            body:    `<div style="font-family:Arial,sans-serif;max-width:540px;margin:0 auto;color:#1a1a2e;">
+                     <h2 style="color:#6366f1;margin-bottom:0.5rem;">Your order is ready to download</h2>
+                     <p>Hi ${buyerName},</p>
+                     <p>Your order <strong>#${orderShort}</strong> has been approved. You can download your files from the My Orders page.</p>
+                     <p style="margin:20px 0;">
+                       <a href="${ordersUrl}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;">📥 Open My Orders</a>
+                     </p>
+                     <p style="margin-top:24px;"><strong>What you bought:</strong></p>
+                     <ul style="padding-left:20px;line-height:1.7;">${itemList}</ul>
+                     <p style="font-size:13px;color:#666;margin-top:24px;">For your security, downloads are tied to your account. Sign in with the email you used to place the order, then click the Download button on each item.</p>
+                     <p style="font-size:13px;color:#666;">Your download window stays open for 30 days.</p>
+                     <p style="margin-top:24px;">— The DigitalMarket Team</p>
+                     </div>`
           });
           if (!result?.ok) {
             await db.collection('emailFailures').add({
