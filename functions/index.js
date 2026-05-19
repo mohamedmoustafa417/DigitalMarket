@@ -145,11 +145,63 @@ exports.onOrderStatusChange = onDocumentWritten(
   async event => {
     const before = event.data?.before?.data();
     const after  = event.data?.after?.data();
-
-    if (!before || !after) return; // created or deleted – skip
-    if (before.status === after.status) return; // no status change
-
     const orderId = event.params.orderId;
+
+    if (!after) return; // deletion event — nothing to do
+
+    // ── Order CREATED → confirm to buyer + notify admin ─────────────────
+    // (Replaces the legacy EmailJS pipeline. CF is now the single source
+    // of truth for transactional email; client-side EmailJS calls were
+    // disabled to stop duplicate sends.)
+    if (!before && after.status === 'pending') {
+      const buyerEmail = after.buyerEmail || '';
+      const buyerName  = after.buyerName  || 'Valued Customer';
+      const total      = Number(after.total || 0);
+      const items      = (after.items || []).map(i => i.name).join(', ');
+      const refNum     = after.referenceNum || '';
+      const payMethod  = after.paymentMethod || '';
+      const orderShort = orderId.slice(0,8).toUpperCase();
+
+      // Buyer confirmation
+      if (buyerEmail) {
+        try {
+          await sendEmail({
+            to: buyerEmail,
+            subject: `📥 Order received #${orderShort} — DigitalMarket`,
+            body: `<p>Hi ${buyerName},</p>
+                   <p>We have received your order <strong>#${orderShort}</strong> and your payment proof is being reviewed. You will get another email with your download links once approved (usually within 24 hours).</p>
+                   <p><strong>Items:</strong> ${items}<br>
+                      <strong>Total:</strong> EGP ${total}<br>
+                      <strong>Payment:</strong> ${payMethod}${refNum ? ` — Ref: ${refNum}` : ''}</p>
+                   <p>Reply to this email if you have any questions.</p>
+                   <p>— The DigitalMarket Team</p>`
+          });
+        } catch (e) {
+          console.warn(`[onOrderStatusChange:created] buyer email failed for ${orderId}:`, e.message);
+        }
+      }
+
+      // Admin notification — single fixed admin recipient.
+      try {
+        await sendEmail({
+          to: 'mohamed.moustafa417@gmail.com',
+          subject: `[Admin] New order EGP ${total} — #${orderShort}`,
+          body: `<p>New order received.</p>
+                 <p><strong>Buyer:</strong> ${buyerName} (${buyerEmail})<br>
+                    <strong>Order ID:</strong> ${orderId}<br>
+                    <strong>Items:</strong> ${items}<br>
+                    <strong>Total:</strong> EGP ${total}<br>
+                    <strong>Payment:</strong> ${payMethod} — Ref: ${refNum}</p>
+                 <p><a href="https://digitalmarketstore.shop/#admin-orders">Open admin orders →</a></p>`
+        });
+      } catch (e) {
+        console.warn(`[onOrderStatusChange:created] admin email failed for ${orderId}:`, e.message);
+      }
+      return; // creation flow done — don't fall through to status-change logic
+    }
+
+    if (!before) return;                             // other create events (no email)
+    if (before.status === after.status) return;      // no status change
 
     // ── Order approved → issue download token + license keys + send email ──
     if (after.status === 'approved') {
@@ -324,6 +376,36 @@ exports.onOrderStatusChange = onDocumentWritten(
           createdAt: FieldValue.serverTimestamp()
         })
       ));
+    }
+
+    // ── Order rejected → notify buyer ──
+    if (after.status === 'rejected') {
+      const buyerEmail = after.buyerEmail || '';
+      const buyerName  = after.buyerName  || 'Customer';
+      const orderShort = orderId.slice(0,8).toUpperCase();
+      const reason     = after.rejectionReason || '';
+      if (buyerEmail) {
+        try {
+          await sendEmail({
+            to: buyerEmail,
+            subject: `Order update — #${orderShort}`,
+            body: `<p>Hi ${buyerName},</p>
+                   <p>Unfortunately your order <strong>#${orderShort}</strong> could not be verified at this time${reason ? ` for the following reason:<br><em>${reason}</em>` : '.'}</p>
+                   <p>If you believe this is a mistake, reply to this email with a clearer screenshot of your payment confirmation and we will review again within one business day.</p>
+                   <p>— The DigitalMarket Team</p>`
+          });
+        } catch (e) { console.warn(`[onOrderStatusChange:rejected] email failed:`, e.message); }
+      }
+      if (after.buyerId) {
+        await db.collection('notifications').add({
+          userId:    after.buyerId,
+          type:      'order_rejected',
+          message:   `Order #${orderShort} could not be verified. Check your email for details.`,
+          orderId,
+          read:      false,
+          createdAt: FieldValue.serverTimestamp()
+        }).catch(() => {});
+      }
     }
 
     // ── Order refunded → notify buyer ──

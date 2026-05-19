@@ -2916,6 +2916,25 @@ try { emailjs.init(EMAILJS_PUBLIC_KEY); } catch(e) {}
 // EMAIL AUTOMATION
 // ═══════════════════════════════════════════════════════════════════
 function sendOrderEmail(eventType, params) {
+  // LEGACY: this used to send transactional email via EmailJS from the
+  // browser. It is now a NO-OP for events that the Cloud Function pipeline
+  // (Resend) handles — to stop the 2-3 duplicate emails buyers were
+  // receiving when both pipelines fired on the same event.
+  //
+  // CF (onOrderStatusChange) now handles:
+  //   • order_submitted   — buyer confirmation + admin notification
+  //   • order_approved    — download links email
+  //   • order_rejected    — rejection notice
+  //   • refunded          — refund confirmation
+  //
+  // EmailJS is still used for non-order flows (abandoned cart fallback,
+  // newsletter welcome, etc.) — those keep working. If we later move them
+  // to CF too, we can delete this function entirely.
+  const CF_HANDLED = ['order_submitted', 'order_approved', 'order_rejected', 'admin_new_order'];
+  if (CF_HANDLED.includes(eventType)) {
+    console.log(`[sendOrderEmail] '${eventType}' is handled by Cloud Function (Resend) — client EmailJS skipped to avoid duplicate.`);
+    return Promise.resolve();
+  }
   if (EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY') return; // not configured yet
   const siteUrl = 'https://digitalmarketstore.shop';
   // download_link: use real product download URLs if provided, else link to Orders page
