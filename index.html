@@ -4498,6 +4498,12 @@ function navigate(view) {
     const canvas = document.getElementById('hero-canvas');
     if (canvas?._cleanup) { canvas._cleanup(); canvas._initialized = false; }
   }
+  // Tear down the inbox snapshot listener when leaving the inbox tab —
+  // otherwise it keeps reading from /messages forever after the user
+  // moves on.
+  if (view !== 'inbox' && typeof _inboxUnsub !== 'undefined' && _inboxUnsub) {
+    try { _inboxUnsub(); } catch {} _inboxUnsub = null;
+  }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -5605,26 +5611,10 @@ async function submitOrder() {
     // GA4 purchase event
     trackEvent('purchase', { transaction_id: orderRef.id, value: total, currency: 'EGP',
       items: checkoutItems.map(p => ({ item_id: p.id, item_name: p.name, price: p.price })) });
-    // Send confirmation email to buyer
-    sendOrderEmail('order_submitted', {
-      to_email:   curUser.email,
-      to_name:    curUserData?.name || curUser.email,
-      order_id:   orderRef.id,
-      total,
-      items:      checkoutItems.map(p => p.name).join(', '),
-      pay_method: payMethod,
-      ref_num:    payRef
-    });
-    // Notify admin of new order
-    sendOrderEmail('order_submitted', {
-      to_email:   ADMIN_ONLY_EMAIL,
-      to_name:    'Admin',
-      order_id:   orderRef.id,
-      total,
-      items:      checkoutItems.map(p => p.name).join(', '),
-      pay_method: payMethod,
-      ref_num:    payRef
-    });
+    // Confirmation + admin-notification emails are sent by the Cloud
+    // Function (onOrderStatusChange creation flow). The EmailJS call
+    // sites used to live here — removed entirely so stale browsers
+    // can't fire the legacy path and duplicate emails.
     // Notify each unique seller
     const uniqueSellerIds = sellerIds.filter(id => id !== 'admin');
     for (const sid of uniqueSellerIds) {
