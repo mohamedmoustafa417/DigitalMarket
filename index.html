@@ -6092,6 +6092,15 @@ async function openProductModal(isAdminContext = false, editId = null) {
     document.getElementById('prod-img').value      = p.imageUrl      || '';
     document.getElementById('prod-emoji').value    = p.emoji         || '';
     document.getElementById('prod-download').value = p.downloadUrl   || '';
+    // Companion hidden input for storagePath (set by upload handler).
+    let pi = document.getElementById('prod-storage-path');
+    if (!pi) {
+      pi = document.createElement('input');
+      pi.type = 'hidden';
+      pi.id   = 'prod-storage-path';
+      document.getElementById('prod-download').parentNode.appendChild(pi);
+    }
+    pi.value = p.storagePath || '';
     document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
     document.getElementById('prod-sample').value   = p.sampleUrl     || '';
   }
@@ -6156,6 +6165,7 @@ async function submitProduct(e, isDraft = false) {
     videoUrl:      videoUrl,
     emoji:         emoji,
     downloadUrl:   dlUrl,
+    storagePath:   document.getElementById('prod-storage-path')?.value || null,
     sampleUrl:     sampleUrl,
     tags,
     pwyw:          isPwyw,
@@ -9558,6 +9568,17 @@ async function uploadProductFile(file) {
 
     const downloadURL = await ref.getDownloadURL();
     dlInput.value = downloadURL;
+    // Stash storagePath on a sibling hidden input so the product form save
+    // picks it up. The downloadFile CF resolver prefers product.storagePath
+    // (single hop) over parsing the URL (two hops + regex).
+    let pathInput = document.getElementById('prod-storage-path');
+    if (!pathInput) {
+      pathInput = document.createElement('input');
+      pathInput.type  = 'hidden';
+      pathInput.id    = 'prod-storage-path';
+      dlInput.parentNode.appendChild(pathInput);
+    }
+    pathInput.value = storagePath;
     labelEl.textContent = `✅ ${file.name} (${(file.size/1024/1024).toFixed(1)} MB) – uploaded`;
     statusEl.textContent = 'Upload complete!';
     bar.style.width = '100%';
