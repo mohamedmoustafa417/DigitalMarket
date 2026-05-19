@@ -11247,12 +11247,18 @@ function sendBrowserNotification(title, body, url) {
   setTimeout(() => n.close(), 8000);
 }
 
-// Listen to user's orders and notify on status change
+// Listen to user's orders and notify on status change.
+// LEAK FIX: previously the snapshot was attached forever — never unbound
+// on sign-out, never re-attached on sign-in if the load event already
+// fired, and re-bound on every load if user signs in→out→in (multiple
+// stacked listeners reading the same docs). Now keyed to auth state.
+let _liveOrderUnsub = null;
 (function liveOrderStatus() {
   let lastStatuses = {};
-  window.addEventListener('load', () => setTimeout(() => {
+  const attach = () => {
+    if (_liveOrderUnsub) { _liveOrderUnsub(); _liveOrderUnsub = null; }
     if (!curUser || localStorage.getItem('dm_notifications_enabled') !== '1') return;
-    db.collection('orders').where('buyerId','==',curUser.uid)
+    _liveOrderUnsub = db.collection('orders').where('buyerId','==',curUser.uid)
       .onSnapshot(snap => {
         snap.docChanges().forEach(change => {
           if (change.type === 'modified') {
@@ -11272,7 +11278,13 @@ function sendBrowserNotification(title, body, url) {
           }
         });
       });
-  }, 2000));
+  };
+  window.addEventListener('load', () => setTimeout(attach, 2000));
+  // Re-evaluate on auth changes — also fixes the bug where the listener
+  // never attached if the user signed in AFTER the 2s timeout fired.
+  if (window.firebase?.auth) {
+    firebase.auth().onAuthStateChanged(() => attach());
+  }
 })();
 
 // ═════════════════════════════════════════════════════════════════════
