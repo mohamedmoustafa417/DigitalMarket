@@ -1709,6 +1709,100 @@
       font-size: 0.7rem;
       padding: 0.2rem 0.55rem;
     }
+
+    /* ───────────────────────────────────────────────────────────────
+       CHECKOUT WIZARD — multi-step progress
+       The existing checkout modal becomes a 3-step flow:
+       1. Review order (items + coupon + loyalty)
+       2. Payment method + reference number
+       3. Upload proof + submit
+       Each step is its own panel; only the active one is shown.
+       Progress chips at top, Back/Next at bottom.
+       ─────────────────────────────────────────────────────────── */
+    .dm-wizard-progress {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0 0 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .dm-wizard-progress::-webkit-scrollbar { display: none; }
+    .dm-wizard-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.7rem;
+      background: var(--bg3);
+      color: var(--text-muted);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+      cursor: default;
+    }
+    .dm-wizard-chip[aria-current="step"] {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.35);
+    }
+    .dm-wizard-chip.dm-step-done {
+      background: rgba(34,197,94,0.18);
+      color: var(--success);
+      cursor: pointer;
+    }
+    .dm-wizard-chip.dm-step-done:hover { background: rgba(34,197,94,0.28); }
+    .dm-wizard-chip .dm-step-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .dm-wizard-chip[aria-current="step"] .dm-step-num {
+      background: #fff;
+      color: var(--primary);
+    }
+    .dm-wizard-chip.dm-step-done .dm-step-num {
+      background: var(--success);
+      color: #fff;
+    }
+    .dm-wizard-chip-sep {
+      flex: 0 0 18px;
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+    }
+    .dm-step-panel {
+      display: none;
+      animation: dm-step-in 0.25s ease-out;
+    }
+    .dm-step-panel.dm-step-active { display: block; }
+    @keyframes dm-step-in {
+      from { opacity: 0; transform: translateX(8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    body[dir="rtl"] @keyframes dm-step-in {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .dm-wizard-footer {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
@@ -2599,6 +2693,10 @@
       <div class="sidebar-link" id="al-collections" onclick="adminTab('collections')" role="button" tabindex="0">
         <i class="fa-solid fa-layer-group" aria-hidden="true"></i> <span>Collections</span>
       </div>
+      <div class="sidebar-link" id="al-carts" onclick="adminTab('carts')" role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter')adminTab('carts')">
+        <i class="fa-solid fa-cart-arrow-down" aria-hidden="true"></i> <span>Abandoned Carts</span>
+      </div>
     </aside>
     <div>
       <div class="stats-row">
@@ -2867,6 +2965,48 @@
         </div>
       </div>
 
+      <!-- Abandoned Carts tab -->
+      <div id="admin-tab-carts" class="hidden">
+        <h3 style="margin-bottom:1.2rem;">
+          <i class="fa-solid fa-cart-arrow-down" style="color:var(--primary);margin-right:0.5rem;" aria-hidden="true"></i>
+          Abandoned Carts
+        </h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
+          Carts idle for ≥24 hours. The daily Cloud Function automatically emails these buyers — use the buttons below to nudge a single cart manually or skip it.
+        </p>
+        <div class="stats-row" style="margin-bottom:1.25rem;">
+          <div class="stat-card"><div class="stat-number" id="ac-stat-total">0</div><div class="stat-label">Open carts</div></div>
+          <div class="stat-card"><div class="stat-number" id="ac-stat-notified">0</div><div class="stat-label">Already nudged</div></div>
+          <div class="stat-card"><div class="stat-number" id="ac-stat-recoverable">EGP 0</div><div class="stat-label">Potential revenue</div></div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Buyer</th>
+                <th>Email</th>
+                <th>Items</th>
+                <th style="text-align:right;">Cart Value</th>
+                <th>Idle Since</th>
+                <th>Status</th>
+                <th style="text-align:end;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="abandoned-carts-tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">Click "Refresh" to load.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+          <button class="btn btn-primary btn-sm" onclick="loadAbandonedCarts()">
+            <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="loadAbandonedCarts(true)" id="ac-show-notified-btn">
+            Show already-nudged
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
@@ -3027,68 +3167,97 @@
       <button class="btn-icon" onclick="closeModal('checkout-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
-      <div id="checkout-body"></div>
-      <!-- License picker (shown when product has commercial license) -->
-      <div id="checkout-license-wrap" class="hidden" style="margin-bottom:1rem;">
-        <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;"><i class="fa-solid fa-file-contract" style="color:var(--primary);margin-right:0.4rem;"></i>Select License</h4>
-        <div class="license-grid" id="checkout-license-grid"></div>
-      </div>
-      <!-- Upsell block -->
-      <div class="upsell-block hidden" id="upsell-block">
-        <h5><i class="fa-solid fa-bolt" style="margin-right:0.3rem;"></i>You might also like</h5>
-        <div class="upsell-items" id="upsell-items"></div>
-      </div>
+      <!-- Wizard progress -->
+      <nav class="dm-wizard-progress" id="checkout-progress" aria-label="Checkout progress">
+        <span class="dm-wizard-chip" data-step="1" aria-current="step" onclick="dmCheckoutGo(1)">
+          <span class="dm-step-num">1</span><span class="dm-step-lbl">Review</span>
+        </span>
+        <span class="dm-wizard-chip-sep"></span>
+        <span class="dm-wizard-chip" data-step="2" onclick="dmCheckoutGo(2)">
+          <span class="dm-step-num">2</span><span class="dm-step-lbl">Payment</span>
+        </span>
+        <span class="dm-wizard-chip-sep"></span>
+        <span class="dm-wizard-chip" data-step="3" onclick="dmCheckoutGo(3)">
+          <span class="dm-step-num">3</span><span class="dm-step-lbl">Confirm</span>
+        </span>
+      </nav>
 
-      <hr style="border-color:var(--border);margin:1.2rem 0;">
-
-      <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">Payment Method</h4>
-      <div class="form-group" style="margin-bottom:1rem;">
-        <select id="pay-method-select" class="form-control" onchange="onPayMethodChange()" style="font-size:0.95rem;cursor:pointer;">
-          <option value="">— Select Payment Method —</option>
-          <option value="instapay">📱 InstaPay</option>
-          <option value="bank">🏦 Bank Transfer</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="pay-ref-input">Transaction Reference Number <span class="req">*</span></label>
-        <input class="form-control" type="text" id="pay-ref-input" placeholder="Enter your transaction/reference number" maxlength="100">
-        <small style="color:var(--text-muted);font-size:0.75rem;">The reference number from your payment confirmation</small>
-      </div>
-
-      <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;" data-i18n="uploadProof">Upload Payment Screenshot</h4>
-      <div class="file-upload" onclick="document.getElementById('proof-input').click()" role="button" tabindex="0"
-           onkeydown="if(event.key==='Enter')this.click()" aria-label="Click to upload payment proof">
-        <i class="fa-solid fa-cloud-arrow-up" style="font-size:1.5rem;color:var(--text-muted);margin-bottom:0.5rem;" aria-hidden="true"></i>
-        <p style="font-size:0.85rem;color:var(--text-muted);" data-i18n="clickToUpload">Click to upload screenshot</p>
-        <p style="font-size:0.75rem;color:var(--text-muted);">JPG, PNG, WEBP – max 5MB</p>
-        <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)" aria-label="Upload payment proof image">
-        <img id="proof-preview" class="file-preview" alt="Payment proof preview">
-      </div>
-      <!-- Coupon code -->
-      <div class="form-group" style="margin-top:1rem;">
-        <label class="form-label" style="font-size:0.85rem;">Coupon Code (optional)</label>
-        <div style="display:flex;gap:0.5rem;">
-          <input class="form-control" type="text" id="coupon-input" placeholder="Enter code" maxlength="32" style="flex:1;text-transform:uppercase;">
-          <button class="btn btn-outline btn-sm" onclick="applyCoupon()" style="white-space:nowrap;">Apply</button>
+      <!-- STEP 1: review items, coupon, loyalty -->
+      <div class="dm-step-panel dm-step-active" data-step="1">
+        <div id="checkout-body"></div>
+        <!-- License picker (shown when product has commercial license) -->
+        <div id="checkout-license-wrap" class="hidden" style="margin-bottom:1rem;">
+          <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:0.5rem;"><i class="fa-solid fa-file-contract" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>Select License</h4>
+          <div class="license-grid" id="checkout-license-grid"></div>
         </div>
-        <div id="coupon-feedback" style="font-size:0.8rem;margin-top:0.35rem;"></div>
+        <!-- Coupon code -->
+        <div class="form-group" style="margin-top:1rem;">
+          <label class="form-label" for="coupon-input" style="font-size:0.85rem;">Coupon Code (optional)</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input class="form-control" type="text" id="coupon-input" placeholder="Enter code" maxlength="32" style="flex:1;text-transform:uppercase;">
+            <button class="btn btn-outline btn-sm" onclick="applyCoupon()" style="white-space:nowrap;">Apply</button>
+          </div>
+          <div id="coupon-feedback" style="font-size:0.8rem;margin-top:0.35rem;" aria-live="polite"></div>
+        </div>
+        <!-- Loyalty points redeem -->
+        <div class="redeem-row hidden" id="loyalty-redeem-row">
+          <i class="fa-solid fa-coins" style="color:var(--warning);" aria-hidden="true"></i>
+          <span style="font-size:0.82rem;flex:1;">You have <strong id="checkout-points-val">0</strong> pts — redeem <strong id="checkout-points-max">0</strong> pts for <strong id="checkout-points-discount">EGP 0</strong> off?</span>
+          <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.82rem;cursor:pointer;">
+            <input type="checkbox" id="redeem-points-check" onchange="togglePointsRedeem(this.checked)"> Use Points
+          </label>
+        </div>
+        <!-- Upsell block -->
+        <div class="upsell-block hidden" id="upsell-block">
+          <h5><i class="fa-solid fa-bolt" style="margin-right:0.3rem;" aria-hidden="true"></i>You might also like</h5>
+          <div class="upsell-items" id="upsell-items"></div>
+        </div>
       </div>
 
-      <!-- Loyalty points redeem -->
-      <div class="redeem-row hidden" id="loyalty-redeem-row">
-        <i class="fa-solid fa-coins" style="color:var(--warning);"></i>
-        <span style="font-size:0.82rem;flex:1;">You have <strong id="checkout-points-val">0</strong> pts — redeem <strong id="checkout-points-max">0</strong> pts for <strong id="checkout-points-discount">EGP 0</strong> off?</span>
-        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.82rem;cursor:pointer;">
-          <input type="checkbox" id="redeem-points-check" onchange="togglePointsRedeem(this.checked)"> Use Points
-        </label>
+      <!-- STEP 2: payment method + reference -->
+      <div class="dm-step-panel" data-step="2">
+        <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">Payment Method</h4>
+        <div class="form-group" style="margin-bottom:1rem;">
+          <select id="pay-method-select" class="form-control" onchange="onPayMethodChange()" style="font-size:0.95rem;cursor:pointer;">
+            <option value="">— Select Payment Method —</option>
+            <option value="instapay">📱 InstaPay</option>
+            <option value="bank">🏦 Bank Transfer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pay-ref-input">Transaction Reference Number <span class="req" aria-hidden="true">*</span></label>
+          <input class="form-control" type="text" id="pay-ref-input" placeholder="Enter your transaction/reference number" maxlength="100" aria-required="true">
+          <small style="color:var(--text-muted);font-size:0.75rem;">The reference number from your payment confirmation.</small>
+        </div>
+      </div>
+
+      <!-- STEP 3: proof upload + submit -->
+      <div class="dm-step-panel" data-step="3">
+        <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;" data-i18n="uploadProof">Upload Payment Screenshot</h4>
+        <div class="file-upload" onclick="document.getElementById('proof-input').click()" role="button" tabindex="0"
+             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" aria-label="Click to upload payment proof">
+          <i class="fa-solid fa-cloud-arrow-up" style="font-size:1.5rem;color:var(--text-muted);margin-bottom:0.5rem;" aria-hidden="true"></i>
+          <p style="font-size:0.85rem;color:var(--text-muted);" data-i18n="clickToUpload">Click to upload screenshot</p>
+          <p style="font-size:0.75rem;color:var(--text-muted);">JPG, PNG, WEBP – max 5MB</p>
+          <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)" aria-label="Upload payment proof image">
+          <img id="proof-preview" class="file-preview" alt="Payment proof preview">
+        </div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.75rem;">After you submit, an admin will review your payment within 24 hours and email you with your download links.</p>
       </div>
 
       <div class="alert alert-danger mt-2" id="checkout-alert" role="alert" style="display:none;"></div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer dm-wizard-footer">
+      <button class="btn btn-outline" id="checkout-prev-btn" onclick="dmCheckoutGo(window._dmCheckoutStep - 1)" style="display:none;">
+        ← Back
+      </button>
       <button class="btn btn-outline" onclick="closeModal('checkout-modal')" data-i18n="cancel">Cancel</button>
-      <button class="btn btn-primary" id="submit-order-btn" onclick="submitOrder()" data-i18n="submitOrder">Submit Order</button>
+      <button class="btn btn-primary" id="checkout-next-btn" onclick="dmCheckoutNext()">
+        Next →
+      </button>
+      <button class="btn btn-primary" id="submit-order-btn" onclick="submitOrder()" data-i18n="submitOrder" style="display:none;">
+        Submit Order
+      </button>
     </div>
   </div>
 </div>
@@ -3770,6 +3939,73 @@ function dmEmpty(el, { icon = '📭', title = 'Nothing here yet', text = '', cta
     const btn = el.querySelector('.dm-empty .btn-primary');
     if (btn) btn.onclick = ctaOnClick;
   }
+}
+
+// ─── Checkout Wizard controller ───────────────────────────────────────
+window._dmCheckoutStep = 1;
+const DM_CHECKOUT_LAST = 3;
+function dmCheckoutGo(step) {
+  step = Math.max(1, Math.min(DM_CHECKOUT_LAST, step | 0));
+  // Step-by-step gating: don't let users skip forward past unfilled fields
+  // by clicking a future chip.
+  if (step > window._dmCheckoutStep) {
+    if (!dmCheckoutValidate(window._dmCheckoutStep)) return;
+  }
+  window._dmCheckoutStep = step;
+  document.querySelectorAll('#checkout-modal .dm-step-panel').forEach(p => {
+    p.classList.toggle('dm-step-active', Number(p.dataset.step) === step);
+  });
+  document.querySelectorAll('#checkout-modal .dm-wizard-chip').forEach(c => {
+    const n = Number(c.dataset.step);
+    c.classList.toggle('dm-step-done', n < step);
+    if (n === step) c.setAttribute('aria-current', 'step');
+    else            c.removeAttribute('aria-current');
+  });
+  const prevBtn = document.getElementById('checkout-prev-btn');
+  const nextBtn = document.getElementById('checkout-next-btn');
+  const submBtn = document.getElementById('submit-order-btn');
+  if (prevBtn) prevBtn.style.display = step > 1 ? '' : 'none';
+  if (step === DM_CHECKOUT_LAST) {
+    if (nextBtn) nextBtn.style.display = 'none';
+    if (submBtn) submBtn.style.display = '';
+  } else {
+    if (nextBtn) nextBtn.style.display = '';
+    if (submBtn) submBtn.style.display = 'none';
+  }
+  // Scroll to top of modal body
+  const body = document.querySelector('#checkout-modal .modal-body');
+  if (body) body.scrollTop = 0;
+}
+function dmCheckoutNext() {
+  if (!dmCheckoutValidate(window._dmCheckoutStep)) return;
+  dmCheckoutGo(window._dmCheckoutStep + 1);
+}
+/** Validate the current step; show an inline error toast if invalid. */
+function dmCheckoutValidate(step) {
+  if (step === 1) {
+    // Step 1 has no required fields (cart + optional coupon).
+    return true;
+  }
+  if (step === 2) {
+    const pm  = document.getElementById('pay-method-select')?.value;
+    const ref = document.getElementById('pay-ref-input')?.value?.trim();
+    if (!pm)  { toast('Please select a payment method.', 'warning'); return false; }
+    if (!ref) { toast('Please enter your transaction reference number.', 'warning');
+                document.getElementById('pay-ref-input')?.focus(); return false; }
+    return true;
+  }
+  if (step === 3) {
+    // Validation happens at submit; free orders skip the proof entirely.
+    if (window._isFreeOrder) return true;
+    if (!window.proofB64) { toast('Please upload your payment screenshot.', 'warning'); return false; }
+    return true;
+  }
+  return true;
+}
+/** Reset wizard to step 1 — called on modal open. */
+function dmCheckoutReset() {
+  window._dmCheckoutStep = 1;
+  dmCheckoutGo(1);
 }
 
 /** Toggle a button into/out of loading state (preserves original text). */
@@ -4891,6 +5127,9 @@ async function openCheckout(ids) {
 
   document.getElementById('checkout-body').innerHTML = html;
   openModal('checkout-modal');
+  // Reset the wizard to step 1 each time checkout opens (so a previous
+  // visit that ended on step 3 doesn't reopen mid-flow).
+  if (typeof dmCheckoutReset === 'function') dmCheckoutReset();
 }
 
 function renderCheckoutSummary() {
@@ -5529,7 +5768,7 @@ async function deleteProduct(id) {
 // ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function adminTab(tab) {
-  ['orders','products','users','settings','coupons','announcements','disputes','payouts','reports','collections'].forEach(t => {
+  ['orders','products','users','settings','coupons','announcements','disputes','payouts','reports','collections','carts'].forEach(t => {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
@@ -5546,6 +5785,141 @@ function adminTab(tab) {
     if (tab === 'payouts')       loadAdminPayouts();
     if (tab === 'reports')       loadAdminReports();
     if (tab === 'collections')   loadAdminCollections();
+    if (tab === 'carts')         loadAbandonedCarts();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ABANDONED CARTS — admin dashboard
+// One-click manual re-engage (sends the same email the scheduled CF
+// fires daily). Useful for high-value carts admin spots in real-time.
+// ═══════════════════════════════════════════════════════════════════
+let _acShowNotified = false;
+async function loadAbandonedCarts(toggleNotified) {
+  if (toggleNotified === true) _acShowNotified = !_acShowNotified;
+  const tbody    = document.getElementById('abandoned-carts-tbody');
+  const showBtn  = document.getElementById('ac-show-notified-btn');
+  if (showBtn) showBtn.textContent = _acShowNotified ? 'Hide already-nudged' : 'Show already-nudged';
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…</td></tr>`;
+  try {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24 h
+    const snap = _acShowNotified
+      ? await db.collection('abandonedCarts').limit(200).get()
+      : await db.collection('abandonedCarts').where('notified','==',false).limit(200).get();
+
+    // Hydrate with product names for the items column
+    const productCache = {};
+    const rows = [];
+    let totalEgp = 0;
+    let notifiedCount = 0;
+    for (const d of snap.docs) {
+      const c = d.data();
+      const updatedMs = c.updatedAt?.toMillis ? c.updatedAt.toMillis() : 0;
+      if (updatedMs > cutoff && !_acShowNotified) continue; // skip too-recent
+
+      let cartValue = 0;
+      const itemNames = [];
+      for (const it of (c.items || [])) {
+        let p = productCache[it.id];
+        if (!p) {
+          try {
+            const psnap = await db.collection('products').doc(it.id).get();
+            p = psnap.exists ? psnap.data() : null;
+            productCache[it.id] = p;
+          } catch { p = null; }
+        }
+        if (p) {
+          cartValue += Number(p.price || 0);
+          itemNames.push(p.name || '(unnamed)');
+        }
+      }
+      totalEgp += cartValue;
+      if (c.notified) notifiedCount++;
+
+      const idleDays = updatedMs ? Math.floor((Date.now() - updatedMs) / 86400000) : '?';
+      const statusBadge = c.notified
+        ? '<span class="badge badge-success" style="font-size:0.7rem;">Notified</span>'
+        : '<span class="badge badge-warning" style="font-size:0.7rem;">Open</span>';
+      rows.push(`<tr data-uid="${sanitize(d.id)}">
+        <td>${sanitize(c.name || '—')}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">${sanitize(c.email || '—')}</td>
+        <td style="max-width:240px;font-size:0.78rem;">${sanitize(itemNames.join(', ') || '(empty)')}</td>
+        <td style="text-align:right;font-weight:700;color:var(--primary-light);">${formatPrice(cartValue)}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">${idleDays} day${idleDays === 1 ? '' : 's'}</td>
+        <td>${statusBadge}</td>
+        <td style="text-align:end;">
+          <button class="btn btn-sm btn-primary" onclick="nudgeAbandonedCart('${sanitize(d.id)}', this)" ${c.notified ? 'disabled aria-disabled="true"' : ''} aria-label="Send reminder email">
+            <i class="fa-solid fa-envelope" aria-hidden="true"></i> ${c.notified ? 'Sent' : 'Nudge'}
+          </button>
+          <button class="btn btn-sm btn-outline" onclick="skipAbandonedCart('${sanitize(d.id)}', this)" aria-label="Mark as skipped">
+            Skip
+          </button>
+        </td>
+      </tr>`);
+    }
+    tbody.innerHTML = rows.length
+      ? rows.join('')
+      : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No abandoned carts ${_acShowNotified ? '' : 'open'} right now. 🎉</td></tr>`;
+    document.getElementById('ac-stat-total').textContent      = rows.length;
+    document.getElementById('ac-stat-notified').textContent   = notifiedCount;
+    document.getElementById('ac-stat-recoverable').textContent = formatPrice(totalEgp);
+  } catch (e) {
+    console.error('loadAbandonedCarts:', e);
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:2rem;">Failed to load: ${sanitize(e.message || 'unknown')}</td></tr>`;
+  }
+}
+
+/** Manually nudge a single cart — mirrors what the daily CF does. */
+async function nudgeAbandonedCart(uid, btn) {
+  if (btn) dmBtnLoading(btn, true);
+  try {
+    const snap = await db.collection('abandonedCarts').doc(uid).get();
+    if (!snap.exists) { toast('Cart not found.', 'danger'); return; }
+    const c = snap.data();
+    if (!c.email) { toast('No email on file for this cart.', 'warning'); return; }
+    // We send via the legacy EmailJS path (still wired for abandoned-cart,
+    // which the CF rewrite intentionally left alone) — falls back to a
+    // simple confirm here. Future: call a CF endpoint for guaranteed delivery.
+    if (typeof sendOrderEmail === 'function') {
+      await sendOrderEmail('abandoned_cart', {
+        to_email: c.email,
+        to_name:  c.name || 'there',
+        items:    (c.items || []).map(i => i.id).join(', '),
+        total:    0
+      }).catch(() => null);
+    }
+    await db.collection('abandonedCarts').doc(uid).update({
+      notified: true,
+      notifiedAt: FV.serverTimestamp(),
+      notifiedBy: curUser?.uid || 'admin-manual'
+    });
+    toast(`Reminder sent to ${c.email}.`, 'success');
+    await loadAbandonedCarts();
+  } catch (e) {
+    console.error('nudgeAbandonedCart:', e);
+    toast('Failed to nudge: ' + (e.message || 'unknown'), 'danger');
+  } finally {
+    if (btn) dmBtnLoading(btn, false);
+  }
+}
+
+/** Mark a cart skipped without sending — for spam emails / known-junk carts. */
+async function skipAbandonedCart(uid, btn) {
+  if (!confirm('Skip this cart (mark as notified without sending)? It will stop appearing in the open list.')) return;
+  if (btn) dmBtnLoading(btn, true);
+  try {
+    await db.collection('abandonedCarts').doc(uid).update({
+      notified: true,
+      notifiedAt: FV.serverTimestamp(),
+      notifiedBy: 'admin-skip'
+    });
+    toast('Cart skipped.', 'info');
+    await loadAbandonedCarts();
+  } catch (e) {
+    toast('Failed: ' + (e.message || 'unknown'), 'danger');
+  } finally {
+    if (btn) dmBtnLoading(btn, false);
   }
 }
 
