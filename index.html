@@ -2467,6 +2467,10 @@
       <div class="sidebar-link" id="sl-updates" onclick="sellerTab('updates')" role="button" tabindex="0">
         <i class="fa-solid fa-bell-ring" aria-hidden="true"></i> <span>Notify Buyers</span>
       </div>
+      <div class="sidebar-link" id="sl-stats" onclick="sellerTab('stats')" role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter')sellerTab('stats')">
+        <i class="fa-solid fa-chart-line" aria-hidden="true"></i> <span>Stats</span>
+      </div>
     </aside>
     <div>
       <!-- Stats -->
@@ -2650,6 +2654,76 @@
         </div>
       </div>
 
+      <!-- Seller Stats tab -->
+      <div id="seller-tab-stats" class="hidden">
+        <h3 style="margin-bottom:0.3rem;">
+          <i class="fa-solid fa-chart-line" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>
+          Your Performance — last 30 days
+        </h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1.25rem;">
+          Snapshot of how your shop is doing. Refreshes when you open this tab.
+        </p>
+        <div class="stats-row" style="margin-bottom:1.5rem;">
+          <div class="stat-card">
+            <div class="stat-number" id="ss-stat-orders">—</div>
+            <div class="stat-label">Orders (30 d)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="ss-stat-revenue">—</div>
+            <div class="stat-label">Revenue (30 d)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="ss-stat-aov">—</div>
+            <div class="stat-label">Avg. order value</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="ss-stat-conv">—</div>
+            <div class="stat-label">Approved / total</div>
+          </div>
+        </div>
+        <div class="chart-wrap" style="margin-bottom:1.5rem;">
+          <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.5rem;">
+            <i class="fa-solid fa-chart-column" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>
+            Daily Revenue — last 30 days
+          </h4>
+          <canvas id="ss-daily-rev-chart" height="100"></canvas>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:1rem;">
+          <div class="auth-card">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">
+              <i class="fa-solid fa-fire" style="color:var(--danger);margin-right:0.4rem;" aria-hidden="true"></i>
+              Top-Selling Products
+            </h4>
+            <ol id="ss-top-products" style="list-style:none;padding:0;margin:0;font-size:0.85rem;line-height:1.9;">
+              <li style="color:var(--text-muted);">Loading…</li>
+            </ol>
+          </div>
+          <div class="auth-card">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">
+              <i class="fa-solid fa-eye" style="color:var(--info);margin-right:0.4rem;" aria-hidden="true"></i>
+              Most-Viewed Products
+            </h4>
+            <ol id="ss-top-views" style="list-style:none;padding:0;margin:0;font-size:0.85rem;line-height:1.9;">
+              <li style="color:var(--text-muted);">Loading…</li>
+            </ol>
+          </div>
+          <div class="auth-card">
+            <h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;">
+              <i class="fa-solid fa-chart-pie" style="color:var(--success);margin-right:0.4rem;" aria-hidden="true"></i>
+              Order Status Mix
+            </h4>
+            <div id="ss-status-mix" style="font-size:0.85rem;line-height:1.9;">
+              <div style="color:var(--text-muted);">Loading…</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:1rem;">
+          <button class="btn btn-outline btn-sm" onclick="loadSellerStats(true)">
+            <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh stats
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
@@ -2704,6 +2778,10 @@
       <div class="sidebar-link" id="al-emails" onclick="adminTab('emails')" role="button" tabindex="0"
            onkeydown="if(event.key==='Enter')adminTab('emails')">
         <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i> <span>Email Failures</span>
+      </div>
+      <div class="sidebar-link" id="al-reviews" onclick="adminTab('reviews')" role="button" tabindex="0"
+           onkeydown="if(event.key==='Enter')adminTab('reviews')">
+        <i class="fa-solid fa-comments" aria-hidden="true"></i> <span>Review Moderation</span>
       </div>
     </aside>
     <div>
@@ -3122,6 +3200,51 @@
           <button class="btn btn-primary btn-sm" onclick="loadEmailFailures()">
             <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh
           </button>
+        </div>
+      </div>
+
+      <!-- Review Moderation tab -->
+      <div id="admin-tab-reviews" class="hidden">
+        <h3 style="margin-bottom:1.2rem;">
+          <i class="fa-solid fa-comments" style="color:var(--primary);margin-right:0.5rem;" aria-hidden="true"></i>
+          Review Moderation
+        </h3>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
+          Spot-check buyer reviews. Most-recent first. Use the filter to surface low-star reviews most likely to need moderation.
+        </p>
+        <div class="stats-row" style="margin-bottom:1.25rem;">
+          <div class="stat-card"><div class="stat-number" id="rm-stat-total">0</div><div class="stat-label">Total reviews</div></div>
+          <div class="stat-card"><div class="stat-number" id="rm-stat-1to2">0</div><div class="stat-label">1-2 ★ reviews</div></div>
+          <div class="stat-card"><div class="stat-number" id="rm-stat-7d">0</div><div class="stat-label">Last 7 days</div></div>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.85rem;align-items:center;">
+          <label for="rm-filter" style="font-size:0.82rem;color:var(--text-muted);">Filter:</label>
+          <select id="rm-filter" class="form-control" style="width:auto;font-size:0.85rem;" onchange="loadAdminReviews()">
+            <option value="all">All (most recent)</option>
+            <option value="low">Low rating (≤ 2 ★)</option>
+            <option value="high">High rating (5 ★)</option>
+            <option value="recent">Last 7 days</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="loadAdminReviews()">
+            <i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:80px;">Rating</th>
+                <th>Review</th>
+                <th>Product</th>
+                <th>Buyer</th>
+                <th>When</th>
+                <th style="text-align:end;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="reviews-mod-tbody">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;">Click "Refresh" to load.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -4782,7 +4905,7 @@ function renderProducts() {
   grid.innerHTML = list.map(p => `
     <div class="product-card" onclick="openProductDetail('${sanitize(p.id)}')" role="listitem" tabindex="0"
          onkeydown="if(event.key==='Enter')openProductDetail('${sanitize(p.id)}')"
-         aria-label="${sanitize(p.name)} - EGP ${Number(p.price||0).toLocaleString()}" style="position:relative;">
+         aria-label="${sanitize(p.name)} - ${formatPrice(p.price||0)}" style="position:relative;">
       <button onclick="toggleWishlist('${sanitize(p.id)}',event)" aria-label="Wishlist" title="Wishlist"
         style="position:absolute;top:0.5rem;right:0.5rem;background:rgba(0,0,0,0.35);border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:2;color:${isWishlisted(p.id)?'#f43f5e':'#fff'};">
         ${isWishlisted(p.id) ? '♥' : '♡'}
@@ -4855,20 +4978,52 @@ function openProductDetail(id) {
   const verifiedBadge = p.sellerVerified
     ? `<span class="verified-badge" style="margin-left:0.35rem;">✓ Verified</span>` : '';
 
+  // Rating summary (if any reviews exist)
+  const ratingSummary = p.ratingCount > 0
+    ? `<div style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.85rem;">
+         ${starsHtml(p.ratingAvg||0)}
+         <span style="font-weight:700;color:var(--text);">${(+p.ratingAvg||0).toFixed(1)}</span>
+         <span style="color:var(--text-muted);">(${p.ratingCount} review${p.ratingCount === 1 ? '' : 's'})</span>
+       </div>`
+    : '<div style="color:var(--text-muted);font-size:0.82rem;"><i class="fa-regular fa-star" aria-hidden="true"></i> No reviews yet</div>';
+
   body.innerHTML = `
     ${galleryHtml}
     ${videoHtml}
-    <h3 style="margin-bottom:0.5rem;">${sanitize(p.name)}</h3>
-    <div style="margin-bottom:0.75rem;color:var(--text-muted);font-size:0.9rem;">${sanitize(p.description || '')}</div>
-    ${p.descriptionAr ? `<div style="margin-bottom:1rem;color:var(--text-muted);font-size:0.9rem;direction:rtl;text-align:right;font-family:var(--font-ar);">${sanitize(p.descriptionAr)}</div>` : ''}
-    <div class="flex gap-2" style="flex-wrap:wrap;margin-bottom:1rem;">
-      <span class="badge badge-primary"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${sanitize(p.category || 'other')}</span>
-      <span class="badge badge-success" style="font-size:1rem;padding:0.3rem 0.75rem;"><strong>${formatPrice(p.price)}</strong></span>
+    <h3 style="margin:0 0 0.4rem;font-size:1.25rem;line-height:1.3;">${sanitize(p.name)}</h3>
+    <div style="margin-bottom:0.85rem;">${ratingSummary}</div>
+
+    <!-- Price + category row — visually anchored hero element -->
+    <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:0.75rem;margin-bottom:1rem;padding:0.85rem 1rem;background:linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.04));border:1px solid rgba(99,102,241,0.18);border-radius:var(--radius);">
+      <span style="font-size:1.65rem;font-weight:800;color:var(--primary-light, #818cf8);letter-spacing:-0.02em;line-height:1;">${formatPrice(p.price)}</span>
+      ${p.pwyw ? '<span style="font-size:0.7rem;font-weight:700;background:var(--success);color:#000;padding:0.2rem 0.5rem;border-radius:999px;">PAY WHAT YOU WANT</span>' : ''}
+      ${p.hasCommercialLicense ? '<span style="font-size:0.7rem;font-weight:700;background:var(--info);color:#fff;padding:0.2rem 0.5rem;border-radius:999px;">COMMERCIAL LICENSE</span>' : ''}
+      <span style="margin-inline-start:auto;font-size:0.78rem;color:var(--text-muted);"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${sanitize(p.category || 'other')}</span>
     </div>
-    ${p.sellerName ? `<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem;">
+
+    <!-- Trust badges row — builds buyer confidence before they hit Buy Now -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:0.5rem;margin-bottom:1rem;font-size:0.74rem;">
+      <div style="display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.6rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);">
+        <i class="fa-solid fa-bolt" style="color:var(--warning);" aria-hidden="true"></i>
+        <span>Instant download<br><span style="color:var(--text-muted);font-size:0.7rem;">after approval</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.6rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);">
+        <i class="fa-solid fa-shield-halved" style="color:var(--success);" aria-hidden="true"></i>
+        <span>Secure proxy<br><span style="color:var(--text-muted);font-size:0.7rem;">signed URLs</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.4rem;padding:0.4rem 0.6rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);">
+        <i class="fa-solid fa-rotate-left" style="color:var(--info);" aria-hidden="true"></i>
+        <span>7-day refund<br><span style="color:var(--text-muted);font-size:0.7rem;"><a href="refund.html" target="_blank" rel="noopener" style="color:var(--info);">policy</a></span></span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:0.75rem;color:var(--text);font-size:0.92rem;line-height:1.55;white-space:pre-wrap;">${sanitize(p.description || '')}</div>
+    ${p.descriptionAr ? `<div style="margin-bottom:1rem;color:var(--text);font-size:0.92rem;line-height:1.55;direction:rtl;text-align:right;font-family:var(--font-ar);white-space:pre-wrap;">${sanitize(p.descriptionAr)}</div>` : ''}
+    ${p.sellerName ? `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.5rem;">
       <i class="fa-solid fa-shop" aria-hidden="true"></i>
+      Sold by
       <button onclick="filterBySeller('${sanitize(p.sellerId||'')}','${sanitize(p.sellerName)}')"
-        style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.82rem;padding:0;text-decoration:underline;"
+        style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.85rem;padding:0 0.25rem;text-decoration:underline;font-weight:600;"
         title="See all products by this seller">
         ${sanitize(p.sellerName)}
       </button>${verifiedBadge}
@@ -4877,8 +5032,8 @@ function openProductDetail(id) {
       ${p.tags.map(tag => `<button onclick="filterByTag('${sanitize(tag)}')" style="background:var(--bg3);border:none;color:var(--text-muted);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:20px;cursor:pointer;">#${sanitize(tag)}</button>`).join('')}
     </div>` : ''}
     ${p.sampleUrl ? `<div style="margin-bottom:1rem;padding:0.75rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius);font-size:0.83rem;">
-      <i class="fa-solid fa-eye" style="color:var(--primary);margin-right:0.4rem;"></i>
-      <strong>Free Preview:</strong> <a href="${sanitize(p.sampleUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">View Sample →</a>
+      <i class="fa-solid fa-eye" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>
+      <strong>Free Preview:</strong> <a href="${safeUrl(p.sampleUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">View Sample →</a>
     </div>` : ''}
     <!-- PWYW custom amount -->
     ${p.pwyw ? `<div class="pwyw-wrap" id="pwyw-wrap">
@@ -5548,7 +5703,7 @@ async function loadOrders() {
         <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
         <td>${date}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
-        <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+        <td>${formatPrice(o.total)}</td>
         <td>${badge}${o.refundRequested ? `<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>` : ''}</td>
         <td>${proofCell}</td>
         <td>${dlCell}${licenseCell}</td>
@@ -5586,7 +5741,7 @@ async function viewProof(orderId) {
 // SELLER DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function sellerTab(tab) {
-  ['products','orders','settings'].forEach(t => {
+  ['products','orders','settings','affiliate','updates','stats'].forEach(t => {
     document.getElementById(`seller-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`sl-${t}`)?.classList.toggle('active', t === tab);
   });
@@ -5597,6 +5752,150 @@ function sellerTab(tab) {
     stopSellerOrdersListener();
   }
   if (tab === 'settings') loadSellerSettings();
+  if (tab === 'stats')    loadSellerStats();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SELLER STATS — mirror of admin stats but scoped to current seller
+// ═══════════════════════════════════════════════════════════════════
+let _ssChart = null;
+let _ssCache = null;
+async function loadSellerStats(forceRefresh) {
+  if (!curUser) return;
+  if (_ssCache && !forceRefresh) {
+    _renderSellerStats(_ssCache);
+    return;
+  }
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // Capped 1000 orders for the period — same pattern as
+    // loadSellerEarningsBreakdown elsewhere.
+    const snap = await db.collection('orders')
+      .where('sellerIds', 'array-contains', curUser.uid)
+      .orderBy('createdAt', 'desc')
+      .limit(1000)
+      .get();
+    const orders = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => {
+      const ts = o.createdAt?.toDate ? o.createdAt.toDate() : null;
+      return ts && ts >= cutoff;
+    });
+    const dailyRev = {};
+    for (let i = 0; i < 30; i++) {
+      const k = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      dailyRev[k] = 0;
+    }
+    let totalRev = 0, approved = 0, total = 0;
+    const productCounts = {};
+    const statusMix = {};
+    for (const o of orders) {
+      total++;
+      statusMix[o.status || 'pending'] = (statusMix[o.status || 'pending'] || 0) + 1;
+      if (o.status === 'approved') {
+        approved++;
+        const key = o.createdAt.toDate().toISOString().slice(0, 10);
+        // Approximate this seller's share if multiple sellers in one order
+        const share = Number(o.total || 0) / Math.max(1, (o.sellerIds || []).length);
+        if (key in dailyRev) dailyRev[key] += share;
+        totalRev += share;
+        (o.items || []).forEach(it => {
+          // Only count items that belong to this seller's catalog
+          const prod = allProducts.find(p => p.id === it.id);
+          if (!prod || prod.sellerId !== curUser.uid) return;
+          productCounts[it.id] = productCounts[it.id] || { count: 0, name: it.name || '(unnamed)', revenue: 0 };
+          productCounts[it.id].count++;
+          productCounts[it.id].revenue += Number(it.price || 0);
+        });
+      }
+    }
+    // Top viewed: pull from /products for this seller (small set)
+    const prodSnap = await db.collection('products')
+      .where('sellerId', '==', curUser.uid)
+      .limit(100)
+      .get();
+    const topViews = prodSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => (p.viewCount || 0) > 0)
+      .sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0))
+      .slice(0, 5);
+    _ssCache = { dailyRev, totalRev, approved, total, productCounts, statusMix, topViews };
+    _renderSellerStats(_ssCache);
+  } catch (e) {
+    console.error('loadSellerStats:', e);
+    toast('Stats failed: ' + (e.message || 'unknown'), 'danger');
+  }
+}
+
+function _renderSellerStats(s) {
+  document.getElementById('ss-stat-orders').textContent  = s.total;
+  document.getElementById('ss-stat-revenue').textContent = formatPrice(s.totalRev);
+  document.getElementById('ss-stat-aov').textContent     = s.approved ? formatPrice(s.totalRev / s.approved) : '—';
+  document.getElementById('ss-stat-conv').textContent    = s.total ? Math.round((s.approved / s.total) * 100) + '%' : '—';
+
+  // Daily-revenue chart
+  const labels = Object.keys(s.dailyRev).sort();
+  const data   = labels.map(k => Math.round(s.dailyRev[k] * 100) / 100);
+  const ctx = document.getElementById('ss-daily-rev-chart');
+  if (ctx && typeof Chart !== 'undefined') {
+    if (_ssChart) _ssChart.destroy();
+    _ssChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels.map(k => k.slice(5)),
+        datasets: [{
+          label: 'EGP',
+          data,
+          borderColor: 'rgba(99,102,241,1)',
+          backgroundColor: 'rgba(99,102,241,0.18)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 2,
+          pointHoverRadius: 5
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: 'rgba(255,255,255,0.6)', maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        },
+        maintainAspectRatio: false
+      }
+    });
+  }
+
+  // Top-selling products
+  const top = Object.entries(s.productCounts).sort((a,b) => b[1].count - a[1].count).slice(0, 5);
+  document.getElementById('ss-top-products').innerHTML = top.length
+    ? top.map(([id, p], i) =>
+        `<li><strong style="color:var(--primary-light);">#${i+1}</strong> ${sanitize(p.name)} <span style="color:var(--text-muted);">— ${p.count} sold · ${formatPrice(p.revenue)}</span></li>`
+      ).join('')
+    : '<li style="color:var(--text-muted);">No sales in this period yet.</li>';
+
+  // Top viewed
+  document.getElementById('ss-top-views').innerHTML = s.topViews.length
+    ? s.topViews.map((p, i) =>
+        `<li><strong style="color:var(--primary-light);">#${i+1}</strong> ${sanitize(p.name)} <span style="color:var(--text-muted);">— ${p.viewCount || 0} views</span></li>`
+      ).join('')
+    : '<li style="color:var(--text-muted);">No view tracking data yet.</li>';
+
+  // Status mix
+  const totalOrders = Object.values(s.statusMix).reduce((a,b) => a+b, 0) || 1;
+  const COLORS = { approved: '#22c55e', pending: '#f59e0b', rejected: '#ef4444', refunded: '#a855f7' };
+  document.getElementById('ss-status-mix').innerHTML = Object.entries(s.statusMix)
+    .sort((a,b) => b[1] - a[1])
+    .map(([status, n]) => {
+      const pct = Math.round((n / totalOrders) * 100);
+      const col = COLORS[status] || '#6366f1';
+      return `<div style="margin-bottom:0.5rem;">
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem;margin-bottom:0.2rem;">
+          <span style="text-transform:capitalize;">${sanitize(status)}</span>
+          <span><strong>${n}</strong> <span style="color:var(--text-muted);">(${pct}%)</span></span>
+        </div>
+        <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${col};"></div>
+        </div>
+      </div>`;
+    }).join('');
 }
 
 async function loadSellerDashboard() {
@@ -5632,7 +5931,7 @@ async function loadSellerDashboard() {
       return `<tr${p.status==='draft'?` style="opacity:0.7;"`:''}>
         <td>${sanitize(p.name)}${draftBadge}</td>
         <td><span class="badge badge-primary">${sanitize(p.category||'')}</span></td>
-        <td>EGP ${Number(p.price||0).toLocaleString()}</td>
+        <td>${formatPrice(p.price)}</td>
         <td>${statusBadge(p.status||'pending')}</td>
         <td style="display:flex;gap:0.4rem;">
           <button class="btn btn-sm btn-outline" onclick="openProductModal(false,'${p.id}')">${t('edit')}</button>
@@ -5889,7 +6188,7 @@ async function deleteProduct(id) {
 // ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
 function adminTab(tab) {
-  ['orders','products','users','settings','coupons','announcements','disputes','payouts','reports','collections','carts','stats','emails'].forEach(t => {
+  ['orders','products','users','settings','coupons','announcements','disputes','payouts','reports','collections','carts','stats','emails','reviews'].forEach(t => {
     document.getElementById(`admin-tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`al-${t}`)?.classList.toggle('active', t === tab);
   });
@@ -5909,6 +6208,121 @@ function adminTab(tab) {
     if (tab === 'carts')         loadAbandonedCarts();
     if (tab === 'stats')         loadAdminStats();
     if (tab === 'emails')        loadEmailFailures();
+    if (tab === 'reviews')       loadAdminReviews();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN REVIEW MODERATION
+// ═══════════════════════════════════════════════════════════════════
+async function loadAdminReviews() {
+  const tbody = document.getElementById('reviews-mod-tbody');
+  if (!tbody) return;
+  const filter = document.getElementById('rm-filter')?.value || 'all';
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…</td></tr>`;
+  try {
+    // Single query path — always order by createdAt desc, then filter
+    // client-side for rating-bucket views. This avoids needing 2 extra
+    // composite indexes (rating asc + createdAt desc, etc.) at the cost
+    // of pulling slightly more rows than strictly needed.
+    let q = db.collection('reviews').orderBy('createdAt', 'desc').limit(200);
+    if (filter === 'recent') {
+      const cutoff = new Date(Date.now() - 7 * 86400000);
+      q = db.collection('reviews').where('createdAt', '>=', cutoff).orderBy('createdAt', 'desc').limit(200);
+    }
+    let snap = await q.get();
+    if (filter === 'low' || filter === 'high') {
+      const target = filter === 'low' ? (r => Number(r.rating || 0) > 0 && Number(r.rating || 0) <= 2)
+                                       : (r => Number(r.rating || 0) === 5);
+      snap = { docs: snap.docs.filter(d => target(d.data())), size: 0 };
+      snap.size = snap.docs.length;
+    }
+
+    // Resolve product + buyer names in batch (cache by id)
+    const prodCache = {};
+    const userCache = {};
+    const now = Date.now();
+    let low12 = 0, recent7d = 0;
+    const rows = [];
+    for (const d of snap.docs) {
+      const r = d.data();
+      const rating = Number(r.rating || 0);
+      if (rating > 0 && rating <= 2) low12++;
+      const ts = r.createdAt?.toDate ? r.createdAt.toDate() : null;
+      if (ts && (now - ts.getTime()) < 7 * 86400000) recent7d++;
+
+      let prodName = '(unknown)';
+      if (r.productId) {
+        if (!(r.productId in prodCache)) {
+          try {
+            const ps = await db.collection('products').doc(r.productId).get();
+            prodCache[r.productId] = ps.exists ? (ps.data().name || '(unnamed)') : '(deleted)';
+          } catch { prodCache[r.productId] = '(error)'; }
+        }
+        prodName = prodCache[r.productId];
+      }
+      let buyerName = '(anon)';
+      if (r.buyerId) {
+        if (!(r.buyerId in userCache)) {
+          try {
+            const us = await db.collection('publicProfiles').doc(r.buyerId).get();
+            userCache[r.buyerId] = us.exists ? (us.data().name || us.data().shopName || r.buyerId.slice(0,6)) : r.buyerId.slice(0,6);
+          } catch { userCache[r.buyerId] = r.buyerId.slice(0,6); }
+        }
+        buyerName = userCache[r.buyerId];
+      }
+
+      const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+      const ratingColor = rating >= 4 ? 'var(--success)' : rating >= 3 ? 'var(--warning)' : 'var(--danger)';
+      const reviewText = sanitize((r.title ? '**' + r.title + '** — ' : '') + (r.body || r.text || r.comment || ''));
+      const ago = ts ? Math.round((now - ts.getTime()) / 86400000) : '—';
+
+      rows.push(`<tr data-rid="${sanitize(d.id)}">
+        <td style="color:${ratingColor};font-weight:700;white-space:nowrap;">${stars}</td>
+        <td style="max-width:340px;font-size:0.82rem;line-height:1.45;">${reviewText.slice(0, 280)}${reviewText.length > 280 ? '…' : ''}</td>
+        <td style="font-size:0.8rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${sanitize(prodName)}">${sanitize(prodName)}</td>
+        <td style="font-size:0.8rem;">${sanitize(buyerName)}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);">${ago === '—' ? '—' : (ago + ' d ago')}</td>
+        <td style="text-align:end;white-space:nowrap;">
+          <button class="btn btn-sm btn-outline" onclick="viewReviewProduct('${sanitize(r.productId || '')}')" title="Open product detail">
+            <i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="deleteReview('${sanitize(d.id)}', this)" title="Delete review (cannot be undone)">
+            <i class="fa-solid fa-trash" aria-hidden="true"></i>
+          </button>
+        </td>
+      </tr>`);
+    }
+
+    tbody.innerHTML = rows.length
+      ? rows.join('')
+      : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;">No reviews match the current filter.</td></tr>`;
+    document.getElementById('rm-stat-total').textContent = snap.size;
+    document.getElementById('rm-stat-1to2').textContent  = low12;
+    document.getElementById('rm-stat-7d').textContent    = recent7d;
+  } catch (e) {
+    console.error('loadAdminReviews:', e);
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:2rem;">Failed: ${sanitize(e.message || 'unknown')}</td></tr>`;
+  }
+}
+
+function viewReviewProduct(pid) {
+  if (!pid) { toast('No product linked.', 'warning'); return; }
+  navigate('home');
+  setTimeout(() => openProductDetail(pid), 200);
+}
+
+async function deleteReview(reviewId, btn) {
+  if (!confirm('Delete this review? It will also recalculate the product ratingAvg via the onNewReview Cloud Function. This cannot be undone.')) return;
+  if (btn) dmBtnLoading(btn, true);
+  try {
+    await db.collection('reviews').doc(reviewId).delete();
+    toast('Review deleted. Rating recalculation will fire automatically.', 'success');
+    await loadAdminReviews();
+  } catch (e) {
+    toast('Failed: ' + (e.message || 'unknown'), 'danger');
+  } finally {
+    if (btn) dmBtnLoading(btn, false);
   }
 }
 
@@ -6286,7 +6700,7 @@ function _renderOrderRow(d) {
     <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
     <td>${sanitize(o.buyerName||o.buyerEmail||'')}</td>
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
-    <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+    <td>${formatPrice(o.total)}</td>
     <td>${statusBadge(o.status)}${o.status==='pending' ? orderAgeBadge(o.createdAt) : ''}</td>
     <td>${payBadge}${refNum}</td>
     <td>${o.proof ? `<button class="btn btn-sm btn-outline" onclick="viewProof('${d.id}')"><i class="fa-solid fa-image"></i></button>` : '—'}</td>
@@ -6342,7 +6756,7 @@ async function loadAdminProducts() {
         <td><input type="checkbox" class="bulk-check product-bulk-check" value="${d.id}" onchange="onBulkCheckChange()"></td>
         <td>${sanitize(p.name)}${editedFlag}</td>
         <td>${sanitize(p.sellerName||'Admin')}</td>
-        <td>EGP ${Number(p.price||0).toLocaleString()}</td>
+        <td>${formatPrice(p.price)}</td>
         <td>${statusBadge(p.status||'pending')}</td>
         <td style="display:flex;gap:0.3rem;flex-wrap:wrap;">
           <button class="btn btn-sm btn-primary" onclick="adminEditProduct('${d.id}')" title="Edit"><i class="fa-solid fa-pen"></i> Edit</button>
@@ -6928,7 +7342,7 @@ function renderWishlist() {
         <div class="product-desc">${sanitize(p.description || '')}</div>
       </div>
       <div class="product-footer">
-        <span class="product-price">EGP ${Number(p.price||0).toLocaleString()}</span>
+        <span class="product-price">${formatPrice(p.price)}</span>
         <span class="badge badge-primary">${sanitize(p.category || 'other')}</span>
       </div>
     </div>`).join('');
@@ -8308,7 +8722,7 @@ let _minStarFilter  = 0;
 function onPriceRangeChange(val) {
   _priceMaxFilter = Number(val);
   const label = document.getElementById('price-max-label');
-  if (label) label.textContent = val >= 5000 ? 'Any' : `EGP ${Number(val).toLocaleString()}`;
+  if (label) label.textContent = val >= 5000 ? 'Any' : formatPrice(val);
   renderProducts();
 }
 function setStarFilter(stars) {
@@ -8551,7 +8965,7 @@ function renderUpsell(checkoutIds) {
       ${p.imageUrl ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy">` : `<span style="font-size:1.1rem;">${p.emoji||'📦'}</span>`}
       <div>
         <div style="font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${sanitize(p.name)}</div>
-        <div style="color:var(--primary);font-weight:700;">EGP ${Number(p.price||0).toLocaleString()}</div>
+        <div style="color:var(--primary);font-weight:700;">${formatPrice(p.price)}</div>
       </div>
       <i class="fa-solid fa-plus" style="color:var(--primary);margin-left:auto;"></i>
     </div>`
@@ -8587,7 +9001,7 @@ async function loadPayoutData() {
       const date = p.requestedAt?.toDate ? p.requestedAt.toDate().toLocaleDateString() : '—';
       const statusColor = p.status === 'paid' ? 'var(--success)' : p.status === 'rejected' ? 'var(--danger)' : 'var(--warning)';
       return `<div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);font-size:0.8rem;">
-        <span>${date}</span><span>EGP ${Number(p.amount||0).toLocaleString()}</span>
+        <span>${date}</span><span>${formatPrice(p.amount)}</span>
         <span style="color:${statusColor};font-weight:600;">${p.status||'pending'}</span>
       </div>`;
     }).join('') : '<div style="font-size:0.8rem;color:var(--text-muted);">No payout history yet.</div>';
@@ -8780,7 +9194,7 @@ async function loadAdminPayouts() {
       const statusColor = p.status === 'paid' ? 'var(--success)' : p.status === 'rejected' ? 'var(--danger)' : 'var(--warning)';
       return `<tr>
         <td>${sanitize(p.sellerName||'')} <div style="font-size:0.72rem;color:var(--text-muted);">${sanitize(p.sellerEmail||'')}</div></td>
-        <td style="font-weight:700;color:var(--success);">EGP ${Number(p.amount||0).toLocaleString()}</td>
+        <td style="font-weight:700;color:var(--success);">${formatPrice(p.amount)}</td>
         <td style="font-size:0.78rem;">${date}</td>
         <td style="color:${statusColor};font-weight:600;">${p.status||'pending'}</td>
         <td style="display:flex;gap:0.3rem;">
@@ -9197,7 +9611,7 @@ function renderRecentlyViewed() {
         <div class="rv-card-img">${imgSrc}</div>
         <div class="rv-card-body">
           <div class="rv-card-name">${sanitize(p.name)}</div>
-          <div class="rv-card-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+          <div class="rv-card-price">${formatPrice(p.price)}</div>
         </div>
       </div>`;
     }).join('');
@@ -9242,7 +9656,7 @@ function renderRelatedProducts(currentProductId, category) {
           <div class="related-card-img">${imgSrc}</div>
           <div class="related-card-body">
             <div class="related-card-name">${sanitize(p.name)}</div>
-            <div class="related-card-price">EGP ${Number(p.price||0).toLocaleString()}</div>
+            <div class="related-card-price">${formatPrice(p.price)}</div>
           </div>
         </div>`;
       }).join('')}
@@ -9580,14 +9994,14 @@ function renderStorefrontGrid(products) {
       ? `<img src="${sanitize(p.imageUrl)}" alt="${sanitize(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`
       : `<span style="font-size:2.5rem;">${p.emoji || '📦'}</span>`;
     const inCart = cart.includes(p.id);
-    return `<div class="product-card" onclick="openProductDetail('${p.id}')" role="button" tabindex="0" aria-label="${sanitize(p.name)} — EGP ${Number(p.price||0).toLocaleString()}">
+    return `<div class="product-card" onclick="openProductDetail('${p.id}')" role="button" tabindex="0" aria-label="${sanitize(p.name)} — ${formatPrice(p.price||0)}">
       <div class="product-img" style="position:relative;">${imgSrc}</div>
       <div class="product-body">
         <div class="product-title">${sanitize(p.name)}</div>
         <div class="product-desc">${sanitize(p.description||'')}</div>
       </div>
       <div class="product-footer">
-        <span class="product-price">EGP ${Number(p.price||0).toLocaleString()}</span>
+        <span class="product-price">${formatPrice(p.price)}</span>
         <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();${inCart ? `removeFromCart('${p.id}')` : `addToCart('${p.id}')`}">
           <i class="fa-solid fa-${inCart ? 'check' : 'cart-plus'}"></i>
         </button>
@@ -10506,13 +10920,13 @@ function _renderInvoice(orderId, o) {
 // ─── QUICK WIN 5: Copy order details ──────────────────────────────────
 function copyOrderDetails(orderId, o) {
   if (!o) { toast('Order data not loaded yet.', 'warning'); return; }
-  const lines = (o.items || []).map(i => `  • ${i.name}: EGP ${Number(i.price||0).toLocaleString()}`).join('\n');
+  const lines = (o.items || []).map(i => `  • ${i.name}: ${formatPrice(i.price||0)}`).join('\n');
   const text = [
     `Order #${orderId.slice(0,8).toUpperCase()}`,
     `Date: ${o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—'}`,
     `Status: ${o.status}`,
     `Items:\n${lines}`,
-    `Total: EGP ${Number(o.total||0).toLocaleString()}`,
+    `Total: ${formatPrice(o.total||0)}`,
     `Payment: ${o.paymentMethod || '—'}`,
     `Ref: ${o.referenceNum || '—'}`
   ].join('\n');
@@ -10675,7 +11089,7 @@ function bulkDownloadOrder(orderId) {
             <td style="font-size:0.75rem;color:var(--text-muted);">${d.id.slice(0,8)}…</td>
             <td>${date}</td>
             <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
-            <td>EGP ${Number(o.total||0).toLocaleString()}</td>
+            <td>${formatPrice(o.total)}</td>
             <td>${badge}${o.refundRequested?`<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>`:''}</td>
             <td>${proofCell}</td>
             <td>${dlCell}${licenseCell}</td>
@@ -11122,7 +11536,7 @@ function openCompareModal() {
   if (_compareList.length < 2) { toast('Select at least 2 products to compare.', 'warning'); return; }
   const products = _compareList.map(id => allProducts.find(p => p.id === id)).filter(Boolean);
   const fields   = [
-    ['Price',    p => `EGP ${Number(p.price||0).toLocaleString()}${p.pwyw?' (PWYW)':''}`],
+    ['Price',    p => `${formatPrice(p.price||0)}${p.pwyw?' (PWYW)':''}`],
     ['Category', p => p.category || '—'],
     ['Rating',   p => p.ratingCount ? `${(+p.ratingAvg||0).toFixed(1)} ⭐ (${p.ratingCount})` : 'No ratings'],
     ['Sales',    p => `${p.purchaseCount||0} sold`],
@@ -11265,7 +11679,7 @@ function injectFAQSchema(p) {
   const faqs = [
     { q: `What is ${p.name}?`, a: p.description || `${p.name} is a digital product on DigitalMarket.` },
     { q: `How do I download ${p.name}?`, a: 'After payment approval, your download link appears in the Orders section of your account.' },
-    { q: `How much does ${p.name} cost?`, a: `${p.name} is priced at EGP ${Number(p.price||0).toLocaleString()}.` },
+    { q: `How much does ${p.name} cost?`, a: `${p.name} is priced at ${formatPrice(p.price||0)}.` },
     { q: 'What payment methods are accepted?', a: 'InstaPay, Vodafone Cash, Orange Cash, Etisalat Cash, bank transfers, and other Egyptian digital payment methods.' },
     { q: 'What is your refund policy?', a: 'Buyers may request a refund within 7 days of order approval.' },
   ];
