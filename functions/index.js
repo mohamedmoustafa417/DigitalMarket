@@ -1111,25 +1111,65 @@ exports.downloadFile = onRequest(
     const item = (order.items || []).find(i => i.id === productId);
     if (!item) return res.status(403).json({ error: 'product-not-in-order' });
 
-    // 7. Resolve storage path. New uploads write `storagePath`; for legacy
-    //    products without it, fall back to parsing the public URL.
+    // 7. Resolve storage path. Try three sources in priority order:
+    //    a) product.storagePath (new uploads)
+    //    b) product.downloadUrl (legacy products)
+    //    c) order item's snapshot of downloadUrl (in case the product was
+    //       deleted/edited after the order was placed)
     let storagePath;
+    let diagnostic = '';
     try {
       const prodSnap = await db.collection('products').doc(productId).get();
       const prod     = prodSnap.data() || {};
-      if (prod.storagePath) {
-        storagePath = prod.storagePath;
-      } else if (prod.downloadUrl) {
-        // Parse `o/products%2F{uid}%2F{file}` out of the public URL.
-        const m = String(prod.downloadUrl).match(/\/o\/([^?]+)/);
-        if (m) storagePath = decodeURIComponent(m[1]);
+      const candidates = [
+        prod.storagePath,
+        prod.downloadUrl,
+        item.downloadUrl,    // snapshot from order creation time
+        item.storagePath     // some old orders carried this
+      ].filter(Boolean);
+
+      for (const c of candidates) {
+        const s = String(c);
+        if (s.startsWith('products/')) { storagePath = s; break; }
+        // Parse `/o/{encoded-path}?...` out of a Firebase Storage public URL.
+        const m = s.match(/\/o\/([^?]+)/);
+        if (m) {
+          const decoded = decodeURIComponent(m[1]);
+          if (decoded.startsWith('products/')) { storagePath = decoded; break; }
+        }
       }
+      diagnostic = `candidates_tried=${candidates.length}, prod_has_storagePath=${!!prod.storagePath}, prod_has_downloadUrl=${!!prod.downloadUrl}`;
     } catch (e) {
       console.error('[downloadFile] product lookup failed:', e.message);
-      return res.status(500).json({ error: 'product-lookup-failed' });
+      return res.status(500).json({ error: 'product-lookup-failed', detail: e.message });
     }
-    if (!storagePath || !storagePath.startsWith('products/')) {
-      return res.status(404).json({ error: 'file-not-available' });
+    if (!storagePath) {
+      console.warn(`[downloadFile] no storage path for product ${productId} in order ${orderId} — ${diagnostic}`);
+      return res.status(404).json({
+        error: 'file-not-available',
+        message: 'The seller has not uploaded a file for this product yet, or the file was removed. Please contact support.',
+        diagnostic
+      });
+    }
+
+    // Verify the file actually exists in Storage BEFORE we issue a signed URL
+    // — signing a URL for a missing object gives the buyer a 404 they can't
+    // make sense of. Pre-check + return a clear error.
+    try {
+      const bucket = getStorage().bucket('digitalmarket-38db5.firebasestorage.app');
+      const [exists] = await bucket.file(storagePath).exists();
+      if (!exists) {
+        console.warn(`[downloadFile] file does not exist in Storage: ${storagePath}`);
+        return res.status(404).json({
+          error: 'file-not-available',
+          message: 'The file referenced by this product is missing from storage. Please contact support so the seller can re-upload.',
+          path: storagePath
+        });
+      }
+    } catch (e) {
+      console.error('[downloadFile] file existence check failed:', e.message);
+      // Fall through to signing — the .exists() call sometimes throws on
+      // permission edge cases but the signed URL might still work.
     }
 
     // 8. Issue a short-lived V4 signed URL (5 min) and return JSON.

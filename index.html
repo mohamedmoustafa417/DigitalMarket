@@ -10959,10 +10959,15 @@ function _renderInvoice(orderId, o) {
   <p>This is a computer-generated invoice.</p></div>
   <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
   </body></html>`;
-  // Use rel=noopener equivalent: open with noopener so the popup can't reach
-  // window.opener even if a payload slipped through.
-  const win = window.open('', '_blank', 'noopener,noreferrer');
+  // Past attempt used `'noopener,noreferrer'` for safety — but with noopener,
+  // window.open() returns NULL in modern browsers, so we couldn't write to
+  // the popup at all (blank page bug). The HTML we're writing was already
+  // sanitized field-by-field above, so the popup-takeover risk is gone.
+  // After the popup is written, we null-out its window.opener so even a
+  // surviving script in the popup couldn't reach back.
+  const win = window.open('', '_blank');
   if (!win) { toast('Allow pop-ups to print invoices.', 'warning'); return; }
+  try { win.opener = null; } catch {}
   win.document.write(html);
   win.document.close();
 }
@@ -11026,8 +11031,15 @@ async function secureDownload(orderId, productId, fileNameHint) {
     });
     if (!r.ok) {
       const errBody = await r.json().catch(() => ({}));
+      // Prefer the server's human message; surface error codes as a
+      // fallback. Show longer (7s) when the message is itself an
+      // explanation so users can read it.
       const msg = errBody.message || errBody.error || ('HTTP ' + r.status);
-      toast('Download failed: ' + msg, 'danger', 4500);
+      const dur = errBody.message ? 7000 : 4500;
+      toast(msg, 'danger', dur);
+      if (errBody.error === 'file-not-available') {
+        console.warn('[secureDownload] file-not-available', errBody);
+      }
       return;
     }
     const { signedUrl, filename } = await r.json();
