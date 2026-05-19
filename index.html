@@ -1413,6 +1413,165 @@
       outline-offset: 1px;
       border-color: var(--primary, #6366f1) !important;
     }
+
+    /* ───────────────────────────────────────────────────────────────
+       UI/UX polish pack — added in deep-audit pass
+       1) Better skeleton loader (shimmer) — used for cards + lists
+       2) Empty-state component (illustration + message + CTA)
+       3) Button loading state — replaces text with spinner inline
+       4) Toast: small additions for the v2 toast system (dismiss btn,
+          dedup badge, exit animation)
+       5) Card hover/focus polish — lift + shadow + smooth transition,
+          but only on real pointer devices (no sticky hover on touch)
+       6) Smoother scroll, better text rendering on mobile
+       7) Tap-highlight color set to transparent so iOS doesn't flash
+       ─────────────────────────────────────────────────────────── */
+
+    /* 1) Skeleton shimmer — replaces "Loading…" text everywhere */
+    .dm-skel {
+      background: linear-gradient(90deg,
+        var(--bg2) 0%, var(--bg3) 50%, var(--bg2) 100%);
+      background-size: 200% 100%;
+      animation: dm-shimmer 1.4s ease-in-out infinite;
+      border-radius: var(--radius);
+    }
+    @keyframes dm-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .dm-skel-card {
+      aspect-ratio: 4/3;
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+    .dm-skel-line {
+      height: 0.85rem;
+      margin-bottom: 0.4rem;
+    }
+    .dm-skel-line.short { width: 60%; }
+    .dm-skel-line.long  { width: 100%; }
+
+    /* 2) Empty-state — illustration + message + CTA */
+    .dm-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 3rem 1.25rem;
+      gap: 0.85rem;
+      color: var(--text-muted);
+    }
+    .dm-empty-icon {
+      font-size: 3rem;
+      opacity: 0.6;
+      filter: drop-shadow(0 4px 12px rgba(99,102,241,0.15));
+    }
+    .dm-empty h3 {
+      color: var(--text);
+      font-size: 1.05rem;
+      margin: 0;
+      font-weight: 600;
+    }
+    .dm-empty p {
+      max-width: 420px;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      margin: 0;
+    }
+    .dm-empty .btn {
+      margin-top: 0.5rem;
+    }
+
+    /* 3) Button loading state — non-blocking visual feedback */
+    .btn.is-loading {
+      pointer-events: none;
+      position: relative;
+      color: transparent !important;
+    }
+    .btn.is-loading::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 1.05em;
+      height: 1.05em;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      color: var(--primary-light, #818cf8);
+      animation: dm-spin 0.7s linear infinite;
+    }
+    @keyframes dm-spin { to { transform: rotate(360deg); } }
+
+    /* 4) Toast v2 exit animation */
+    .toast.dm-toast-out { will-change: opacity, transform; }
+    .toast { will-change: transform; }
+    .dm-toast-x:hover { opacity: 1 !important; }
+    .dm-toast-x:focus-visible { outline-offset: 0; opacity: 1; }
+
+    /* 5) Card lift on hover — only for real pointers */
+    @media (hover: hover) and (pointer: fine) {
+      .product-card, .vm-card, .seller-card, .category-card, .collection-card {
+        transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+                    box-shadow 0.22s ease,
+                    border-color 0.18s ease;
+        will-change: transform;
+      }
+      .product-card:hover,
+      .vm-card:hover,
+      .seller-card:hover,
+      .collection-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--elev-3, 0 6px 16px rgba(0,0,0,0.22), 0 12px 32px rgba(0,0,0,0.14));
+        border-color: var(--primary-light, #818cf8);
+      }
+    }
+
+    /* 6) Smoother scroll + better mobile text rendering */
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* 7) No iOS tap-highlight flash on buttons */
+    button, [role="button"], a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 8) Sticky bottom-bar shadow when content scrolls under it */
+    #mobile-bottom-nav::before {
+      content: '';
+      position: absolute;
+      top: -8px;
+      left: 0;
+      right: 0;
+      height: 8px;
+      pointer-events: none;
+      background: linear-gradient(to top, rgba(0,0,0,0.18), transparent);
+    }
+
+    /* 9) Better disabled state — no flat "looks like enabled but ignores clicks" */
+    button:disabled,
+    .btn.disabled,
+    [aria-disabled="true"]:not(.toast) {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(20%);
+    }
+
+    /* 10) Smooth view transitions when navigating between SPA sections */
+    @media (prefers-reduced-motion: no-preference) {
+      .view {
+        animation: dm-view-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      @keyframes dm-view-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+    }
   </style>
 </head>
 <body>
@@ -3360,17 +3519,141 @@ function toggleWishlist(id, e) {
 // ═══════════════════════════════════════════════════════════════════
 const icons = { success: 'fa-circle-check', danger: 'fa-circle-xmark', info: 'fa-circle-info', warning: 'fa-triangle-exclamation' };
 
+// Toast system v2:
+//   • Dedup — identical msg+type within 2 s collapses to a "× N" counter
+//     so rapid-fire actions (add 5 items to cart fast) don't flood the
+//     screen.
+//   • Max 4 visible — older toasts auto-dismiss when a 5th arrives.
+//   • Dismiss button + Esc dismisses the focused toast.
+//   • role=alert for danger (interrupts screen reader); role=status
+//     for info/success (polite).
+//   • Auto-pause-on-hover so users have time to read longer messages.
+const _toastDedup = new Map();   // key → { el, count, expiresAt }
 function toast(msg, type = 'info', duration = 3500) {
   const container = document.getElementById('toast-container');
+  if (!container) return;
+  const safeMsg = sanitize(msg);
+  const key = type + '|' + safeMsg;
+
+  // Dedup window
+  const now = Date.now();
+  const existing = _toastDedup.get(key);
+  if (existing && existing.expiresAt > now) {
+    existing.count += 1;
+    existing.expiresAt = now + duration;
+    const badge = existing.el.querySelector('.dm-toast-count');
+    if (badge) badge.textContent = '× ' + existing.count;
+    else {
+      const b = document.createElement('span');
+      b.className = 'dm-toast-count';
+      b.textContent = '× ' + existing.count;
+      b.style.cssText = 'margin-inline-start:8px;padding:2px 8px;background:rgba(255,255,255,0.12);border-radius:999px;font-size:0.7rem;font-weight:700;';
+      existing.el.appendChild(b);
+    }
+    clearTimeout(existing.timer);
+    existing.timer = setTimeout(() => _dismissToast(existing.el, key), duration);
+    return;
+  }
+
+  // Cap at 4 visible — pop oldest when over
+  const live = container.querySelectorAll('.toast:not(.dm-toast-out)');
+  if (live.length >= 4) {
+    _dismissToast(live[0]);
+  }
+
   const el = document.createElement('div');
   el.className = `toast ${type}`;
-  el.setAttribute('role', 'status');
-  el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}" aria-hidden="true"></i> ${sanitize(msg)}`;
+  el.tabIndex = 0;
+  el.setAttribute('role', type === 'danger' || type === 'error' ? 'alert' : 'status');
+  el.setAttribute('aria-live', type === 'danger' ? 'assertive' : 'polite');
+  el.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}" aria-hidden="true"></i>
+                  <span style="flex:1;">${safeMsg}</span>
+                  <button class="dm-toast-x" aria-label="Dismiss notification" style="background:none;border:none;color:inherit;opacity:0.6;cursor:pointer;padding:2px 6px;font-size:1rem;line-height:1;">×</button>`;
   container.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.4s'; setTimeout(() => el.remove(), 400); }, duration);
+
+  const entry = { el, count: 1, expiresAt: now + duration, timer: null };
+  _toastDedup.set(key, entry);
+
+  // Close on click of X or Esc when focused
+  el.querySelector('.dm-toast-x').onclick = () => _dismissToast(el, key);
+  el.addEventListener('keydown', e => { if (e.key === 'Escape') _dismissToast(el, key); });
+
+  // Pause auto-dismiss on hover
+  let remaining = duration;
+  let startedAt = Date.now();
+  const start = () => { startedAt = Date.now(); entry.timer = setTimeout(() => _dismissToast(el, key), remaining); };
+  const pause = () => { clearTimeout(entry.timer); remaining -= (Date.now() - startedAt); };
+  el.addEventListener('mouseenter', pause);
+  el.addEventListener('mouseleave', start);
+  start();
+}
+function _dismissToast(el, key) {
+  if (!el || el.classList.contains('dm-toast-out')) return;
+  el.classList.add('dm-toast-out');
+  el.style.opacity = '0';
+  el.style.transform = 'translateX(40px)';
+  el.style.transition = 'opacity 0.3s, transform 0.3s';
+  setTimeout(() => el.remove(), 320);
+  if (key) _toastDedup.delete(key);
 }
 // Alias used throughout Round 4–6 code
 const showToast = toast;
+
+// ═══════════════════════════════════════════════════════════════════
+// UI/UX HELPERS — skeleton, empty state, button-loading
+// ═══════════════════════════════════════════════════════════════════
+
+/** Render a skeleton grid of `count` cards into an element while loading. */
+function dmSkeletonCards(el, count = 8) {
+  if (!el) return;
+  el.innerHTML = Array.from({ length: count }).map(() => `
+    <div class="product-card" aria-hidden="true" style="pointer-events:none;">
+      <div class="dm-skel dm-skel-card"></div>
+      <div style="padding:0.75rem;">
+        <div class="dm-skel dm-skel-line long"></div>
+        <div class="dm-skel dm-skel-line short"></div>
+        <div class="dm-skel dm-skel-line" style="width:40%;height:1.1rem;margin-top:0.5rem;"></div>
+      </div>
+    </div>`).join('');
+}
+
+/** Drop a friendly empty-state with optional CTA into an element. */
+function dmEmpty(el, { icon = '📭', title = 'Nothing here yet', text = '', ctaLabel = '', ctaOnClick = null } = {}) {
+  if (!el) return;
+  const safeTitle = sanitize(title);
+  const safeText  = sanitize(text);
+  const safeCta   = sanitize(ctaLabel);
+  el.innerHTML = `<div class="dm-empty" role="status">
+    <div class="dm-empty-icon" aria-hidden="true">${sanitize(icon)}</div>
+    <h3>${safeTitle}</h3>
+    ${safeText ? `<p>${safeText}</p>` : ''}
+    ${safeCta ? `<button class="btn btn-primary" id="dm-empty-cta-${Math.random().toString(36).slice(2,7)}">${safeCta}</button>` : ''}
+  </div>`;
+  if (safeCta && ctaOnClick) {
+    const btn = el.querySelector('.dm-empty .btn-primary');
+    if (btn) btn.onclick = ctaOnClick;
+  }
+}
+
+/** Toggle a button into/out of loading state (preserves original text). */
+function dmBtnLoading(btn, loading = true) {
+  if (typeof btn === 'string') btn = document.getElementById(btn);
+  if (!btn) return;
+  if (loading) {
+    if (!btn.dataset.dmLabel) btn.dataset.dmLabel = btn.innerHTML;
+    btn.classList.add('is-loading');
+    btn.setAttribute('aria-busy', 'true');
+    btn.disabled = true;
+  } else {
+    btn.classList.remove('is-loading');
+    btn.removeAttribute('aria-busy');
+    btn.disabled = false;
+    if (btn.dataset.dmLabel) {
+      btn.innerHTML = btn.dataset.dmLabel;
+      delete btn.dataset.dmLabel;
+    }
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // ALERT HELPER
