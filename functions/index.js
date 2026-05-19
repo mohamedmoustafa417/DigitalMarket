@@ -48,6 +48,18 @@ const storage = getStorage();
 const RESEND_KEY   = defineSecret('RESEND_KEY');
 const EMAIL_SECRETS = [RESEND_KEY];
 
+// Optional: Google Drive service-account JSON for per-buyer file sharing.
+// When set, the downloadFile CF will grant the buyer's email reader access
+// to the Drive file at download time and the daily
+// `revokeExpiredDriveGrants` scheduler will revoke after 30 days.
+// To enable: `firebase functions:secrets:set GDRIVE_SA_JSON` (paste the
+// raw JSON contents of the service-account key). The service account also
+// needs reader access on each Drive file/folder a seller uploads to — the
+// easiest is to share each file with the service-account email manually,
+// or use a shared Drive that the service account owns.
+const GDRIVE_SA_JSON = defineSecret('GDRIVE_SA_JSON');
+const DRIVE_SECRETS  = [GDRIVE_SA_JSON];
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 /**
@@ -72,6 +84,106 @@ const REPLY_TO   = 'support@digitalmarketstore.shop';
 function hashEmail(e) {
   if (!e || typeof e !== 'string') return '';
   return require('crypto').createHash('sha256').update(e.toLowerCase().trim()).digest('hex').slice(0, 16);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GOOGLE DRIVE — per-buyer file sharing
+//
+// When the seller's downloadUrl is a Google Drive link AND the GDRIVE_SA_JSON
+// secret is configured, the downloadFile CF (instead of returning the public
+// link) uses the Drive API to:
+//   1. Extract the file ID from the URL
+//   2. Grant the buyer's email reader access (sendNotificationEmail:false)
+//   3. Record the grant in /driveGrants/{permissionId}
+//   4. Return the file's webContentLink (direct download URL)
+// A daily scheduled function revokes grants older than 30 days.
+//
+// Setup: see README — needs (a) a GCP service account JSON, (b) Drive API
+// enabled, (c) the service account's email shared on each Drive file/folder
+// the marketplace will sell.
+// ═══════════════════════════════════════════════════════════════════
+
+let _driveClient = null;
+function getDriveClient() {
+  if (_driveClient) return _driveClient;
+  const raw = process.env.GDRIVE_SA_JSON;
+  if (!raw || raw === '{}' || raw === 'null') return null;
+  try {
+    const creds = JSON.parse(raw);
+    // Real credentials have both fields; placeholder {} or partial JSON
+    // would crash the JWT auth later — refuse to build the client and
+    // let the caller fall back to the public-URL path.
+    if (!creds || !creds.client_email || !creds.private_key) return null;
+    const { google } = require('googleapis');
+    const auth = new google.auth.JWT({
+      email:  creds.client_email,
+      key:    creds.private_key,
+      scopes: ['https://www.googleapis.com/auth/drive']
+    });
+    _driveClient = google.drive({ version: 'v3', auth });
+    return _driveClient;
+  } catch (e) {
+    console.error('[drive] failed to init client:', e.message);
+    return null;
+  }
+}
+
+/** Extract a Drive file ID from common share-URL shapes. */
+function extractDriveFileId(url) {
+  if (!url) return null;
+  // /file/d/{id}/view, /file/d/{id}/edit, /file/d/{id}
+  let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/);
+  if (m) return m[1];
+  // /open?id={id}  and /uc?id={id}
+  m = url.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  if (m) return m[1];
+  // /folders/{id}
+  m = url.match(/\/folders\/([a-zA-Z0-9_-]{20,})/);
+  if (m) return m[1];
+  return null;
+}
+
+/** Grant `email` reader access to the Drive file. Returns the permission ID
+ *  on success so we can revoke later, or null on failure. */
+async function grantDriveAccess(fileId, email) {
+  const drive = getDriveClient();
+  if (!drive || !fileId || !email) return null;
+  try {
+    const r = await drive.permissions.create({
+      fileId,
+      requestBody: {
+        type: 'user',
+        role: 'reader',
+        emailAddress: email
+      },
+      sendNotificationEmail: false,
+      supportsAllDrives: true
+    });
+    return r.data?.id || null;
+  } catch (e) {
+    console.warn(`[drive] grant failed for ${fileId}:`, e.message);
+    return null;
+  }
+}
+
+/** Revoke a previously-issued Drive permission. */
+async function revokeDriveAccess(fileId, permissionId) {
+  const drive = getDriveClient();
+  if (!drive || !fileId || !permissionId) return false;
+  try {
+    await drive.permissions.delete({
+      fileId,
+      permissionId,
+      supportsAllDrives: true
+    });
+    return true;
+  } catch (e) {
+    // 404 = already gone (file deleted or permission revoked elsewhere)
+    if (!/404|not found/i.test(String(e.message || ''))) {
+      console.warn(`[drive] revoke failed for ${fileId}/${permissionId}:`, e.message);
+    }
+    return false;
+  }
 }
 
 async function sendEmail({ to, subject, body }) {
@@ -1036,7 +1148,10 @@ exports.downloadFile = onRequest(
     region: 'us-central1',
     cors: ['https://digitalmarketstore.shop'],
     timeoutSeconds: 60,
-    memory: '256MiB'
+    memory: '256MiB',
+    // Bind Drive secret so per-buyer sharing works when configured.
+    // No-op if GDRIVE_SA_JSON isn't set — falls back to public Drive URL.
+    secrets: DRIVE_SECRETS
   },
   async (req, res) => {
     // Manual CORS handling — onRequest's `cors` config covers preflight but
@@ -1088,14 +1203,28 @@ exports.downloadFile = onRequest(
     }
 
     // 4. Token check (constant-time).
+    //
+    // BACKFILL: orders approved before the idempotent token-issue logic
+    // shipped (any approved order without a `downloadToken` field) skip
+    // this layer of defense. The other gates (ID token verify, buyerId
+    // match, status=approved, expiry, productId in order) are sufficient
+    // for those legacy orders. After the first successful download we
+    // generate a token and save it to the order so future requests have
+    // full defense.
     const crypto = require('crypto');
-    const okToken = (() => {
-      const a = Buffer.from(String(order.downloadToken || ''), 'utf8');
-      const b = Buffer.from(String(token), 'utf8');
-      if (a.length !== b.length) return false;
-      try { return crypto.timingSafeEqual(a, b); } catch { return false; }
-    })();
-    if (!okToken) return res.status(403).json({ error: 'bad-token' });
+    let needsTokenBackfill = false;
+    if (order.downloadToken) {
+      const okToken = (() => {
+        const a = Buffer.from(String(order.downloadToken), 'utf8');
+        const b = Buffer.from(String(token || ''), 'utf8');
+        if (a.length !== b.length) return false;
+        try { return crypto.timingSafeEqual(a, b); } catch { return false; }
+      })();
+      if (!okToken) return res.status(403).json({ error: 'bad-token' });
+    } else {
+      // Legacy approved order — no token persisted yet.
+      needsTokenBackfill = true;
+    }
 
     // 5. Expiry check (now the AUTHORITATIVE gate — replaces the cosmetic
     //    downloadExpired flag that the public URL ignored entirely).
@@ -1105,6 +1234,21 @@ exports.downloadFile = onRequest(
       // Mark expired so the daily cleaner doesn't have to.
       await db.collection('orders').doc(orderId).update({ downloadExpired: true }).catch(() => {});
       return res.status(410).json({ error: 'expired', message: 'Download window closed.' });
+    }
+    // If the legacy order has no expiry either, set a 30-day window now.
+    if (!order.downloadExpiresAt) {
+      const newExpiry = now + 30 * 86400000;
+      await db.collection('orders').doc(orderId).update({
+        downloadExpiresAt: newExpiry,
+        downloadExpired: false
+      }).catch(() => {});
+    }
+    // Backfill the token if missing — generated fresh and saved to the doc.
+    if (needsTokenBackfill) {
+      const newToken = crypto.randomUUID();
+      await db.collection('orders').doc(orderId).update({
+        downloadToken: newToken
+      }).catch(e => console.warn('[downloadFile] token backfill write failed:', e.message));
     }
 
     // 6. Product must be in this order.
@@ -1196,11 +1340,7 @@ exports.downloadFile = onRequest(
       }
     }
 
-    // Google Drive / Dropbox / external URL → return as-is, let the
-    // client open it in a new tab. Buyer's Drive/Dropbox sharing
-    // controls determine whether they can actually access the file.
     if (!downloadUrl) {
-      // No external URL and Firebase path didn't sign — unusual.
       return res.status(404).json({
         error: 'file-not-available',
         message: 'No working download link is available. Please contact support.',
@@ -1208,6 +1348,56 @@ exports.downloadFile = onRequest(
       });
     }
 
+    // Google Drive: when GDRIVE_SA_JSON secret is configured, share the
+    // file directly with the buyer's email and record the grant so we
+    // can revoke after 30 days. Falls back to the public link if the
+    // service account isn't set up, the URL isn't a recognized Drive
+    // shape, or the share API call fails.
+    if (provider === 'gdrive' && getDriveClient()) {
+      const fileId = extractDriveFileId(downloadUrl);
+      const buyerEmail = order.buyerEmail || '';
+      if (fileId && buyerEmail) {
+        const grantKey = `${orderId}__${productId}`;
+        try {
+          const existing = await db.collection('driveGrants').doc(grantKey).get();
+          let permissionId = existing.exists ? existing.data()?.permissionId : null;
+          if (!permissionId) {
+            permissionId = await grantDriveAccess(fileId, buyerEmail);
+            if (permissionId) {
+              await db.collection('driveGrants').doc(grantKey).set({
+                orderId,
+                productId,
+                fileId,
+                permissionId,
+                buyerId:    uid,
+                buyerEmail,                                 // needed for re-share if user re-orders
+                buyerEmailHash: hashEmail(buyerEmail),
+                grantedAt:  FieldValue.serverTimestamp(),
+                expiresAt:  Date.now() + 30 * 86400000,    // 30-day matched to order window
+                revokedAt:  null
+              });
+            }
+          }
+          if (permissionId) {
+            // Direct download URL works for files with view permission.
+            const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+            return res.status(200).json({
+              ok: true,
+              signedUrl: directUrl,
+              filename:  safeName,
+              provider:  'gdrive-restricted',
+              openIn:    'tab',
+              expiresIn: 30 * 86400
+            });
+          }
+        } catch (e) {
+          console.warn('[downloadFile] gdrive grant flow failed:', e.message);
+          // fall through to public-URL return below
+        }
+      }
+    }
+
+    // Default: return the URL as-is and let the client open in a new tab.
     return res.status(200).json({
       ok: true,
       signedUrl: downloadUrl,
@@ -1218,5 +1408,38 @@ exports.downloadFile = onRequest(
       // the save dialog directly.
       openIn: provider === 'firebase' ? 'download' : 'tab'
     });
+  }
+);
+
+// ─── 12. revokeExpiredDriveGrants — daily cleanup ──────────────────────────
+// Revokes Drive permissions granted by downloadFile that are >30 days old.
+// Marks the grant doc with `revokedAt` so we don't try again on the next
+// run. Idempotent + 404-tolerant.
+exports.revokeExpiredDriveGrants = onSchedule(
+  { schedule: 'every day 02:00', region: 'us-central1', timeZone: 'UTC', secrets: DRIVE_SECRETS },
+  async () => {
+    const drive = getDriveClient();
+    if (!drive) {
+      console.log('[revokeExpiredDriveGrants] GDRIVE_SA_JSON not set — skipping.');
+      return;
+    }
+    const now = Date.now();
+    const snap = await db.collection('driveGrants')
+      .where('revokedAt', '==', null)
+      .where('expiresAt', '<=', now)
+      .limit(200)
+      .get();
+    if (snap.empty) { console.log('[revokeExpiredDriveGrants] nothing to revoke.'); return; }
+    let revoked = 0;
+    for (const doc of snap.docs) {
+      const g = doc.data();
+      const ok = await revokeDriveAccess(g.fileId, g.permissionId);
+      await doc.ref.update({
+        revokedAt: FieldValue.serverTimestamp(),
+        revokeOk: ok
+      }).catch(() => {});
+      if (ok) revoked++;
+    }
+    console.log(`[revokeExpiredDriveGrants] revoked ${revoked} of ${snap.size} expired grants.`);
   }
 );

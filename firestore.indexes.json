@@ -113,6 +113,14 @@
         { "fieldPath": "participants", "arrayConfig": "CONTAINS"  },
         { "fieldPath": "updatedAt",    "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "driveGrants",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "revokedAt", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

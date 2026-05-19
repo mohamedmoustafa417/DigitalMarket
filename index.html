@@ -11023,8 +11023,11 @@ async function secureDownload(orderId, productId, fileNameHint) {
     if (o.downloadExpired === true || (o.downloadExpiresAt && o.downloadExpiresAt < Date.now())) {
       toast('Download window expired (30 days).', 'warning'); return;
     }
-    token = o.downloadToken;
-    if (!token) { toast('No download token on this order.', 'danger'); return; }
+    // Legacy orders approved before the idempotent token-issue logic
+    // may not have a downloadToken. Send empty string and let the CF
+    // backfill one (the other gates — auth, buyerId match, status,
+    // expiry, productId in order — still apply).
+    token = o.downloadToken || '';
   } catch (e) {
     console.error('secureDownload order read:', e);
     toast('Failed to load order.', 'danger'); return;

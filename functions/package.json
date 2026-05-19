@@ -2,7 +2,9 @@
   "name": "digitalmarket-functions",
   "version": "1.0.0",
   "description": "Firebase Cloud Functions for DigitalMarket",
-  "engines": { "node": "22" },
+  "engines": {
+    "node": "22"
+  },
   "main": "index.js",
   "scripts": {
     "lint": "eslint --ext .js .",
@@ -11,7 +13,8 @@
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
-    "firebase-functions": "^6.0.0"
+    "firebase-functions": "^6.0.0",
+    "googleapis": "^144.0.0"
   },
   "devDependencies": {
     "eslint": "^8.15.0",
