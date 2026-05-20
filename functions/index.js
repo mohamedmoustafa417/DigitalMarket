@@ -495,6 +495,39 @@ exports.onOrderStatusChange = onDocumentWritten(
           createdAt: FieldValue.serverTimestamp()
         })
       ));
+
+      // ── Real opt-in social-proof feed ────────────────────────────────
+      // Only fires if the buyer ticked the "Show my first name in the
+      // public ticker" checkbox at checkout. Stores first-name-only +
+      // product name — never UID, never email, never last name.
+      // The daily `cleanupPublicPurchases` scheduler removes entries
+      // older than 30 days.
+      if (after.publicAttribution === true) {
+        try {
+          const fullName  = String(after.buyerName || '').trim();
+          // Sanity: first whitespace-separated token, max 20 chars,
+          // letters+space only (block emoji / control chars). If we
+          // can't derive a clean first name, just use "A buyer".
+          let firstName = fullName.split(/\s+/)[0] || '';
+          firstName = firstName.replace(/[^\p{L}\p{M}\- ]/gu, '').slice(0, 20).trim();
+          if (!firstName) firstName = 'A buyer';
+
+          // Take the first item's name (the "highlight" of the order).
+          const showcase = (after.items || [])[0];
+          if (showcase && showcase.name) {
+            await db.collection('publicPurchases').add({
+              firstName,
+              productName: String(showcase.name).slice(0, 80),
+              productId:   showcase.id || null,
+              createdAt:   FieldValue.serverTimestamp(),
+              // TTL for cleanup query — 30 days from now.
+              expiresAt:   Date.now() + 30 * 86400000
+            });
+          }
+        } catch (e) {
+          console.warn(`[onOrderStatusChange] publicPurchases write failed for ${orderId}:`, e.message);
+        }
+      }
     }
 
     // ── Order rejected → notify buyer ──
@@ -1448,5 +1481,24 @@ exports.revokeExpiredDriveGrants = onSchedule(
       if (ok) revoked++;
     }
     console.log(`[revokeExpiredDriveGrants] revoked ${revoked} of ${snap.size} expired grants.`);
+  }
+);
+
+// ─── 13. cleanupPublicPurchases — TTL on social-proof feed ─────────────────
+// Removes /publicPurchases entries older than 30 days. Keeps the ticker
+// fresh + prevents the collection from growing unbounded.
+exports.cleanupPublicPurchases = onSchedule(
+  { schedule: 'every day 01:00', region: 'us-central1', timeZone: 'UTC' },
+  async () => {
+    const now = Date.now();
+    const snap = await db.collection('publicPurchases')
+      .where('expiresAt', '<=', now)
+      .limit(500)
+      .get();
+    if (snap.empty) { console.log('[cleanupPublicPurchases] nothing to clean.'); return; }
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    console.log(`[cleanupPublicPurchases] removed ${snap.size} expired entries.`);
   }
 );
