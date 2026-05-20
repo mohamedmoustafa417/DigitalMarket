@@ -12191,31 +12191,17 @@ async function sendEmailCampaign(subject, body, target) {
 })();
 
 // ─── QUICK WIN 2: RECENTLY SOLD TICKER ────────────────────────────────
-(function initSoldTicker() {
-  window.addEventListener('load', () => setTimeout(() => {
-    if (document.getElementById('dm-sold-ticker')) return;
-    const pool = (allProducts||[]).filter(p=>p.purchaseCount>0&&p.status==='approved')
-      .sort((a,b)=>(b.purchaseCount||0)-(a.purchaseCount||0)).slice(0,12);
-    if (pool.length < 3) return;
-    const names = ['Ahmed','Sara','Mohamed','Nour','Omar','Layla','Khaled','Dina','Youssef','Rana'];
-    const msgs  = pool.map(p => `🛍️ ${names[Math.floor(Math.random()*names.length)]} just bought <strong>${sanitize(p.name)}</strong>`);
-    let idx = 0;
-    const ticker = document.createElement('div');
-    ticker.id = 'dm-sold-ticker';
-    ticker.style.cssText = 'position:fixed;bottom:72px;left:16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:0.45rem 0.75rem;box-shadow:var(--shadow-md);z-index:198;font-size:0.77rem;max-width:250px;cursor:pointer;';
-    ticker.innerHTML = msgs[0];
-    ticker.title = 'Click to dismiss';
-    document.body.appendChild(ticker);
-    const timer = setInterval(() => {
-      ticker.style.opacity = '0';
-      setTimeout(() => { idx=(idx+1)%msgs.length; ticker.innerHTML=msgs[idx]; ticker.style.opacity='1'; }, 300);
-    }, 4500);
-    ticker.style.transition = 'opacity 0.3s';
-    const hide = () => { clearInterval(timer); ticker.remove(); };
-    ticker.onclick = hide;
-    setTimeout(hide, 35000);
-  }, 4000));
-})();
+// REMOVED: previously rendered "Dina just bought X" with FAKE buyer names
+// from a hardcoded list. That's a deceptive social-proof pattern banned
+// by both Egyptian Consumer Protection Law (181/2018, false advertising)
+// and Kashier's merchant terms (no fake reviews / fake social proof).
+//
+// If we want to surface real activity in the future, the pattern is:
+//   • Buyer opts in to public attribution at checkout
+//   • CF onOrderStatusChange writes to a /publicPurchases collection
+//     with first-name-only + product (no UID, no email)
+//   • Ticker reads from that real data
+// Until then, no ticker.
 
 // ─── QUICK WIN 6: CUSTOMERS ALSO BOUGHT (after order receipt) ─────────
 (function patchShowOrderReceiptForAlsoBought() {
