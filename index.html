@@ -46,14 +46,32 @@
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; frame-src https://www.google.com https://recaptcha.google.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://digitalmarket-38db5.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self';">
   <title>DigitalMarket – Digital Marketplace</title>
-  <!-- Preconnect for performance -->
+  <!-- Preconnect for performance — extended to every third-party origin
+       the page talks to in the first 2 seconds. Saves ~150 ms per origin
+       on cold cache because DNS + TLS handshakes overlap with HTML parsing
+       instead of blocking the script that triggers them. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://api.exchangerate.host">
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  <!-- Font Awesome: ~100 KB of icon CSS. Loaded with the `media=print`
+       + onload swap trick so it doesn't block first paint. Icons render
+       ~200 ms later (which is fine — initial frame has skeleton + text). -->
+  <link rel="preload" as="style"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
-    crossorigin="anonymous" referrerpolicy="no-referrer">
+    crossorigin="anonymous" referrerpolicy="no-referrer"></noscript>
   <!-- DOMPurify for XSS sanitization -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"
     integrity="sha512-H+rglffZ6f5gF7UJgvH4Naa+fGCgjrHKMgoFOGmcPTRwR6oILo5R+gtzNrpDp7iMV3udbymBVjkeZGNz1Em4rQ=="
@@ -3334,8 +3352,21 @@
     </div>
     <div class="modal-body">
       <div class="alert alert-danger" id="prod-modal-alert" role="alert"></div>
-      <form id="product-form" onsubmit="submitProduct(event)" novalidate>
+      <form id="product-form" onsubmit="submitProduct(event)" novalidate oninput="dmRecalcListingQuality()">
         <input type="hidden" id="edit-product-id">
+        <!-- Listing-quality indicator. Updates live as the seller fills
+             in fields. Helps them ship a complete listing — empty/thin
+             listings hurt their own conversion. -->
+        <div id="dm-listing-quality" style="margin-bottom:1rem;padding:0.75rem 0.9rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;margin-bottom:0.5rem;">
+            <strong id="dm-lq-label">Listing quality</strong>
+            <span id="dm-lq-score" style="font-weight:700;">0 / 6</span>
+          </div>
+          <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;">
+            <div id="dm-lq-bar" style="width:0%;height:100%;background:var(--danger);transition:width 0.25s ease, background 0.25s ease;"></div>
+          </div>
+          <div id="dm-lq-hints" style="font-size:0.74rem;color:var(--text-muted);margin-top:0.5rem;line-height:1.5;"></div>
+        </div>
         <div class="form-group">
           <label class="form-label" for="prod-name">Product Name <span class="req" aria-hidden="true">*</span></label>
           <input class="form-control" type="text" id="prod-name" required maxlength="120">
@@ -3805,6 +3836,132 @@ function safeUrl(u) {
   if (/^(https?:|mailto:|tel:)/i.test(trimmed)) return trimmed;
   if (/^\/[^\/]/.test(trimmed)) return trimmed; // /?p=abc, /help.html etc. (NOT //evil)
   return '#';
+}
+
+/**
+ * Live listing-quality scorer — runs on every input event inside the
+ * Add/Edit Product form. Shows the seller exactly which fields would
+ * lift their listing from "draft" to "world-class," with a colored
+ * progress bar so the feedback is immediate. 6 criteria, 1 point each:
+ *   1. Name ≥ 4 chars
+ *   2. Description ≥ 80 chars
+ *   3. Price > 0
+ *   4. Category selected
+ *   5. Image URL or emoji
+ *   6. Tags ≥ 2
+ * Plus a bonus call-out for: sample/preview URL, multiple images,
+ * video, commercial-license tier.
+ */
+function dmRecalcListingQuality() {
+  const $ = id => document.getElementById(id);
+  const name  = ($('prod-name')?.value || '').trim();
+  const desc  = ($('prod-desc')?.value || '').trim();
+  const price = parseFloat($('prod-price')?.value || '0');
+  const cat   = $('prod-cat')?.value || '';
+  const img   = ($('prod-img')?.value || '').trim();
+  const emoji = ($('prod-emoji')?.value || '').trim();
+  const tags  = ($('prod-tags')?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  const sample= ($('prod-sample')?.value || '').trim();
+  const img2  = ($('prod-img2')?.value || '').trim();
+  const img3  = ($('prod-img3')?.value || '').trim();
+  const video = ($('prod-video')?.value || '').trim();
+
+  const checks = [
+    { ok: name.length >= 4, msg: 'Add a descriptive product name (4+ chars).' },
+    { ok: desc.length >= 80, msg: `Write at least 80 chars of description (${desc.length} so far).` },
+    { ok: price > 0, msg: 'Set a price greater than zero.' },
+    { ok: !!cat, msg: 'Pick a category.' },
+    { ok: !!img || !!emoji, msg: 'Add a product image or emoji.' },
+    { ok: tags.length >= 2, msg: `Add ${Math.max(0, 2 - tags.length)} more tag(s) to help buyers find it.` }
+  ];
+  const done   = checks.filter(c => c.ok).length;
+  const missing = checks.filter(c => !c.ok).slice(0, 2).map(c => '• ' + c.msg);
+  // Bonus list (not part of the score but encouraged)
+  const bonus = [];
+  if (sample) bonus.push('sample');
+  if (img2 || img3) bonus.push('extra images');
+  if (video) bonus.push('video');
+  const pct = Math.round((done / checks.length) * 100);
+
+  const bar   = $('dm-lq-bar');
+  const score = $('dm-lq-score');
+  const label = $('dm-lq-label');
+  const hints = $('dm-lq-hints');
+  if (!bar || !score || !label || !hints) return;
+  bar.style.width = pct + '%';
+  if (pct < 50)       bar.style.background = 'var(--danger)';
+  else if (pct < 100) bar.style.background = 'var(--warning)';
+  else                bar.style.background = 'var(--success)';
+  score.textContent = `${done} / ${checks.length}`;
+  label.textContent = pct === 100
+    ? 'Listing quality — ready to publish ✓'
+    : pct >= 67
+      ? 'Listing quality — almost there'
+      : 'Listing quality — needs work';
+  hints.innerHTML = missing.length
+    ? missing.map(s => sanitize(s)).join('<br>')
+    : (bonus.length
+        ? `Nice work! Bonus: ${bonus.join(', ')} included.`
+        : 'All required fields done. Adding a sample, extra images, or video boosts conversion further.');
+}
+
+/**
+ * Inject a Product + Offer + AggregateRating JSON-LD block into <head>
+ * so Google can surface this product as a rich snippet (price, rating,
+ * availability) in search results.
+ *
+ * Replaces any prior product schema on open — only one product is the
+ * "current" view at a time. Uses safeUrl() for image URLs so a
+ * `javascript:` payload in product.imageUrl can't poison the schema.
+ */
+function dmInjectProductSchema(p) {
+  if (!p) return;
+  // Remove any previous product schema we added.
+  document.querySelectorAll('script[data-dm-schema="product"]').forEach(el => el.remove());
+
+  const baseUrl = 'https://digitalmarketstore.shop';
+  const productUrl = `${baseUrl}/?p=${encodeURIComponent(p.id || '')}`;
+  // EGP for Google; matches what Firestore stores. Conversion is display-only.
+  const offer = {
+    '@type': 'Offer',
+    'url':   productUrl,
+    'priceCurrency': 'EGP',
+    'price': Number(p.price || 0).toFixed(2),
+    'availability': p.status === 'approved'
+      ? 'https://schema.org/InStock'
+      : 'https://schema.org/PreOrder',
+    'itemCondition': 'https://schema.org/NewCondition'
+  };
+  const schema = {
+    '@context': 'https://schema.org',
+    '@type':    'Product',
+    'name':     String(p.name || '').slice(0, 110),
+    'description': String(p.description || '').slice(0, 300),
+    'sku':      String(p.id || ''),
+    'category': String(p.category || 'Digital Product'),
+    'brand':    { '@type': 'Brand', 'name': p.sellerName || 'DigitalMarket Seller' },
+    'image':    [p.imageUrl, p.imageUrl2, p.imageUrl3]
+                  .map(u => safeUrl(u))
+                  .filter(u => u && u !== '#'),
+    'offers':   offer
+  };
+  if (p.ratingCount > 0 && p.ratingAvg > 0) {
+    schema.aggregateRating = {
+      '@type': 'AggregateRating',
+      'ratingValue': Number(p.ratingAvg).toFixed(1),
+      'reviewCount': Number(p.ratingCount),
+      'bestRating': '5',
+      'worstRating': '1'
+    };
+  }
+  const tag = document.createElement('script');
+  tag.type = 'application/ld+json';
+  tag.dataset.dmSchema = 'product';
+  // JSON.stringify is safe here — no HTML escaping needed inside a
+  // <script type="application/ld+json"> block (Google explicitly
+  // accepts JSON-LD; the type prevents HTML parsing of the contents).
+  tag.textContent = JSON.stringify(schema);
+  document.head.appendChild(tag);
 }
 
 /**
@@ -5057,6 +5214,12 @@ function openProductDetail(id) {
 
   trackEvent('view_item', { item_id: id, item_name: p.name, value: p.price });
 
+  // SEO: inject JSON-LD Product schema. Google + other crawlers parse
+  // this to enable rich snippets (price, rating, availability) in
+  // search results. Removed + re-added on each open so stale data
+  // never sticks around in the DOM.
+  dmInjectProductSchema(p);
+
   const body = document.getElementById('product-modal-body');
 
   // Image gallery
@@ -6227,18 +6390,32 @@ async function submitProduct(e, isDraft = false) {
   const commercialPrice = hasCommercial ? parseFloat(document.getElementById('prod-commercial-price')?.value || '0') : null;
   const btn       = isDraft ? document.getElementById('prod-draft-btn') : document.getElementById('prod-submit-btn');
 
-  // Drafts only need name; full validation for submissions
+  // Drafts only need name; full validation for submissions.
+  // Tightened content-quality gates — empty or thin listings hurt the
+  // marketplace's perceived quality and depress search rankings.
   if (!isDraft) {
     let valid = true;
-    if (!name)        { setInvalid('prod-name');  valid = false; }
-    if (!desc)        { setInvalid('prod-desc');  valid = false; }
-    if (isNaN(price) || price < 0) { setInvalid('prod-price'); valid = false; }
-    if (!cat)         { setInvalid('prod-cat');   valid = false; }
-    if (!dlUrl)       { setInvalid('prod-download', 'Provide a file upload or a download URL.'); valid = false; }
-    else if (!/^https?:\/\//i.test(dlUrl)) { setInvalid('prod-download', 'Must be a valid https:// URL.'); valid = false; }
-    if (imgUrl && !/^https?:\/\//i.test(imgUrl)) { setInvalid('prod-img', 'Must be a valid https:// URL.'); valid = false; }
-    if (sampleUrl && !/^https?:\/\//i.test(sampleUrl)) { setInvalid('prod-sample', 'Must be a valid https:// URL.'); valid = false; }
-    if (!valid) return;
+    const fail = (id, msg) => { setInvalid(id, msg); valid = false; };
+    if (!name || name.length < 4) fail('prod-name', 'Product name should be at least 4 characters and describe what the buyer gets.');
+    if (!desc || desc.length < 80) fail('prod-desc', `Description must be at least 80 characters (currently ${desc.length || 0}). Describe what the buyer downloads, format, and how to use it.`);
+    if (isNaN(price) || price <= 0) fail('prod-price', 'Set a price greater than zero (use the PWYW option for free / pay-what-you-want).');
+    if (!cat) fail('prod-cat');
+    if (!dlUrl) fail('prod-download', 'Provide a file upload or a download URL.');
+    else if (!/^https?:\/\//i.test(dlUrl)) fail('prod-download', 'Must be a valid https:// URL.');
+    // At least one visual: an image URL or an emoji. Listings with neither
+    // look broken in the product grid.
+    if (!imgUrl && !emoji) fail('prod-img', 'Add a product image OR an emoji so the listing has a visual identity.');
+    if (imgUrl && !/^https?:\/\//i.test(imgUrl)) fail('prod-img', 'Must be a valid https:// URL.');
+    if (sampleUrl && !/^https?:\/\//i.test(sampleUrl)) fail('prod-sample', 'Must be a valid https:// URL.');
+    // Tags help search + SEO. Soft requirement: 2+ tags.
+    if (tags.length < 2) {
+      toast(`Add 2+ tags to help buyers find your product (currently ${tags.length}).`, 'warning', 5000);
+      // Not a hard block, but warns.
+    }
+    if (!valid) {
+      toast('Some fields need attention before listing can go live. See the highlighted boxes.', 'warning', 5000);
+      return;
+    }
 
     // Block unverified sellers from listing products (admins are exempt)
     if (curUser && !curUser.emailVerified && !isAdmin()) {
@@ -10487,9 +10664,51 @@ function copyAffiliateLink() {
 // ═══════════════════════════════════════════════════════════════════
 const CURRENCIES = ['EGP', 'USD', 'EUR', 'SAR', 'AED'];
 let _currencyIdx  = 0;
-// Approximate rates vs EGP (update from settings or fetch live)
+// Static fallback used until live rates land. exchangerate.host (no key,
+// no signup) refreshes daily. Cached in localStorage for 4 hours so we
+// don't hit the API on every page view. If the fetch fails (CORS, rate
+// limit, network), the static rates stay in use — buyers always see
+// SOMETHING.
 const CURRENCY_RATES = { EGP: 1, USD: 0.021, EUR: 0.019, SAR: 0.079, AED: 0.077 };
 const CURRENCY_SYMS  = { EGP: 'EGP', USD: '$', EUR: '€', SAR: 'SR', AED: 'AED' };
+
+(function refreshFxRates() {
+  const KEY = 'dm_fx_cache_v1';
+  const MAX_AGE_MS = 4 * 60 * 60 * 1000;  // 4 h
+  // Hydrate from cache immediately so first paint uses last-known rates.
+  try {
+    const cached = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (cached && cached.rates && (Date.now() - cached.at) < MAX_AGE_MS) {
+      Object.assign(CURRENCY_RATES, cached.rates);
+      return; // fresh enough, skip the fetch
+    }
+  } catch {}
+  // Fetch live. exchangerate.host is free, no key, returns JSON shaped
+  // as { rates: { USD: 0.0208, EUR: 0.0193, ... } } from a given base.
+  fetch('https://api.exchangerate.host/latest?base=EGP&symbols=USD,EUR,SAR,AED', { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (!j || !j.rates) return;
+      // Sanity guard: each rate must be a positive number that's
+      // plausibly the inverse of an FX rate. Drops anything that looks
+      // like a parse error or zeroed entry.
+      const sane = {};
+      for (const [k, v] of Object.entries(j.rates)) {
+        const n = Number(v);
+        if (n > 0 && n < 100) sane[k] = n;
+      }
+      sane.EGP = 1;
+      if (Object.keys(sane).length >= 3) {
+        Object.assign(CURRENCY_RATES, sane);
+        try { localStorage.setItem(KEY, JSON.stringify({ rates: sane, at: Date.now() })); } catch {}
+        // Re-render any price text that's already on screen.
+        if (typeof renderProducts === 'function') {
+          try { renderProducts(); } catch {}
+        }
+      }
+    })
+    .catch(() => {/* network fail → static rates persist */});
+})();
 
 function toggleCurrency() {
   _currencyIdx = (_currencyIdx + 1) % CURRENCIES.length;
