@@ -1502,3 +1502,64 @@ exports.cleanupPublicPurchases = onSchedule(
     console.log(`[cleanupPublicPurchases] removed ${snap.size} expired entries.`);
   }
 );
+
+// ─── 14. notifyIndexNow — instant Bing / DuckDuckGo / Yandex indexing ────
+// Bing supports the IndexNow protocol: ping a single URL with the
+// product URL and Bing indexes it in ~30 seconds (vs ~24h waiting
+// for the next sitemap re-crawl). DuckDuckGo and Yandex also use
+// this signal. Google does NOT (sticks with sitemap.xml only).
+//
+// Setup (one-time, done by the user):
+//   1. https://www.bing.com/indexnow → click "Generate API key"
+//   2. Bing returns a UUID-shaped key, e.g. `a1b2c3d4...`
+//   3. firebase functions:secrets:set INDEXNOW_KEY
+//   4. Host the key at https://digitalmarketstore.shop/{key}.txt
+//      with the SAME string as the content (proves ownership).
+//      We commit that file to the repo.
+//   5. firebase deploy --only functions:notifyIndexNow
+//
+// Trigger: any /products document write where status flips to
+// 'approved' — new listings and re-approvals after admin edits.
+const INDEXNOW_KEY = defineSecret('INDEXNOW_KEY');
+
+exports.notifyIndexNow = onDocumentWritten(
+  { document: 'products/{productId}', region: 'us-central1', secrets: [INDEXNOW_KEY] },
+  async event => {
+    const before = event.data?.before?.data();
+    const after  = event.data?.after?.data();
+    if (!after) return;                        // deletion — skip
+    // Fire ONLY when status transitions to approved (not on every edit
+    // of an already-approved product — that would burn the IndexNow
+    // daily quota of 10k pings).
+    const wasApproved = before?.status === 'approved';
+    const isApproved  = after.status   === 'approved';
+    if (!isApproved || wasApproved) return;
+
+    const key = process.env.INDEXNOW_KEY;
+    if (!key || key === '{}' || key === 'null') {
+      console.log('[notifyIndexNow] INDEXNOW_KEY not set — skipping ping.');
+      return;
+    }
+    const productId = event.params.productId;
+    const host = 'digitalmarketstore.shop';
+    const productUrl = `https://${host}/?p=${encodeURIComponent(productId)}`;
+
+    try {
+      const r = await fetch('https://api.indexnow.org/indexnow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          host,
+          key,
+          keyLocation: `https://${host}/${key}.txt`,
+          urlList: [productUrl]
+        })
+      });
+      // IndexNow returns 200/202 on success, 400-422 on bad request,
+      // 429 if rate-limited. Log all for observability.
+      console.log(`[notifyIndexNow] product ${productId.slice(0,8)} → IndexNow HTTP ${r.status}`);
+    } catch (e) {
+      console.warn(`[notifyIndexNow] ping failed for ${productId}:`, e.message);
+    }
+  }
+);
