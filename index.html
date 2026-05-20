@@ -5821,15 +5821,17 @@ async function loadSellerStats(forceRefresh) {
     _renderSellerStats(_ssCache);
     return;
   }
+  // Robust error detection — match the message text AND the Firestore
+  // error code. The index-building error reads
+  // "The query requires an index. That index is currently building".
+  const isIndexErr = (e) => {
+    const msg  = String(e?.message || e || '');
+    const code = String(e?.code   || '');
+    return /requires an index|index is currently building|FAILED_PRECONDITION/i.test(msg)
+        || code === 'failed-precondition';
+  };
   try {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    // INDEX FALLBACK: this query needs a composite index
-    // (sellerIds array-contains + createdAt desc). If the index is
-    // still building (or got deleted), Firestore throws
-    // FailedPrecondition. Catch and retry without orderBy so the
-    // page degrades gracefully — we'll sort client-side from the
-    // unsorted result. The proper index is in firestore.indexes.json
-    // and built on each `firebase deploy --only firestore:indexes`.
     let snap;
     try {
       snap = await db.collection('orders')
@@ -5838,13 +5840,16 @@ async function loadSellerStats(forceRefresh) {
         .limit(1000)
         .get();
     } catch (e) {
-      if (/index|FAILED_PRECONDITION/i.test(String(e.message || e))) {
-        console.warn('[loadSellerStats] composite index missing — falling back to unsorted query.');
-        // Single-field query — no composite index needed.
+      if (isIndexErr(e)) {
+        console.warn('[loadSellerStats] composite index unavailable — using unsorted fallback.');
+        // Single-field query — no composite index needed. Sort client-side.
         snap = await db.collection('orders')
           .where('sellerIds', 'array-contains', curUser.uid)
           .limit(1000)
           .get();
+        // Friendly heads-up so the user knows numbers may take a sec to
+        // converge on the post-index-build query path.
+        toast('Preparing stats… (Firestore index is still building, ~1 minute)', 'info', 4000);
       } else { throw e; }
     }
     const orders = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => {
@@ -5893,7 +5898,11 @@ async function loadSellerStats(forceRefresh) {
     _renderSellerStats(_ssCache);
   } catch (e) {
     console.error('loadSellerStats:', e);
-    toast('Stats failed: ' + (e.message || 'unknown'), 'danger');
+    if (isIndexErr(e)) {
+      toast('Stats are still being prepared (Firestore index building). Try again in 1–2 min.', 'info', 7000);
+    } else {
+      toast('Stats failed: ' + (e.message || 'unknown'), 'danger');
+    }
   }
 }
 
@@ -6472,7 +6481,13 @@ async function loadAdminStats(forceRefresh) {
     _renderAdminStats(_dmStatsCache);
   } catch (e) {
     console.error('loadAdminStats:', e);
-    toast('Stats failed: ' + (e.message || 'unknown'), 'danger');
+    const msg  = String(e?.message || '');
+    if (/requires an index|index is currently building|FAILED_PRECONDITION/i.test(msg)
+        || e?.code === 'failed-precondition') {
+      toast('Stats are still being prepared (Firestore index building). Try again in 1–2 min.', 'info', 7000);
+    } else {
+      toast('Stats failed: ' + (e.message || 'unknown'), 'danger');
+    }
   }
 }
 
