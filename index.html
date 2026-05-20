@@ -5823,13 +5823,30 @@ async function loadSellerStats(forceRefresh) {
   }
   try {
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    // Capped 1000 orders for the period — same pattern as
-    // loadSellerEarningsBreakdown elsewhere.
-    const snap = await db.collection('orders')
-      .where('sellerIds', 'array-contains', curUser.uid)
-      .orderBy('createdAt', 'desc')
-      .limit(1000)
-      .get();
+    // INDEX FALLBACK: this query needs a composite index
+    // (sellerIds array-contains + createdAt desc). If the index is
+    // still building (or got deleted), Firestore throws
+    // FailedPrecondition. Catch and retry without orderBy so the
+    // page degrades gracefully — we'll sort client-side from the
+    // unsorted result. The proper index is in firestore.indexes.json
+    // and built on each `firebase deploy --only firestore:indexes`.
+    let snap;
+    try {
+      snap = await db.collection('orders')
+        .where('sellerIds', 'array-contains', curUser.uid)
+        .orderBy('createdAt', 'desc')
+        .limit(1000)
+        .get();
+    } catch (e) {
+      if (/index|FAILED_PRECONDITION/i.test(String(e.message || e))) {
+        console.warn('[loadSellerStats] composite index missing — falling back to unsorted query.');
+        // Single-field query — no composite index needed.
+        snap = await db.collection('orders')
+          .where('sellerIds', 'array-contains', curUser.uid)
+          .limit(1000)
+          .get();
+      } else { throw e; }
+    }
     const orders = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => {
       const ts = o.createdAt?.toDate ? o.createdAt.toDate() : null;
       return ts && ts >= cutoff;
