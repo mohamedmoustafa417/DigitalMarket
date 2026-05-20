@@ -3500,6 +3500,16 @@
             <input type="checkbox" id="redeem-points-check" onchange="togglePointsRedeem(this.checked)"> Use Points
           </label>
         </div>
+        <!-- Public-attribution opt-in (real social-proof ticker) -->
+        <div style="margin-top:1rem;padding:0.65rem 0.85rem;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.18);border-radius:var(--radius);">
+          <label style="display:flex;align-items:flex-start;gap:0.55rem;cursor:pointer;font-size:0.82rem;line-height:1.4;">
+            <input type="checkbox" id="public-attrib-check" style="margin-top:0.15rem;flex-shrink:0;">
+            <span>
+              <strong style="color:var(--success);">Help other buyers feel confident</strong> — show only my <strong>first name</strong> next to this purchase in the public "recently sold" ticker.<br>
+              <span style="color:var(--text-muted);font-size:0.74rem;">No last name, no email, no profile link. Opt-out anytime in your profile.</span>
+            </span>
+          </label>
+        </div>
         <!-- Upsell block -->
         <div class="upsell-block hidden" id="upsell-block">
           <h5><i class="fa-solid fa-bolt" style="margin-right:0.3rem;" aria-hidden="true"></i>You might also like</h5>
@@ -5607,6 +5617,9 @@ async function submitOrder() {
       discount,
       total,
       pointsRedeemed,
+      // Opt-in social-proof attribution. If true, the CF writes a
+      // first-name-only entry to /publicPurchases on approval.
+      publicAttribution: !!document.getElementById('public-attrib-check')?.checked,
       couponCode:    _appliedCoupon?.code || null,
       proof:         proofStorageUrl,
       paymentMethod: payMethod,
@@ -12190,18 +12203,52 @@ async function sendEmailCampaign(subject, body, target) {
   };
 })();
 
-// ─── QUICK WIN 2: RECENTLY SOLD TICKER ────────────────────────────────
-// REMOVED: previously rendered "Dina just bought X" with FAKE buyer names
-// from a hardcoded list. That's a deceptive social-proof pattern banned
-// by both Egyptian Consumer Protection Law (181/2018, false advertising)
-// and Kashier's merchant terms (no fake reviews / fake social proof).
-//
-// If we want to surface real activity in the future, the pattern is:
-//   • Buyer opts in to public attribution at checkout
-//   • CF onOrderStatusChange writes to a /publicPurchases collection
-//     with first-name-only + product (no UID, no email)
-//   • Ticker reads from that real data
-// Until then, no ticker.
+// ─── REAL recently-sold ticker (opt-in, first-name-only) ──────────────
+// Reads /publicPurchases — populated by onOrderStatusChange CF only when
+// the buyer ticked "Show my first name in the ticker" at checkout. So
+// every entry here is real + consented. No fake names, no PII leakage.
+(function initSoldTicker() {
+  window.addEventListener('load', () => setTimeout(async () => {
+    if (document.getElementById('dm-sold-ticker')) return;
+    if (!window.db) return;
+
+    let docs = [];
+    try {
+      const snap = await db.collection('publicPurchases')
+        .orderBy('createdAt', 'desc')
+        .limit(12)
+        .get();
+      docs = snap.docs.map(d => d.data());
+    } catch (e) {
+      console.warn('[soldTicker] read failed:', e.message);
+      return;
+    }
+    // Don't show the ticker at all if fewer than 3 opted-in entries —
+    // a single name flashing repeatedly feels worse than no ticker.
+    if (docs.length < 3) return;
+
+    const msgs = docs.map(d =>
+      `🛍️ ${sanitize(d.firstName || 'A buyer')} just bought <strong>${sanitize(d.productName || 'a product')}</strong>`
+    );
+    let idx = 0;
+    const ticker = document.createElement('div');
+    ticker.id = 'dm-sold-ticker';
+    ticker.setAttribute('role', 'status');
+    ticker.setAttribute('aria-live', 'polite');
+    ticker.style.cssText = 'position:fixed;bottom:calc(72px + env(safe-area-inset-bottom,0));left:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:0.55rem 0.85rem;box-shadow:0 6px 20px rgba(0,0,0,0.25);z-index:198;font-size:0.78rem;max-width:280px;cursor:pointer;transition:opacity 0.3s;';
+    ticker.innerHTML = msgs[0];
+    ticker.title = 'Click to dismiss';
+    document.body.appendChild(ticker);
+
+    const timer = setInterval(() => {
+      ticker.style.opacity = '0';
+      setTimeout(() => { idx = (idx + 1) % msgs.length; ticker.innerHTML = msgs[idx]; ticker.style.opacity = '1'; }, 300);
+    }, 5000);
+    const hide = () => { clearInterval(timer); ticker.style.opacity = '0'; setTimeout(() => ticker.remove(), 400); };
+    ticker.onclick = hide;
+    setTimeout(hide, 45000);  // auto-dismiss after 45 s
+  }, 6000));
+})();
 
 // ─── QUICK WIN 6: CUSTOMERS ALSO BOUGHT (after order receipt) ─────────
 (function patchShowOrderReceiptForAlsoBought() {

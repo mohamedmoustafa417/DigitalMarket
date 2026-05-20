@@ -355,6 +355,15 @@ service cloud.firestore {
       allow create, update: if false;            // CF only
     }
 
+    // ── Public Purchases (opt-in social-proof ticker) ────────────────
+    // CF writes a first-name-only + product-name entry here when a buyer
+    // ticked the public-attribution checkbox at checkout. The homepage
+    // ticker reads this collection. Never contains UID/email/last name.
+    match /publicPurchases/{purchaseId} {
+      allow read: if true;
+      allow create, update, delete: if false;    // CF only
+    }
+
     // ── Google Drive per-buyer grants (CF-written, admin-only) ───────
     // downloadFile creates one of these each time a buyer downloads a
     // Drive-hosted product; revokeExpiredDriveGrants flips revokedAt
