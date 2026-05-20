@@ -9038,7 +9038,16 @@ function checkDeepLink() {
   if (!pid) return;
   const tryOpen = () => {
     const p = allProducts.find(x => x.id === pid);
-    if (p) { openProductDetail(pid); }
+    if (p) {
+      // SEO: inject the Product JSON-LD AS SOON AS we have product data,
+      // BEFORE the modal opens. Google's crawler indexes within ~5s of
+      // domcontentloaded — making sure structured data exists by then
+      // is the difference between "rich snippet eligible" and "page
+      // re-crawled in 2 weeks." openProductDetail re-injects (no-op
+      // since the dedup selector removes the previous one).
+      if (typeof dmInjectProductSchema === 'function') dmInjectProductSchema(p);
+      openProductDetail(pid);
+    }
     else if (allProducts.length === 0) { setTimeout(tryOpen, 600); }
   };
   tryOpen();
