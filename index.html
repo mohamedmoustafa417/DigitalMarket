@@ -563,6 +563,13 @@
       height: 260px !important;
       display: block;
     }
+    /* Same Chart.js feedback-loop fix for the seller dashboard's three
+       legacy charts. They all use maintainAspectRatio:false and the
+       wrapping `dm-charts-grid` has no fixed height — so the canvases
+       collapse to 0 px and Chart.js enters a redraw-flicker loop. */
+    #dm-daily-chart  { max-width: 100% !important; width: 100% !important; height: 200px !important; display: block; }
+    #dm-top-chart    { max-width: 100% !important; width: 100% !important; height: 220px !important; display: block; }
+    #dm-status-chart { max-width: 100% !important; width: 100% !important; height: 220px !important; display: block; }
     .chart-wrap h4 { font-size:0.9rem; font-weight:700; margin-bottom:1rem; color:var(--text-muted); }
 
     /* ── Related products ── */
@@ -5784,6 +5791,15 @@ function sellerTab(tab) {
     document.getElementById(`sl-${t}`)?.classList.toggle('active', t === tab);
   });
   if (tab !== 'stats' && _ssChart) { _ssChart.destroy(); _ssChart = null; }
+  // Same feedback-loop guard for the 3 legacy seller dashboard charts —
+  // tear them down when leaving the products tab so their internal
+  // ResizeObserver doesn't keep firing on a hidden canvas.
+  if (tab !== 'products') {
+    if (_sellerChart)   { _sellerChart.destroy();   _sellerChart   = null; }
+    if (_dmDailyChart)  { _dmDailyChart.destroy();  _dmDailyChart  = null; }
+    if (_dmTopChart)    { _dmTopChart.destroy();    _dmTopChart    = null; }
+    if (_dmStatusChart) { _dmStatusChart.destroy(); _dmStatusChart = null; }
+  }
   if (tab === 'orders') {
     stopSellerOrdersListener();  // stop any stale listener first
     startSellerOrdersListener(); // start real-time listener
@@ -11012,25 +11028,51 @@ const DOWNLOAD_PROXY_URL = 'https://us-central1-digitalmarket-38db5.cloudfunctio
 
 async function secureDownload(orderId, productId, fileNameHint) {
   if (!curUser) { toast('Sign in to download.', 'warning'); return; }
+
+  // POP-UP BLOCKER FIX: open the new tab SYNCHRONOUSLY here, while we
+  // still have user-gesture context. We don't know yet whether we'll
+  // need it (Firebase Storage path triggers a save dialog instead),
+  // so open about:blank for now and either close it or navigate it
+  // once the fetch returns.
+  // Chromium / Safari treat window.open AFTER an `await` as
+  // programmatic and block it — even if the chain started from a
+  // user click. Opening it now keeps the gesture chain intact.
+  const popup = window.open('about:blank', '_blank');
+  if (popup) {
+    try {
+      popup.document.write(
+        '<title>Preparing your download…</title>' +
+        '<style>body{font-family:sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}</style>' +
+        '<div style="text-align:center"><h2>📥 Preparing your download…</h2>' +
+        '<p style="opacity:0.6">If this window stays blank, return to the marketplace and click Download again.</p></div>'
+      );
+    } catch {}
+  }
+  const closePopup = () => { if (popup) { try { popup.close(); } catch {} } };
+  const navPopup   = (url) => {
+    if (!popup) {
+      // Fallback if the synchronous open was blocked too — surface the URL
+      toast('Pop-ups blocked. URL: ' + url, 'warning', 8000);
+      return false;
+    }
+    try { popup.location.replace(url); } catch { try { popup.location.href = url; } catch {} }
+    return true;
+  };
+
   let token;
   try {
-    // Read the order's downloadToken (rules let the buyer read their own order)
     const snap = await db.collection('orders').doc(orderId).get();
-    if (!snap.exists) { toast('Order not found.', 'danger'); return; }
+    if (!snap.exists) { closePopup(); toast('Order not found.', 'danger'); return; }
     const o = snap.data();
-    if (o.buyerId !== curUser.uid) { toast('Not your order.', 'danger'); return; }
-    if (o.status !== 'approved')   { toast('Order not approved yet.', 'warning'); return; }
+    if (o.buyerId !== curUser.uid) { closePopup(); toast('Not your order.', 'danger'); return; }
+    if (o.status !== 'approved')   { closePopup(); toast('Order not approved yet.', 'warning'); return; }
     if (o.downloadExpired === true || (o.downloadExpiresAt && o.downloadExpiresAt < Date.now())) {
-      toast('Download window expired (30 days).', 'warning'); return;
+      closePopup(); toast('Download window expired (30 days).', 'warning'); return;
     }
-    // Legacy orders approved before the idempotent token-issue logic
-    // may not have a downloadToken. Send empty string and let the CF
-    // backfill one (the other gates — auth, buyerId match, status,
-    // expiry, productId in order — still apply).
     token = o.downloadToken || '';
   } catch (e) {
     console.error('secureDownload order read:', e);
-    toast('Failed to load order.', 'danger'); return;
+    closePopup(); toast('Failed to load order.', 'danger'); return;
   }
 
   try {
@@ -11045,30 +11087,26 @@ async function secureDownload(orderId, productId, fileNameHint) {
     });
     if (!r.ok) {
       const errBody = await r.json().catch(() => ({}));
-      // Prefer the server's human message; surface error codes as a
-      // fallback. Show longer (7s) when the message is itself an
-      // explanation so users can read it.
       const msg = errBody.message || errBody.error || ('HTTP ' + r.status);
       const dur = errBody.message ? 7000 : 4500;
       toast(msg, 'danger', dur);
       if (errBody.error === 'file-not-available') {
         console.warn('[secureDownload] file-not-available', errBody);
       }
+      closePopup();
       return;
     }
     const { signedUrl, filename, provider, openIn } = await r.json();
-    if (!signedUrl) { toast('No download URL returned.', 'danger'); return; }
-    // Two delivery modes depending on where the file lives:
-    //   • Firebase Storage signed URL → trigger save dialog directly
-    //     (the URL carries Content-Disposition: attachment).
-    //   • Google Drive / Dropbox / external → open in a new tab,
-    //     because those services serve their own viewer + the
-    //     <a download> attribute is ignored cross-origin anyway.
+    if (!signedUrl) { closePopup(); toast('No download URL returned.', 'danger'); return; }
+
     if (openIn === 'tab' || (provider && provider !== 'firebase')) {
-      const w = window.open(signedUrl, '_blank', 'noopener,noreferrer');
-      if (!w) toast('Allow pop-ups, or copy this URL to download: ' + signedUrl, 'warning', 8000);
-      else    toast(`Opening ${provider === 'gdrive' ? 'Google Drive' : provider} in a new tab…`, 'info', 2500);
+      // Drive / Dropbox / external: navigate the pre-opened popup
+      const ok = navPopup(signedUrl);
+      if (ok) toast(`Opening ${provider === 'gdrive-restricted' ? 'Google Drive (secure)' : provider === 'gdrive' ? 'Google Drive' : provider} in a new tab…`, 'info', 2500);
     } else {
+      // Firebase Storage signed URL → save dialog. Close the popup since
+      // we're going to trigger a same-window download via <a download>.
+      closePopup();
       const a = Object.assign(document.createElement('a'), {
         href:     signedUrl,
         download: filename || fileNameHint || 'file',
@@ -11078,6 +11116,7 @@ async function secureDownload(orderId, productId, fileNameHint) {
     }
   } catch (e) {
     console.error('secureDownload:', e);
+    closePopup();
     toast('Download failed: ' + (e.message || 'network error'), 'danger');
   }
 }
