@@ -1680,6 +1680,130 @@
       filter: grayscale(20%);
     }
 
+    /* ───────────────────────────────────────────────────────────────
+       FUTURISTIC POLISH PACK — added in final design pass
+       Subtle, tasteful, premium. Modern SaaS landing-page patterns
+       (Linear / Vercel / Stripe) — instantly recognizable as
+       high-end without being kitsch.
+       ─────────────────────────────────────────────────────────── */
+
+    /* 10a) Spotlight cursor on product cards — a soft radial-gradient
+       light follows the mouse pointer on hover. The mouse position is
+       written to two CSS custom properties (--mx, --my) by a single
+       low-cost mousemove handler scoped per card (see JS below). */
+    @media (hover: hover) and (pointer: fine) {
+      .product-card,
+      .vm-card,
+      .collection-card,
+      .seller-card,
+      .related-card,
+      .rv-card {
+        position: relative;
+        isolation: isolate;
+      }
+      .product-card::before,
+      .vm-card::before,
+      .collection-card::before,
+      .seller-card::before,
+      .related-card::before,
+      .rv-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: inherit;
+        background: radial-gradient(
+          400px circle at var(--mx, 50%) var(--my, 50%),
+          rgba(99, 102, 241, 0.18),
+          transparent 40%
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+      .product-card:hover::before,
+      .vm-card:hover::before,
+      .collection-card:hover::before,
+      .seller-card:hover::before,
+      .related-card:hover::before,
+      .rv-card:hover::before {
+        opacity: 1;
+      }
+    }
+
+    /* 10b) Animated noise / grain overlay — gives the dark theme that
+       "magazine print" texture. 0.4% opacity, no GPU cost, only on
+       the body background. Gated by reduced-motion. */
+    @media (prefers-reduced-motion: no-preference) {
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        opacity: 0.025;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+      }
+    }
+
+    /* 10c) Animated gradient text accent for hero titles + section
+       headings — slow color drift, premium feel. Gated to elements
+       with `.gradient-text` so we opt-in per element. */
+    @keyframes dm-gradient-drift {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .gradient-text {
+      background: linear-gradient(
+        110deg,
+        #6366f1 0%,
+        #818cf8 25%,
+        #a855f7 50%,
+        #ec4899 75%,
+        #6366f1 100%
+      );
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: dm-gradient-drift 8s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .gradient-text { animation: none; }
+    }
+
+    /* 10d) Soft neon glow on primary buttons — subtle outer shadow
+       that pulses on hover. Reads as "alive / clickable" without
+       the cringey neon button look. */
+    @media (hover: hover) and (pointer: fine) {
+      .btn-primary {
+        transition: transform 0.18s ease, box-shadow 0.25s ease, filter 0.18s ease;
+      }
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 4px 16px rgba(99, 102, 241, 0.35),
+          0 0 0 1px rgba(99, 102, 241, 0.18) inset;
+        filter: brightness(1.05);
+      }
+      .btn-primary:active {
+        transform: translateY(0);
+      }
+    }
+
+    /* 10e) Make all interactive elements feel responsive via subtle
+       scale on press. iOS-like. */
+    button, [role="button"], .btn, a.nav-link {
+      transition: transform 0.12s ease;
+    }
+    button:active:not(:disabled),
+    [role="button"]:active:not([aria-disabled="true"]),
+    .btn:active:not(.disabled) {
+      transform: scale(0.98);
+    }
+
     /* 10) Smooth view transitions when navigating between SPA sections */
     @media (prefers-reduced-motion: no-preference) {
       .view {
@@ -2148,7 +2272,7 @@
       <div class="brand-icon-wrap">
         <div class="brand-icon-3d">🛍️</div>
       </div>
-      <h1 class="brand-name">DigitalMarket</h1>
+      <h1 class="brand-name gradient-text">DigitalMarket</h1>
       <p class="brand-tagline">The Future of Digital Commerce</p>
       <div class="vm-cards">
         <div class="vm-card">
@@ -4526,6 +4650,39 @@ function dmEmpty(el, { icon = '📭', title = 'Nothing here yet', text = '', cta
     if (btn) btn.onclick = ctaOnClick;
   }
 }
+
+// ─── Spotlight-on-hover effect ────────────────────────────────────────
+// Single delegated mousemove listener writes the mouse position into
+// CSS custom properties on whichever card is hovered. The CSS rule
+// (see "10a" in the futuristic polish pack) draws a radial-gradient
+// light from that point. Tasteful, premium, ~0 perf cost. Gated to
+// non-touch devices via the same @media (hover: hover) check.
+//
+// Throttled with requestAnimationFrame so rapid mouse moves don't
+// fire setProperty hundreds of times per second.
+(function dmSpotlight() {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  let raf = 0;
+  let lastEl = null;
+  let lastX = 0, lastY = 0;
+  const SELECTOR = '.product-card, .vm-card, .collection-card, .seller-card, .related-card, .rv-card';
+  document.addEventListener('mousemove', (e) => {
+    const card = e.target.closest(SELECTOR);
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    lastEl = card;
+    lastX  = e.clientX - r.left;
+    lastY  = e.clientY - r.top;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      if (lastEl) {
+        lastEl.style.setProperty('--mx', lastX + 'px');
+        lastEl.style.setProperty('--my', lastY + 'px');
+      }
+      raf = 0;
+    });
+  }, { passive: true });
+})();
 
 // ─── Checkout Wizard controller ───────────────────────────────────────
 window._dmCheckoutStep = 1;
