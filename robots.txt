@@ -1,5 +1,70 @@
+# DigitalMarket — robots.txt
+# Last updated: 2026-05-21
+# Docs: https://www.robotstxt.org/
+
+# ─── All well-behaved crawlers ────────────────────────────────────
 User-agent: *
 Allow: /
-Disallow: /admin
 
+# Disallow the SPA admin/seller routes (defense-in-depth only —
+# they're hash-routed so Google never sees them as separate URLs
+# anyway). Still useful for crawlers that misinterpret history-API
+# routing.
+Disallow: /admin
+Disallow: /admin/
+Disallow: /seller
+Disallow: /seller/
+Disallow: /cart
+Disallow: /cart/
+Disallow: /checkout
+Disallow: /checkout/
+
+# Don't index search-result query-string URLs (they're transient).
+Disallow: /?q=*
+Disallow: /?search=*
+
+# Block obvious credential / debug paths (no-op for our SPA but
+# discourages exploit scanners from sniffing).
+Disallow: /.env
+Disallow: /.git
+Disallow: /admin.php
+Disallow: /wp-admin
+Disallow: /wp-login.php
+
+# Be polite — at most one request every 2 s.
+Crawl-delay: 2
+
+# ─── Pages we explicitly want indexed ─────────────────────────────
+Allow: /
+Allow: /help.html
+Allow: /terms.html
+Allow: /privacy.html
+Allow: /refund.html
+Allow: /?p=*
+
+# ─── AI / LLM scraper directives ──────────────────────────────────
+# Most LLM crawlers (Anthropic, OpenAI, Perplexity, Google-Extended)
+# honor User-agent-specific rules. We allow them — your content gets
+# discovered, surfaced in AI search results, and links back to you.
+# Flip the `Allow: /` lines to `Disallow: /` if you ever want to
+# opt out of AI training datasets.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+# ─── Sitemap location (helps every crawler find it) ───────────────
 Sitemap: https://digitalmarketstore.shop/sitemap.xml
