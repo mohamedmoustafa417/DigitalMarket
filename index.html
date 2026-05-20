@@ -60,6 +60,86 @@
   <link rel="dns-prefetch" href="https://api.exchangerate.host">
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- EARLY PRODUCT SCHEMA (SEO).
+       For deep-link URLs (/?p=PRODUCT_ID), fetch the product JSON
+       directly from Firestore REST API and inject JSON-LD Product
+       schema in <head> BEFORE the Firebase SDK loads. Crawlers index
+       the page within ~3-5s; the full app-side injection that runs
+       after openProductDetail() often misses that window. This
+       early-paint path takes ~200ms.
+       Safe to expose: /products has public read for approved items
+       (Firestore rules already enforce that). No auth, no API key. -->
+  <script>
+    (function earlyProductSchema() {
+      try {
+        var pid = new URLSearchParams(location.search).get('p');
+        if (!pid) return;
+        // Reject anything that isn't a Firestore-shaped doc ID
+        if (!/^[A-Za-z0-9_-]{16,40}$/.test(pid)) return;
+        var base = 'https://firestore.googleapis.com/v1/projects/digitalmarket-38db5/databases/(default)/documents/products/';
+        fetch(base + encodeURIComponent(pid), { cache: 'no-store' })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(doc) {
+            if (!doc || !doc.fields) return;
+            var f = doc.fields;
+            // Firestore REST returns each field wrapped — { stringValue, doubleValue, ... }
+            var v = function(k, fallback) {
+              var x = f[k];
+              if (!x) return fallback;
+              return x.stringValue || x.doubleValue || x.integerValue || fallback;
+            };
+            if (v('status') !== 'approved') return;
+            var safeUrl = function(u) {
+              if (!u || typeof u !== 'string') return '';
+              return /^https?:\/\//i.test(u) ? u : '';
+            };
+            var images = ['imageUrl','imageUrl2','imageUrl3']
+              .map(function(k) { return safeUrl(v(k, '')); })
+              .filter(Boolean);
+            var schema = {
+              '@context': 'https://schema.org',
+              '@type':    'Product',
+              'name':     String(v('name', '')).slice(0, 110),
+              'description': String(v('description', '')).slice(0, 300),
+              'sku':      pid,
+              'category': String(v('category', 'Digital Product')),
+              'brand':    { '@type': 'Brand', 'name': v('sellerName', 'DigitalMarket Seller') },
+              'image':    images,
+              'offers': {
+                '@type':         'Offer',
+                'url':           'https://digitalmarketstore.shop/?p=' + encodeURIComponent(pid),
+                'priceCurrency': 'EGP',
+                'price':         Number(v('price', 0)).toFixed(2),
+                'availability':  'https://schema.org/InStock',
+                'itemCondition': 'https://schema.org/NewCondition'
+              }
+            };
+            var rc = Number(v('ratingCount', 0));
+            var ra = Number(v('ratingAvg', 0));
+            if (rc > 0 && ra > 0) {
+              schema.aggregateRating = {
+                '@type':       'AggregateRating',
+                'ratingValue': ra.toFixed(1),
+                'reviewCount': rc,
+                'bestRating':  '5',
+                'worstRating': '1'
+              };
+            }
+            var tag = document.createElement('script');
+            tag.type = 'application/ld+json';
+            // Same selector as dmInjectProductSchema so the later
+            // modal-open call REPLACES this one — never two Product
+            // schemas in the page at the same time.
+            tag.dataset.dmSchema = 'product';
+            tag.textContent = JSON.stringify(schema);
+            // Remove any prior (shouldn't be any, but defensive).
+            document.querySelectorAll('script[data-dm-schema="product"]').forEach(function(e) { e.remove(); });
+            document.head.appendChild(tag);
+          })
+          .catch(function() {/* network fail — app-side injection still runs as fallback */});
+      } catch (e) {/* same: fail silent, app-side injection is the safety net */}
+    })();
+  </script>
   <!-- Font Awesome: ~100 KB of icon CSS. Loaded with the `media=print`
        + onload swap trick so it doesn't block first paint. Icons render
        ~200 ms later (which is fine — initial frame has skeleton + text). -->
