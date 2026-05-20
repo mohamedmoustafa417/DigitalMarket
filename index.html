@@ -3808,6 +3808,49 @@ function safeUrl(u) {
 }
 
 /**
+ * Cross-browser copy-to-clipboard helper.
+ *
+ * navigator.clipboard.writeText() is the modern API but fails silently
+ * in several contexts that real Egyptian buyers hit:
+ *   • iOS Safari < 13.4 — no Clipboard API at all
+ *   • iOS Safari in PWA standalone mode (the writeText permission UI
+ *     doesn't render in all versions)
+ *   • Any non-secure context (we're HTTPS-only, but local dev breaks)
+ *   • Inside cross-origin iframes (the Firebase auth iframe etc.)
+ *
+ * Strategy: try the modern API first; fall back to the
+ * `execCommand('copy')` + hidden textarea trick which works
+ * everywhere a browser has shipped since 2015. Returns a Promise
+ * for unified call-site usage.
+ */
+async function dmCopy(text) {
+  if (typeof text !== 'string') text = String(text || '');
+  // Modern path
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+  // Legacy path — hidden textarea + execCommand
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+    document.body.appendChild(ta);
+    // iOS Safari requires explicit selection
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok === true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Get reCAPTCHA v3 token and verify server-side via Google Apps Script proxy.
  * Returns true if human (score ≥ 0.5), false if bot, null if service unavailable.
  */
