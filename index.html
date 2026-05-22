@@ -162,7 +162,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v59';
+    window.DM_RELEASE_TAG = 'digitalmarket@v60';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -4044,6 +4044,24 @@ function sanitize(str) {
 }
 
 /**
+ * Coerce a product.tags value into an array of strings.
+ * Older / migrated products sometimes have tags stored as a comma-
+ * separated string (or null, or some other shape) — calling `.join()`,
+ * `.map()`, `.filter()`, or `.some()` directly on those crashed the
+ * product modal with `TypeError: (p.tags || []).join is not a function`
+ * (Sentry DIGITALMARKET-4). This is the single source of truth — use
+ * it anywhere we read product tags.
+ */
+function safeTags(p) {
+  const raw = p && p.tags;
+  if (Array.isArray(raw)) return raw.filter(t => typeof t === 'string');
+  if (typeof raw === 'string') {
+    return raw.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
  * Validate a URL is safe for use in href/src attributes. Blocks the
  * `javascript:`, `data:`, `vbscript:` and other JS-execution schemes that
  * DOMPurify's text-mode sanitize() does NOT strip. Returns '#' for unsafe
@@ -5561,9 +5579,12 @@ function openProductDetail(id) {
         ${sanitize(p.sellerName)}
       </button>${verifiedBadge}
     </div>` : ''}
-    ${(p.tags||[]).length ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;">
-      ${p.tags.map(tag => `<button onclick="filterByTag('${sanitize(tag)}')" style="background:var(--bg3);border:none;color:var(--text-muted);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:20px;cursor:pointer;">#${sanitize(tag)}</button>`).join('')}
-    </div>` : ''}
+    ${(() => {
+      const tagsArr = safeTags(p);
+      return tagsArr.length ? `<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem;">
+        ${tagsArr.map(tag => `<button onclick="filterByTag('${sanitize(tag)}')" style="background:var(--bg3);border:none;color:var(--text-muted);font-size:0.72rem;padding:0.15rem 0.55rem;border-radius:20px;cursor:pointer;">#${sanitize(tag)}</button>`).join('')}
+      </div>` : '';
+    })()}
     ${p.sampleUrl ? `<div style="margin-bottom:1rem;padding:0.75rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius);font-size:0.83rem;">
       <i class="fa-solid fa-eye" style="color:var(--primary);margin-right:0.4rem;" aria-hidden="true"></i>
       <strong>Free Preview:</strong> <a href="${safeUrl(p.sampleUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">View Sample →</a>
@@ -6618,7 +6639,7 @@ async function openProductModal(isAdminContext = false, editId = null) {
       document.getElementById('prod-download').parentNode.appendChild(pi);
     }
     pi.value = p.storagePath || '';
-    document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
+    document.getElementById('prod-tags').value     = safeTags(p).join(', ');
     document.getElementById('prod-sample').value   = p.sampleUrl     || '';
   }
   openModal('add-product-modal');
@@ -7390,7 +7411,7 @@ async function adminEditProduct(productId) {
     document.getElementById('prod-img').value      = p.imageUrl      || '';
     document.getElementById('prod-emoji').value    = p.emoji         || '';
     document.getElementById('prod-download').value = p.downloadUrl   || '';
-    document.getElementById('prod-tags').value     = (p.tags||[]).join(', ');
+    document.getElementById('prod-tags').value     = safeTags(p).join(', ');
     document.getElementById('prod-sample').value   = p.sampleUrl     || '';
     if (document.getElementById('prod-img2'))  document.getElementById('prod-img2').value  = p.imageUrl2 || '';
     if (document.getElementById('prod-img3'))  document.getElementById('prod-img3').value  = p.imageUrl3 || '';
@@ -8808,7 +8829,7 @@ function showAutocomplete(query) {
   const q = (query || '').toLowerCase().trim();
   if (!q || q.length < 2) { hideAutocomplete(); return; }
   const matches = allProducts.filter(p => p.status === 'approved' &&
-    ((p.name||'').toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q) || (p.tags||[]).some(t => (t||'').toLowerCase().includes(q)))
+    ((p.name||'').toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q) || safeTags(p).some(t => t.toLowerCase().includes(q)))
   ).slice(0, 7);
   if (!matches.length) { hideAutocomplete(); return; }
   _acSelected = -1;
@@ -10232,7 +10253,7 @@ function renderRelatedProducts(currentProductId, category) {
   const section = document.getElementById('product-related-section');
   if (!section) return;
   const cur = allProducts.find(x => x.id === currentProductId);
-  const curTags = new Set((cur?.tags || []).map(t => (t || '').toLowerCase()));
+  const curTags = new Set(safeTags(cur).map(t => t.toLowerCase()));
   const curPrice = Number(cur?.price || 0);
   // Score = tag overlap * 3  +  price proximity penalty  +  same-category bonus
   // (was: random within category — meant $5 item showed $200 item as "related")
@@ -10240,7 +10261,7 @@ function renderRelatedProducts(currentProductId, category) {
     .filter(p => p.id !== currentProductId && p.status === 'approved')
     .map(p => {
       const sameCat = p.category === category ? 5 : 0;
-      const tagOverlap = (p.tags || []).filter(t => curTags.has((t || '').toLowerCase())).length * 3;
+      const tagOverlap = safeTags(p).filter(t => curTags.has(t.toLowerCase())).length * 3;
       const priceDist = Math.abs(Number(p.price || 0) - curPrice) / Math.max(curPrice, 1);
       const priceScore = Math.max(0, 5 - priceDist); // closer price = higher score
       return { p, s: sameCat + tagOverlap + priceScore };
