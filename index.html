@@ -162,7 +162,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v60';
+    window.DM_RELEASE_TAG = 'digitalmarket@v61';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -4553,7 +4553,17 @@ function addCurrentToCart() {
 // ═══════════════════════════════════════════════════════════════════
 const WISHLIST_KEY = 'dms_wishlist_v1';
 function loadWishlist() {
-  try { const r = localStorage.getItem(WISHLIST_KEY); return r ? JSON.parse(r) : []; } catch { return []; }
+  // Same defensive shape as loadCart() — if localStorage was corrupted
+  // (manual devtools edit, cross-tab race, old schema version), the
+  // parse could return non-array. Array methods .includes/.push/.indexOf
+  // crash on those. Always coerce to a clean string[].
+  try {
+    const r = localStorage.getItem(WISHLIST_KEY);
+    if (!r) return [];
+    const parsed = JSON.parse(r);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(id => typeof id === 'string' && id.length > 0);
+  } catch { return []; }
 }
 function saveWishlist(list) { localStorage.setItem(WISHLIST_KEY, JSON.stringify(list)); }
 function isWishlisted(id) { return loadWishlist().includes(id); }
@@ -8120,7 +8130,10 @@ const RV_MAX = 10;
 
 function trackRecentlyViewed(productId) {
   let rv = [];
-  try { rv = JSON.parse(localStorage.getItem(RV_KEY) || '[]'); } catch {}
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RV_KEY) || '[]');
+    if (Array.isArray(parsed)) rv = parsed.filter(id => typeof id === 'string');
+  } catch {}
   rv = rv.filter(id => id !== productId); // deduplicate
   rv.unshift(productId);                  // most recent first
   if (rv.length > RV_MAX) rv = rv.slice(0, RV_MAX);
@@ -10215,7 +10228,8 @@ sellerTab = function(tab) {
 function addRecentlyViewed(productId) {
   if (!productId) return;
   try {
-    let rv = JSON.parse(localStorage.getItem(RV_KEY) || '[]');
+    const parsed = JSON.parse(localStorage.getItem(RV_KEY) || '[]');
+    let rv = Array.isArray(parsed) ? parsed.filter(id => typeof id === 'string') : [];
     rv = rv.filter(id => id !== productId);
     rv.unshift(productId);
     rv = rv.slice(0, RV_MAX);
@@ -10227,7 +10241,8 @@ function renderRecentlyViewed() {
   const wrap = document.getElementById('recently-viewed-wrap');
   if (!wrap) return;
   try {
-    const rv = JSON.parse(localStorage.getItem(RV_KEY) || '[]');
+    const parsed = JSON.parse(localStorage.getItem(RV_KEY) || '[]');
+    const rv = Array.isArray(parsed) ? parsed.filter(id => typeof id === 'string') : [];
     const products = rv.map(id => allProducts.find(p => p.id === id)).filter(Boolean);
     if (products.length < 2) { wrap.style.display = 'none'; return; }
     wrap.style.display = 'block';
@@ -13899,7 +13914,12 @@ const DM_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // TIER 3 #30 — "SAVE FOR LATER" (separate from wishlist)
 // ═════════════════════════════════════════════════════════════════════
 const SAVE_KEY = 'dm_save_for_later';
-function getSavedItems() { try { return JSON.parse(localStorage.getItem(SAVE_KEY) || '[]'); } catch { return []; } }
+function getSavedItems() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(id => typeof id === 'string' && id.length > 0) : [];
+  } catch { return []; }
+}
 function saveForLater(productId) {
   const list = getSavedItems();
   if (list.includes(productId)) return;
@@ -14464,7 +14484,10 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
 (function wishlistCountBadge() {
   function update() {
     let wl = [];
-    try { wl = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]'); } catch {}
+    try {
+      const parsed = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]');
+      if (Array.isArray(parsed)) wl = parsed;
+    } catch {}
     const count = wl.length;
     // Add badge to any "Wishlist" nav link
     document.querySelectorAll('a[onclick*="wishlist"], button[onclick*="wishlist"], .nav-link').forEach(el => {
@@ -14892,8 +14915,11 @@ const DM_VELOCITY = {
 };
 function dmCheckVelocity(actionKey, limit, windowMs) {
   const key = `dm_vel_${actionKey}`;
-  let arr;
-  try { arr = JSON.parse(localStorage.getItem(key) || '[]'); } catch { arr = []; }
+  let arr = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    if (Array.isArray(parsed)) arr = parsed.filter(t => typeof t === 'number');
+  } catch {}
   const now = Date.now();
   arr = arr.filter(t => now - t < windowMs);
   if (arr.length >= limit) return false;
@@ -15444,7 +15470,10 @@ console.log('[DigitalMarket] UX Enhancement Pack loaded ✅ (focus rings, micro-
     const homeView = document.getElementById('view-home');
     if (!homeView || document.getElementById('dm-rv-strip')) return;
     let rv = [];
-    try { rv = JSON.parse(localStorage.getItem('dm_recently_viewed') || '[]'); } catch {}
+    try {
+      const parsed = JSON.parse(localStorage.getItem('dm_recently_viewed') || '[]');
+      if (Array.isArray(parsed)) rv = parsed.filter(x => typeof x === 'string');
+    } catch {}
     if (rv.length < 2) return; // nothing meaningful to show
 
     function render() {
@@ -15537,7 +15566,10 @@ console.log('[DigitalMarket] Final Polish Pack loaded ✅ (mobile More sheet, re
     if (e) { try { e.stopPropagation(); e.preventDefault(); } catch {} }
     // Update localStorage + badge synchronously (instant feedback)
     let list = [];
-    try { list = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]'); } catch {}
+    try {
+      const parsed = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]');
+      if (Array.isArray(parsed)) list = parsed.filter(x => typeof x === 'string');
+    } catch {}
     const idx = list.indexOf(id);
     const wasWishlisted = idx >= 0;
     let undoSnapshot = null;
@@ -15556,7 +15588,11 @@ console.log('[DigitalMarket] Final Polish Pack loaded ✅ (mobile More sheet, re
     if (wasWishlisted) {
       // Undo toast (15 sec window)
       dmToastWithUndo(`Removed from wishlist`, 'info', 8000, () => {
-        const cur = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]');
+        let cur = [];
+        try {
+          const parsed = JSON.parse(localStorage.getItem('dms_wishlist_v1') || '[]');
+          if (Array.isArray(parsed)) cur = parsed.filter(x => typeof x === 'string');
+        } catch {}
         if (!cur.includes(undoSnapshot)) {
           cur.push(undoSnapshot);
           localStorage.setItem('dms_wishlist_v1', JSON.stringify(cur));
