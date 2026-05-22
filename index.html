@@ -160,6 +160,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
   <!-- Sentry error tracking — DEFERRED 2s post-load so it doesn't compete with critical path -->
   <script>
+    // Release tag is read by Sentry.init below + by the SW update banner.
+    // Bump in lockstep with CACHE_NAME on every meaningful change.
+    window.DM_RELEASE_TAG = 'digitalmarket@v59';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -170,17 +173,33 @@
             dsn: 'https://e706b2f8f08782cedf4ad1400747ddd9@o4511384678694912.ingest.us.sentry.io/4511384696258560',
             tracesSampleRate: 0.2,
             environment: location.hostname === 'localhost' ? 'development' : 'production',
-            // Release tag = SW cache version, so we can correlate errors
-            // with the deploy that introduced them. Bump alongside CACHE_NAME.
-            release: 'digitalmarket@v30',
+            // Release tag = SW cache version. Read dynamically from the
+            // global DM_RELEASE_TAG set just above so we never forget to
+            // bump this in lockstep with CACHE_NAME. Was hardcoded to v30
+            // for ~30 commits — every error since was mis-tagged as old.
+            release: (typeof DM_RELEASE_TAG !== 'undefined') ? DM_RELEASE_TAG : 'digitalmarket@unknown',
             // PII scrubbing: Sentry captures breadcrumbs that include DOM
             // values (form inputs) and URL query strings. Block known-PII
             // before transmission.
             beforeSend(event, hint) {
               try {
-                // Drop common transient browser noise we can't fix
+                // Drop common transient browser noise we can't fix.
+                // Each pattern below is a verified benign error that fires
+                // in normal user flows without breaking functionality —
+                // they just burn Sentry quota if we let them through.
                 const msg = (hint?.originalException?.message || event?.message || '').toString();
-                if (/ResizeObserver loop|Non-Error promise rejection captured/i.test(msg)) return null;
+                const NOISE = [
+                  /ResizeObserver loop/i,             // benign layout signal
+                  /Non-Error promise rejection captured/i,
+                  /Transition was aborted/i,          // CSS view-transition / Web Animations interrupt
+                  /InvalidStateError.*invalid state/i,// general DOMException 11 noise
+                  /AbortError|aborted a request/i,    // fetch + AbortController normal cancel
+                  /Failed to fetch.*\bfont\b/i,       // font CDN occasional 4xx — non-blocking
+                  /NotAllowedError.*Notification/i,   // user denied notifications, fine
+                  /play\(\) request was interrupted/i,// video autoplay interrupted
+                  /The operation was aborted/i        // generic AbortSignal noise
+                ];
+                if (NOISE.some(re => re.test(msg))) return null;
                 // Scrub breadcrumbs: clear data on input/click for sensitive fields
                 if (event.breadcrumbs) {
                   event.breadcrumbs = event.breadcrumbs.map(b => {
