@@ -16253,6 +16253,205 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
 
 console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for first-time visitors)');
 </script>
+<style>
+  /* Currency dropdown — opened from the header #currency-btn */
+  .dm-cur-wrap { position: relative; display: inline-block; }
+  .dm-cur-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    min-width: 168px; padding: 0.35rem;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    z-index: 1000; display: none;
+  }
+  .dm-cur-menu[data-open="true"] { display: block; }
+  .dm-cur-opt {
+    display: flex; align-items: center; gap: 0.6rem;
+    width: 100%; padding: 0.5rem 0.65rem;
+    background: transparent; border: 0; border-radius: 6px;
+    color: var(--text); font-size: 0.85rem; font-weight: 500;
+    cursor: pointer; text-align: left;
+    transition: background 0.15s ease;
+  }
+  .dm-cur-opt:hover, .dm-cur-opt:focus-visible {
+    background: rgba(99,102,241,0.12); outline: none;
+  }
+  .dm-cur-opt[aria-selected="true"] {
+    background: rgba(99,102,241,0.18);
+    color: var(--primary);
+  }
+  .dm-cur-opt .dm-cur-flag { font-size: 1.15rem; line-height: 1; }
+  .dm-cur-opt .dm-cur-code { font-weight: 700; min-width: 2.6rem; }
+  .dm-cur-opt .dm-cur-sym  { color: var(--text-muted); font-size: 0.78rem; margin-left: auto; }
+  #currency-btn { min-width: 64px; gap: 0.3rem; }
+  @media (max-width: 480px) {
+    .dm-cur-menu { right: -8px; min-width: 156px; }
+  }
+</style>
+<script>
+/**
+ * Currency picker — flag dropdown.
+ *
+ * Replaces the cycle-on-click behavior of #currency-btn with a proper
+ * dropdown listing every currency with its flag emoji and code. Calls
+ * the existing setCurrency() so all downstream behavior (toast,
+ * re-render, label sync, localStorage persist) keeps working.
+ *
+ * Built as an IIFE patch at end-of-document per CLAUDE.md's pattern.
+ * toggleCurrency() is intercepted but redirected to open the menu,
+ * preserving every existing caller (header sheet, etc.).
+ */
+(function dmCurrencyDropdown() {
+  function init() {
+    var btn = document.getElementById('currency-btn');
+    if (!btn || btn.dataset.dmCurDdInit === '1') return;
+    btn.dataset.dmCurDdInit = '1';
+
+    if (typeof DM_CURRENCIES !== 'object') return; // safety: list not ready yet
+
+    // Wrap button so the menu can be absolutely positioned to it.
+    var wrap = document.createElement('span');
+    wrap.className = 'dm-cur-wrap';
+    btn.parentNode.insertBefore(wrap, btn);
+    wrap.appendChild(btn);
+
+    // Build menu
+    var menu = document.createElement('div');
+    menu.className = 'dm-cur-menu';
+    menu.setAttribute('role', 'listbox');
+    menu.setAttribute('aria-label', 'Select display currency');
+    menu.dataset.open = 'false';
+
+    function currentCode() {
+      try { return getCurrentCurrency(); } catch(_) { return 'EGP'; }
+    }
+
+    function renderOptions() {
+      var cur = currentCode();
+      menu.innerHTML = Object.keys(DM_CURRENCIES).map(function(code) {
+        var c = DM_CURRENCIES[code];
+        var selected = code === cur ? 'true' : 'false';
+        return '<button type="button" class="dm-cur-opt" role="option" data-code="' + code + '" aria-selected="' + selected + '">' +
+                 '<span class="dm-cur-flag" aria-hidden="true">' + c.flag + '</span>' +
+                 '<span class="dm-cur-code">' + code + '</span>' +
+                 '<span class="dm-cur-sym">' + c.symbol + '</span>' +
+               '</button>';
+      }).join('');
+    }
+    renderOptions();
+    wrap.appendChild(menu);
+
+    function openMenu() {
+      renderOptions();              // refresh selected state
+      menu.dataset.open = 'true';
+      btn.setAttribute('aria-expanded', 'true');
+      // Focus first selected (or first) option for keyboard users.
+      var focusTarget = menu.querySelector('[aria-selected="true"]') || menu.querySelector('.dm-cur-opt');
+      if (focusTarget) focusTarget.focus({ preventScroll: true });
+    }
+    function closeMenu() {
+      menu.dataset.open = 'false';
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    function toggleMenu() {
+      (menu.dataset.open === 'true') ? closeMenu() : openMenu();
+    }
+
+    // ARIA on the button.
+    btn.setAttribute('aria-haspopup', 'listbox');
+    btn.setAttribute('aria-expanded', 'false');
+
+    // Override the click: cycle → dropdown.
+    btn.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMenu();
+    };
+
+    // Also intercept toggleCurrency() so legacy call sites open the menu
+    // instead of cycling silently. Keep the original around in case some
+    // code path actively wants the cycle behavior (none currently does).
+    if (typeof window.toggleCurrency === 'function' && !window.toggleCurrency.__dmDdWrapped) {
+      var origToggle = window.toggleCurrency;
+      window.toggleCurrency = function() { toggleMenu(); };
+      window.toggleCurrency.__dmDdWrapped = true;
+      window._origToggleCurrency = origToggle;
+    }
+
+    // Pick an option.
+    menu.addEventListener('click', function(e) {
+      var opt = e.target.closest('.dm-cur-opt');
+      if (!opt) return;
+      var code = opt.dataset.code;
+      if (code && typeof setCurrency === 'function') {
+        try { setCurrency(code); } catch (err) { console.warn('[currency] setCurrency failed:', err); }
+      }
+      closeMenu();
+      btn.focus();
+    });
+
+    // Keyboard navigation inside the menu.
+    menu.addEventListener('keydown', function(e) {
+      var opts = Array.from(menu.querySelectorAll('.dm-cur-opt'));
+      if (!opts.length) return;
+      var idx = opts.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        opts[(idx + 1) % opts.length].focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        opts[(idx - 1 + opts.length) % opts.length].focus();
+      } else if (e.key === 'Home') {
+        e.preventDefault(); opts[0].focus();
+      } else if (e.key === 'End') {
+        e.preventDefault(); opts[opts.length - 1].focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault(); closeMenu(); btn.focus();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        // default handler will click() the focused button
+      }
+    });
+
+    // Click outside closes.
+    document.addEventListener('click', function(e) {
+      if (menu.dataset.open !== 'true') return;
+      if (wrap.contains(e.target)) return;
+      closeMenu();
+    });
+
+    // Update label whenever currency changes (covers external setCurrency calls).
+    var origSet = window.setCurrency;
+    if (typeof origSet === 'function' && !origSet.__dmDdWrapped) {
+      window.setCurrency = function(code) {
+        var r = origSet.apply(this, arguments);
+        // Keep the label flag + code visible (in case setCurrency's own DOM
+        // touch missed our element).
+        var lbl = document.getElementById('currency-label');
+        if (lbl && DM_CURRENCIES[code]) {
+          lbl.textContent = DM_CURRENCIES[code].flag + ' ' + code;
+        }
+        return r;
+      };
+      window.setCurrency.__dmDdWrapped = true;
+    }
+    // Set the initial label to show the flag from the start.
+    var initLbl = document.getElementById('currency-label');
+    var initC = DM_CURRENCIES[currentCode()];
+    if (initLbl && initC) initLbl.textContent = initC.flag + ' ' + currentCode();
+  }
+
+  // Poll until the button and DM_CURRENCIES both exist (the existing
+  // currency module loads on a ~1s timeout after DOMContentLoaded).
+  var deadline = Date.now() + 15000;
+  var iv = setInterval(function() {
+    if (document.getElementById('currency-btn') && typeof DM_CURRENCIES === 'object') {
+      init();
+      clearInterval(iv);
+    } else if (Date.now() > deadline) {
+      clearInterval(iv);
+    }
+  }, 250);
+})();
+</script>
 <script>
 /**
  * Listing-quality scorer wire-up patch.
