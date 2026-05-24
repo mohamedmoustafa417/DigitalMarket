@@ -16262,6 +16262,73 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
 console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for first-time visitors)');
 </script>
 <style>
+  /* ─────────────────────────────────────────────────────────────────
+     UI/UX POLISH PASS — May 2026
+     Bundled four things:
+       1. Header glass-blur — frosted backdrop on sticky header
+       2. Premium focus rings — sharper, accessible keyboard outlines
+       3. Card hover smoother — better cubic-bezier easing
+       4. (paired with Twemoji <script> below — flag rendering parity)
+     Every animation respects prefers-reduced-motion (existing global
+     guard at @media reduce strips transitions/animations).
+     ─────────────────────────────────────────────────────────────── */
+
+  /* 1. HEADER GLASS BACKDROP
+     Existing rule (line 439): header { background: var(--bg2); ... sticky; }
+     We override with a translucent layer + backdrop-filter so content
+     scrolls under it elegantly. Fall back gracefully on Safari ≤ 13
+     and Firefox without backdrop-filter (just stays opaque). */
+  header[role="banner"] {
+    background: color-mix(in srgb, var(--bg2) 78%, transparent) !important;
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    transition: background 0.25s ease, border-color 0.25s ease;
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    header[role="banner"] { background: var(--bg2) !important; }
+  }
+
+  /* 2. PREMIUM FOCUS RINGS
+     Keyboard-only via :focus-visible — mice never see it. Sharp
+     2px ring + soft 4px glow for depth. */
+  :where(button, [role="button"], a, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent);
+    border-radius: 6px;
+  }
+  /* Don't double-up on inputs that already have a border */
+  .form-control:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline-offset: 0;
+    border-color: var(--primary);
+  }
+
+  /* 3. CARD HOVER — smoother easing (existing rule keeps the lift) */
+  .product-card { transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                              border-color 0.2s ease !important; }
+  .product-card:hover { transform: translateY(-5px) !important; }
+
+  /* 4. Twemoji-rendered emoji should sit inline like text */
+  img.emoji {
+    height: 1em; width: 1em;
+    margin: 0 0.05em 0 0.1em;
+    vertical-align: -0.1em;
+    display: inline-block;
+  }
+
+  /* Reduced motion: belt-and-braces (existing global rule covers this,
+     but make our additions explicit) */
+  @media (prefers-reduced-motion: reduce) {
+    header[role="banner"] { transition: none; }
+    .product-card { transition: none !important; }
+    .product-card:hover { transform: none !important; }
+  }
+
   /* Currency dropdown — opened from the header #currency-btn */
   .dm-cur-wrap { position: relative; display: inline-block; }
   .dm-cur-menu {
@@ -16295,6 +16362,76 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     .dm-cur-menu { right: -8px; min-width: 156px; }
   }
 </style>
+<!-- Twemoji: render emoji (especially flags) as SVG images so the UI
+     looks identical on Windows, Mac, Linux, iOS, Android. Without this,
+     Chrome on Windows shows flags as country-code letter pairs ("EG",
+     "US") because Windows ships no color flag font. -->
+<script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous" defer></script>
+<script>
+/**
+ * Twemoji parser — converts text emoji into <img> SVGs.
+ *
+ * Strategy: parse the document once on first idle, then observe DOM
+ * mutations to catch dynamically inserted content (currency dropdown
+ * options, product cards rendered after Firestore returns, modals,
+ * etc.). MutationObserver runs are throttled with a microtask flush
+ * to avoid re-parsing on every tiny DOM change.
+ *
+ * Falls back silently if the Twemoji CDN is blocked — emoji stays as
+ * native text, identical to today's behavior.
+ */
+(function dmTwemojiBootstrap() {
+  var parsed = false;
+  var pending = false;
+
+  function parse(root) {
+    if (!window.twemoji) return;
+    try {
+      window.twemoji.parse(root || document.body, {
+        folder: 'svg',
+        ext:    '.svg',
+        base:   'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/'
+      });
+    } catch (_) { /* never block UI on emoji parse */ }
+  }
+
+  function flushParse() {
+    if (pending) return;
+    pending = true;
+    // Microtask + rAF batch: coalesce bursts of DOM writes into one parse.
+    Promise.resolve().then(function() {
+      requestAnimationFrame(function() {
+        parse(document.body);
+        pending = false;
+      });
+    });
+  }
+
+  function init() {
+    if (parsed) return;
+    parsed = true;
+    parse(document.body);
+
+    if ('MutationObserver' in window) {
+      var obs = new MutationObserver(function(records) {
+        // Cheap heuristic: if any added node could contain text, queue a re-parse.
+        for (var i = 0; i < records.length; i++) {
+          if (records[i].addedNodes && records[i].addedNodes.length) { flushParse(); return; }
+        }
+      });
+      obs.observe(document.body, { childList: true, subtree: true, characterData: false });
+    }
+  }
+
+  // Twemoji loads with defer; wait until it actually attaches to window.
+  var deadline = Date.now() + 8000;
+  var iv = setInterval(function() {
+    if (window.twemoji) { init(); clearInterval(iv); }
+    else if (Date.now() > deadline) { clearInterval(iv); } // give up silently
+  }, 100);
+})();
+</script>
+
 <script>
 /**
  * Currency picker — flag dropdown.
