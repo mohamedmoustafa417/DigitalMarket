@@ -3126,7 +3126,12 @@
       <div id="admin-tab-products" class="hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
           <h3 data-i18n="products">Products</h3>
-          <button class="btn btn-primary" onclick="openProductModal(true)"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Product</button>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="approveAllProducts()" title="Re-approve every product in one click — emergency recovery if statuses get downgraded">
+              <i class="fa-solid fa-shield-halved"></i> Approve All (Recovery)
+            </button>
+            <button class="btn btn-primary" onclick="openProductModal(true)"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Product</button>
+          </div>
         </div>
         <div style="margin-bottom:0.75rem;">
           <input type="search" id="admin-products-search" class="form-control" placeholder="Search by name or seller…" oninput="filterAdminProductsTable()" style="max-width:320px;">
@@ -6701,30 +6706,56 @@ async function submitProduct(e, isDraft = false) {
   const commercialPrice = hasCommercial ? parseFloat(document.getElementById('prod-commercial-price')?.value || '0') : null;
   const btn       = isDraft ? document.getElementById('prod-draft-btn') : document.getElementById('prod-submit-btn');
 
+  // ── Forgiving URL normalizer ──────────────────────────────────────
+  // Sellers commonly paste URLs without a protocol ("example.com/file" or
+  // "www.site.com/x"). Auto-prepend https:// so the regex passes and we
+  // don't reject otherwise-valid URLs on a technicality. Mirrored to the
+  // input element so the seller sees what we actually stored.
+  function normalizeUrl(rawValue, fieldId) {
+    var v = (rawValue || '').trim();
+    if (!v) return v;
+    if (/^https?:\/\//i.test(v)) return v;
+    // Looks like a bare domain (has a dot, no spaces, isn't relative).
+    if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(v) || /^www\./i.test(v)) {
+      var fixed = 'https://' + v;
+      var el = document.getElementById(fieldId);
+      if (el) el.value = fixed;
+      return fixed;
+    }
+    return v; // let validator reject below
+  }
+  var dlUrlN     = normalizeUrl(dlUrl,     'prod-download');
+  var imgUrlN    = normalizeUrl(imgUrl,    'prod-img');
+  var sampleUrlN = normalizeUrl(sampleUrl, 'prod-sample');
+  var imgUrl2N   = normalizeUrl(imgUrl2,   'prod-img2');
+  var imgUrl3N   = normalizeUrl(imgUrl3,   'prod-img3');
+  var videoUrlN  = normalizeUrl(videoUrl,  'prod-video');
+
   // Drafts only need name; full validation for submissions.
   // Tightened content-quality gates — empty or thin listings hurt the
   // marketplace's perceived quality and depress search rankings.
   if (!isDraft) {
     let valid = true;
-    const fail = (id, msg) => { setInvalid(id, msg); valid = false; };
-    if (!name || name.length < 4) fail('prod-name', 'Product name should be at least 4 characters and describe what the buyer gets.');
-    if (!desc || desc.length < 80) fail('prod-desc', `Description must be at least 80 characters (currently ${desc.length || 0}). Describe what the buyer downloads, format, and how to use it.`);
-    if (isNaN(price) || price <= 0) fail('prod-price', 'Set a price greater than zero (use the PWYW option for free / pay-what-you-want).');
-    if (!cat) fail('prod-cat');
-    if (!dlUrl) fail('prod-download', 'Provide a file upload or a download URL.');
-    else if (!/^https?:\/\//i.test(dlUrl)) fail('prod-download', 'Must be a valid https:// URL.');
+    const failed = [];
+    const fail = (id, msg, label) => { setInvalid(id, msg); valid = false; if (label) failed.push(label); };
+    if (!name || name.length < 4) fail('prod-name', 'Product name should be at least 4 characters and describe what the buyer gets.', 'Name (≥4 chars)');
+    if (!desc || desc.length < 80) fail('prod-desc', `Description must be at least 80 characters (currently ${desc.length || 0}). Describe what the buyer downloads, format, and how to use it.`, `Description (${desc.length||0}/80 chars)`);
+    if (isNaN(price) || price <= 0) fail('prod-price', 'Set a price greater than zero (use the PWYW option for free / pay-what-you-want).', 'Price (> 0)');
+    if (!cat) fail('prod-cat', null, 'Category');
+    if (!dlUrlN) fail('prod-download', 'Provide a file upload or a download URL.', 'Download URL');
+    else if (!/^https?:\/\//i.test(dlUrlN)) fail('prod-download', 'Must be a valid https:// URL.', 'Download URL (https://)');
     // At least one visual: an image URL or an emoji. Listings with neither
     // look broken in the product grid.
-    if (!imgUrl && !emoji) fail('prod-img', 'Add a product image OR an emoji so the listing has a visual identity.');
-    if (imgUrl && !/^https?:\/\//i.test(imgUrl)) fail('prod-img', 'Must be a valid https:// URL.');
-    if (sampleUrl && !/^https?:\/\//i.test(sampleUrl)) fail('prod-sample', 'Must be a valid https:// URL.');
+    if (!imgUrlN && !emoji) fail('prod-img', 'Add a product image OR an emoji so the listing has a visual identity.', 'Image or Emoji');
+    if (imgUrlN && !/^https?:\/\//i.test(imgUrlN)) fail('prod-img', 'Must be a valid https:// URL.', 'Image URL (https://)');
+    if (sampleUrlN && !/^https?:\/\//i.test(sampleUrlN)) fail('prod-sample', 'Must be a valid https:// URL.', 'Sample URL (https://)');
     // Tags help search + SEO. Soft requirement: 2+ tags.
     if (tags.length < 2) {
       toast(`Add 2+ tags to help buyers find your product (currently ${tags.length}).`, 'warning', 5000);
       // Not a hard block, but warns.
     }
     if (!valid) {
-      toast('Some fields need attention before listing can go live. See the highlighted boxes.', 'warning', 5000);
+      toast('Please fix: ' + failed.join(', '), 'warning', 8000);
       return;
     }
 
@@ -6745,14 +6776,14 @@ async function submitProduct(e, isDraft = false) {
     descriptionAr: sanitize(descAr),
     price:         isNaN(price) ? 0 : price,
     category:      sanitize(cat),
-    imageUrl:      imgUrl,
-    imageUrl2:     imgUrl2,
-    imageUrl3:     imgUrl3,
-    videoUrl:      videoUrl,
+    imageUrl:      imgUrlN || imgUrl,
+    imageUrl2:     imgUrl2N || imgUrl2,
+    imageUrl3:     imgUrl3N || imgUrl3,
+    videoUrl:      videoUrlN || videoUrl,
     emoji:         emoji,
-    downloadUrl:   dlUrl,
+    downloadUrl:   dlUrlN || dlUrl,
     storagePath:   document.getElementById('prod-storage-path')?.value || null,
-    sampleUrl:     sampleUrl,
+    sampleUrl:     sampleUrlN || sampleUrl,
     tags,
     pwyw:          isPwyw,
     hasCommercialLicense: hasCommercial,
@@ -8597,6 +8628,31 @@ function clearBulkSelection() {
   const selectAllCb = document.getElementById('bulk-select-all-products');
   if (selectAllCb) { selectAllCb.checked = false; selectAllCb.indeterminate = false; }
   onBulkCheckChange();
+}
+
+// Emergency recovery: set every non-approved product back to approved.
+// Built so the next time statuses mysteriously flip, the admin can
+// undo it in one click instead of clicking each row.
+async function approveAllProducts() {
+  if (!isAdmin()) { toast('Admins only.', 'danger'); return; }
+  try {
+    const snap = await db.collection('products').get();
+    const toFix = snap.docs.filter(d => d.data().status !== 'approved');
+    if (!toFix.length) { toast('All products already approved.', 'info'); return; }
+    if (!confirm(`Approve ${toFix.length} product(s) currently not in approved state?\n\nThis is a recovery action — every change will be logged to productStatusAudit.`)) return;
+    // Firestore batch cap = 500 writes; chunk if larger.
+    for (let i = 0; i < toFix.length; i += 400) {
+      const chunk = toFix.slice(i, i + 400);
+      const batch = db.batch();
+      chunk.forEach(d => batch.update(d.ref, { status: 'approved', updatedAt: FV.serverTimestamp() }));
+      await batch.commit();
+    }
+    toast(`${toFix.length} product(s) re-approved.`, 'success');
+    if (typeof loadAdminProducts === 'function') loadAdminProducts();
+    if (typeof loadProducts === 'function') await loadProducts();
+  } catch (e) {
+    toast('Recovery failed: ' + (e.message || e), 'danger');
+  }
 }
 
 async function bulkUpdateProductStatus(status) {

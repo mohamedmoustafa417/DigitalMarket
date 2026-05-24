@@ -1584,6 +1584,59 @@ exports.notifyIndexNow = onDocumentWritten(
 const firestoreAdminClient =
   new (require('@google-cloud/firestore').v1.FirestoreAdminClient)();
 
+// ─── 12. onProductStatusAudit ─────────────────────────────────────────
+// Forensic audit log for every change to a product's `status`. Writes a
+// row to `productStatusAudit/{autoId}` with before/after + uid + when.
+// If a previously-approved product is downgraded (approved → anything),
+// also logs an ERROR to Cloud Logging so an alert policy can page you.
+//
+// This is the safety net we wished we had when 8 products silently
+// flipped on 2026-05-24. Now every status change is forensically
+// reconstructable.
+
+exports.onProductStatusAudit = onDocumentWritten(
+  { document: 'products/{productId}', region: 'us-central1' },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after  = event.data?.after?.data();
+    const productId = event.params.productId;
+
+    // Skip creates (no before) — status starts at pending/draft naturally.
+    if (!before) return;
+    // Skip deletes.
+    if (!after) return;
+    // Skip writes that didn't touch status.
+    if (before.status === after.status) return;
+
+    const entry = {
+      productId,
+      productName: after.name || before.name || '(unknown)',
+      sellerId:    after.sellerId || before.sellerId || null,
+      statusBefore: before.status || null,
+      statusAfter:  after.status  || null,
+      // event.authContext is available on 2nd-gen triggers for client SDK writes.
+      changedByUid: event.authContext?.authId || null,
+      changedAt:    FieldValue.serverTimestamp()
+    };
+    try {
+      await db.collection('productStatusAudit').add(entry);
+    } catch (e) {
+      console.error('[onProductStatusAudit] write failed:', e.message);
+    }
+
+    // Loud alarm if approval is REMOVED. This is the case worth paging on.
+    if (before.status === 'approved' && after.status !== 'approved') {
+      console.error('[onProductStatusAudit] DOWNGRADE',
+        JSON.stringify({ productId, name: entry.productName,
+                         from: 'approved', to: entry.statusAfter,
+                         by: entry.changedByUid }));
+    } else {
+      console.log('[onProductStatusAudit]',
+        `${productId} ${entry.statusBefore} → ${entry.statusAfter} (by ${entry.changedByUid || 'system'})`);
+    }
+  }
+);
+
 exports.scheduledFirestoreBackup = onSchedule(
   { schedule: 'every day 03:00', timeZone: 'Africa/Cairo', region: 'us-central1' },
   async () => {
