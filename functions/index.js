@@ -1594,6 +1594,70 @@ const firestoreAdminClient =
 // flipped on 2026-05-24. Now every status change is forensically
 // reconstructable.
 
+// ─── onNewsletterSignup ────────────────────────────────────────────
+// Fires when a visitor submits the newsletter form. Sends an immediate
+// welcome email so subscribers see proof their click did something,
+// AND so any deliverability problem (Resend key, DNS, SPF/DKIM) is
+// discovered the instant a new subscriber signs up — not weeks later
+// when the first campaign goes out.
+//
+// Idempotent: re-subscribing won't double-send because /newsletter is
+// keyed by auto-id and the function only runs on create.
+
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+
+exports.onNewsletterSignup = onDocumentCreated(
+  { document: 'newsletter/{subId}', region: 'us-central1', secrets: EMAIL_SECRETS },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data?.email) return;
+
+    const subject = '👋 Welcome to DigitalMarket — your first deal inside';
+    const body = `
+      <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111;">
+        <h1 style="font-size:22px;margin:0 0 12px;">Welcome aboard 👋</h1>
+        <p style="font-size:15px;line-height:1.55;color:#444;margin:0 0 16px;">
+          Thanks for subscribing to DigitalMarket. You'll be the first to hear about new releases, flash sales, and exclusive deals from our top creators.
+        </p>
+        <p style="font-size:15px;line-height:1.55;color:#444;margin:0 0 20px;">
+          As a thank-you, here's <strong>10% off your first order</strong> with code:
+        </p>
+        <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:10px;padding:14px 18px;text-align:center;font-family:ui-monospace,monospace;font-size:18px;font-weight:700;letter-spacing:0.08em;color:#5b21b6;margin:0 0 24px;">
+          WELCOME10
+        </div>
+        <a href="https://digitalmarketstore.shop"
+           style="display:inline-block;background:#6366f1;color:#fff;font-weight:600;text-decoration:none;padding:12px 22px;border-radius:10px;">
+          Browse Products →
+        </a>
+        <p style="font-size:12px;color:#888;margin-top:32px;line-height:1.5;">
+          You're getting this because you subscribed at digitalmarketstore.shop.<br>
+          Reply to this email to unsubscribe — we read every message.
+        </p>
+      </div>`;
+
+    try {
+      const r = await sendEmail({ to: data.email, subject, body });
+      // Persist outcome so admin can see at a glance whether the welcome
+      // pipeline is healthy.
+      await event.data.ref.update({
+        welcomeSent:  !!r?.ok,
+        welcomeAt:    FieldValue.serverTimestamp(),
+        welcomeError: r?.ok ? null : (r?.reason || `status:${r?.status}` || 'unknown')
+      }).catch(() => {});
+      if (!r?.ok) {
+        await db.collection('emailFailures').add({
+          type: 'newsletter_welcome',
+          toHash: hashEmail(data.email),
+          reason: r?.reason || `status:${r?.status}` || 'unknown',
+          createdAt: FieldValue.serverTimestamp()
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error('[onNewsletterSignup] failed:', e.message);
+    }
+  }
+);
+
 exports.onProductStatusAudit = onDocumentWritten(
   { document: 'products/{productId}', region: 'us-central1' },
   async (event) => {
