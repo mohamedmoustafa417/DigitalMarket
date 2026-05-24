@@ -52,13 +52,21 @@ Always edit `index_improved.html`, never `deploy/index.html` directly.
 ## Hosting + branch setup
 
 - Hosted on **GitHub Pages**, custom domain `digitalmarketstore.shop` (CNAME in repo root).
-- **Default branch: `master`** (was changed from `main` mid-development;
-  GitHub Pages serves whichever is set as default). Always push to BOTH
-  branches:
+- **Default branch: `master`**. BUT GitHub Pages is configured to deploy
+  from **`main`** — verified 2026-05-24 when a push to master-only sat
+  invisible on `digitalmarketstore.shop` for 25+ minutes. `main` has
+  merge commits, so `--ff-only` will fail. Always push to BOTH
+  branches; for the main merge use a non-ff merge:
   ```
   git push origin master
-  git checkout main; git merge master --ff-only; git push origin main; git checkout master
+  git checkout main
+  git merge master --no-ff -m "merge master: <short reason>"
+  git push origin main
+  git checkout master
   ```
+  If `digitalmarketstore.shop` still serves stale content after 10 min,
+  diff `git log origin/main..origin/master` — divergence there is the
+  smoking gun.
 - Service Worker version (`CACHE_NAME` in `sw.js`) MUST be bumped on every
   meaningful change or users get stale cached HTML. Increment `v6` → `v7`,
   etc.
