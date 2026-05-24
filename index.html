@@ -58,8 +58,8 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
   <link rel="dns-prefetch" href="https://api.exchangerate.host">
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <!-- EARLY PRODUCT SCHEMA (SEO).
        For deep-link URLs (/?p=PRODUCT_ID), fetch the product JSON
        directly from Firestore REST API and inject JSON-LD Product
@@ -16327,6 +16327,149 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     header[role="banner"] { transition: none; }
     .product-card { transition: none !important; }
     .product-card:hover { transform: none !important; }
+  }
+
+  /* ─────────────────────────────────────────────────────────────────
+     PREMIUM PASS — May 2026 (Stripe / Linear / Framer-inspired)
+     Layered after every prior rule so the cascade lands these last.
+     Pure CSS — no markup changes, no JS — so it's reversible by
+     removing this block alone.
+     ─────────────────────────────────────────────────────────────── */
+  :root {
+    /* Premium spacing scale (8pt base) */
+    --dm-s-1: 0.25rem;  --dm-s-2: 0.5rem;   --dm-s-3: 0.75rem;
+    --dm-s-4: 1rem;     --dm-s-5: 1.5rem;   --dm-s-6: 2rem;
+    --dm-s-7: 3rem;     --dm-s-8: 4rem;     --dm-s-9: 6rem;
+    /* Premium shadow stack — soft, layered, never harsh */
+    --dm-shadow-sm: 0 1px 2px rgba(0,0,0,0.18);
+    --dm-shadow-md: 0 4px 12px -2px rgba(0,0,0,0.28), 0 2px 4px -2px rgba(0,0,0,0.18);
+    --dm-shadow-lg: 0 18px 40px -12px rgba(0,0,0,0.45), 0 6px 16px -6px rgba(0,0,0,0.28);
+    --dm-shadow-glow: 0 12px 32px -8px color-mix(in srgb, var(--primary) 32%, transparent);
+    /* Premium easing */
+    --dm-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Body — premium font rendering */
+  body {
+    font-feature-settings: 'cv11','ss01','ss02','cv02';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.005em;
+  }
+
+  /* Typography scale — fluid via clamp(); larger, tighter, bolder. */
+  h1, .h1, .brand-name {
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+  h2, .h2 {
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.15;
+  }
+  h3, .h3 { font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; }
+  p { line-height: 1.65; }
+
+  /* Hero brand title — large, bold, fluid */
+  .brand-name {
+    font-size: clamp(2.5rem, 7vw, 5.5rem) !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.045em !important;
+    line-height: 1.02 !important;
+  }
+  .brand-tagline {
+    font-size: clamp(0.95rem, 1.6vw, 1.15rem) !important;
+    letter-spacing: 0.18em !important;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: var(--dm-s-3) !important;
+  }
+  .hero-btns { margin-top: var(--dm-s-6) !important; gap: var(--dm-s-3) !important; }
+
+  /* Primary CTA — gradient, depth, lift on hover */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
+    border: 0 !important;
+    box-shadow: var(--dm-shadow-md), 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent) inset;
+    transition: transform 0.18s var(--dm-ease), box-shadow 0.18s var(--dm-ease), filter 0.18s var(--dm-ease) !important;
+    font-weight: 600 !important;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--dm-shadow-lg), var(--dm-shadow-glow);
+    filter: brightness(1.05);
+  }
+  .btn-primary:active { transform: translateY(0); filter: brightness(0.96); }
+
+  /* Outline button — refined */
+  .btn-outline {
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent) !important;
+    background: transparent !important;
+    transition: border-color 0.18s var(--dm-ease), background 0.18s var(--dm-ease), transform 0.18s var(--dm-ease) !important;
+  }
+  .btn-outline:hover {
+    border-color: var(--primary) !important;
+    background: color-mix(in srgb, var(--primary) 8%, transparent) !important;
+  }
+
+  /* Cards — soft, layered shadows, larger radius */
+  .product-card {
+    border-radius: 16px !important;
+    box-shadow: var(--dm-shadow-sm);
+    border-color: color-mix(in srgb, var(--border) 70%, transparent) !important;
+  }
+  .product-card:hover {
+    box-shadow: var(--dm-shadow-lg), var(--dm-shadow-glow) !important;
+    border-color: color-mix(in srgb, var(--primary) 60%, transparent) !important;
+  }
+
+  /* Vision/Mission cards on hero — premium glass */
+  .vm-card {
+    border-radius: 18px !important;
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    background: color-mix(in srgb, var(--bg2) 65%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--border) 50%, transparent) !important;
+    transition: transform 0.32s var(--dm-ease), box-shadow 0.32s var(--dm-ease), border-color 0.2s ease;
+  }
+  .vm-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--dm-shadow-lg);
+    border-color: color-mix(in srgb, var(--primary) 50%, transparent) !important;
+  }
+
+  /* Modal overlays — premium feel */
+  .modal-overlay .modal {
+    border-radius: 18px !important;
+    box-shadow: var(--dm-shadow-lg);
+  }
+
+  /* Mobile-first tap targets — every interactive element ≥ 44×44 */
+  @media (max-width: 768px) {
+    .btn, button:not(.btn-icon):not(.btn-sm), [role="button"] {
+      min-height: 44px;
+    }
+    .btn-icon { min-width: 40px; min-height: 40px; }
+  }
+
+  /* Section rhythm — generous breathing room between major sections */
+  #view-home > * + * { margin-top: clamp(2rem, 5vw, 4rem); }
+
+  /* Hero — smooth entrance animation (one-shot, motion-aware) */
+  @media (prefers-reduced-motion: no-preference) {
+    .brand-icon-wrap, .brand-name, .brand-tagline, .vm-cards, .hero-btns {
+      animation: dm-rise 0.6s var(--dm-ease) both;
+    }
+    .brand-name      { animation-delay: 0.05s; }
+    .brand-tagline   { animation-delay: 0.15s; }
+    .vm-cards        { animation-delay: 0.25s; }
+    .hero-btns       { animation-delay: 0.35s; }
+    @keyframes dm-rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
   }
 
   /* Currency dropdown — opened from the header #currency-btn */
