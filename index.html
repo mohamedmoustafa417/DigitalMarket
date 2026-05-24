@@ -16387,11 +16387,9 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   function parse(root) {
     if (!window.twemoji) return;
     try {
-      window.twemoji.parse(root || document.body, {
-        folder: 'svg',
-        ext:    '.svg',
-        base:   'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/'
-      });
+      // v17 (jdecked/twemoji) keeps `parse` but no `folder` option;
+      // call with defaults to get the maintained 72×72 PNGs from CDN.
+      window.twemoji.parse(root || document.body);
     } catch (_) { /* never block UI on emoji parse */ }
   }
 
