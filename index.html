@@ -16452,6 +16452,90 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   }
 
   /* ─────────────────────────────────────────────────────────────────
+     LAUNCH-WEEK UI/UX POLISH BUNDLE (additive to the premium pass)
+
+     1. Skip-to-content link — WCAG 2.4.1 bypass for keyboard users
+     2. Product-image aspect-ratio lock — prevents CLS on grid load
+     3. Empty-state CTA polish — clear path to "reset filters"
+     4. Smooth-scroll offset for sticky header (anchor jumps land below)
+     5. Cookie banner — smaller, less intrusive
+     6. Toast stacking — consistent positioning + safe-area on mobile
+     7. Mobile bottom-nav active-state lift for finger-clarity
+     ─────────────────────────────────────────────────────────── */
+
+  /* 1. SKIP LINK — invisible until keyboard-focused */
+  .dm-skip-link {
+    position: absolute; left: 0; top: 0;
+    transform: translateY(-200%);
+    background: var(--primary); color: #fff;
+    padding: 0.6rem 1rem; border-radius: 0 0 8px 0;
+    font-weight: 700; font-size: 0.9rem;
+    z-index: 9999;
+    transition: transform 0.18s var(--dm-ease);
+  }
+  .dm-skip-link:focus-visible { transform: translateY(0); }
+
+  /* 2. CLS LOCK — reserve the image space so the grid doesn't reflow
+     when each card's <img> finishes loading. The product-card already
+     has overflow:hidden so any overshoot is clipped cleanly. */
+  .product-card .product-img,
+  .product-card .product-image,
+  .product-card > div:first-child > img,
+  .product-card > img:first-child {
+    aspect-ratio: 4 / 3;
+    width: 100%;
+    object-fit: cover;
+    background: linear-gradient(135deg,
+      color-mix(in srgb, var(--primary) 8%, var(--bg2)),
+      color-mix(in srgb, var(--secondary) 8%, var(--bg2)));
+  }
+
+  /* 3. EMPTY STATE — center, breathe, give the eye a target */
+  #products-empty, .empty-state {
+    padding: clamp(2rem, 6vw, 3.5rem) 1rem !important;
+    text-align: center;
+  }
+  #products-empty i, .empty-state i {
+    font-size: 2.5rem; color: var(--text-muted);
+    display: block; margin: 0 auto 0.85rem;
+    opacity: 0.6;
+  }
+  #products-empty .btn, .empty-state .btn { margin-top: var(--dm-s-4); }
+
+  /* 4. SMOOTH-SCROLL OFFSET — sticky header is ~68px; without scroll-padding
+     anchor links and JS scrollIntoView jump the target under the header. */
+  html { scroll-padding-top: 80px; scroll-behavior: smooth; }
+
+  /* 5. COOKIE BANNER — slimmer, less screen real-estate */
+  #cookie-banner, .cookie-banner, [class*="cookie"][class*="banner"] {
+    padding: 0.65rem 1rem !important;
+    font-size: 0.82rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* 6. TOASTS — stack with consistent gap, respect mobile safe-area */
+  .toast-container, #toast-container, [class*="toast-stack"] {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem) !important;
+    gap: 0.5rem;
+  }
+
+  /* 7. MOBILE BOTTOM NAV — clearer active state, larger tap area */
+  @media (max-width: 768px) {
+    .mobile-bottom-nav .nav-item, .bottom-nav .nav-item,
+    [class*="bottom-nav"] [role="button"] {
+      min-height: 56px; padding: 0.4rem 0.6rem;
+      transition: transform 0.15s var(--dm-ease), color 0.15s ease;
+    }
+    .mobile-bottom-nav .nav-item.active,
+    .bottom-nav .nav-item.active,
+    [class*="bottom-nav"] .active {
+      color: var(--primary);
+      transform: translateY(-2px);
+    }
+  }
+
+  /* ─────────────────────────────────────────────────────────────────
      PREMIUM PASS — May 2026 (Stripe / Linear / Framer-inspired)
      Layered after every prior rule so the cascade lands these last.
      Pure CSS — no markup changes, no JS — so it's reversible by
@@ -16740,6 +16824,71 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     .dm-trust-item .dm-trust-sub { font-size: 0.72rem; }
   }
 </style>
+<script>
+/**
+ * Launch-week DOM injections — keep markup edits to zero so it's all
+ * reversible by removing this script alone.
+ *
+ *   • Skip-to-content link (a11y / WCAG 2.4.1) — first element in body,
+ *     keyboard-only visible.
+ *   • Empty-state "Reset filters" CTA — current empty state is a static
+ *     icon + text; add a button that resets the filter UI in one click.
+ *   • <main> needs id="main-content" so the skip link can target it.
+ */
+(function dmLaunchA11yPolish() {
+  function init() {
+    // 1. Skip link
+    if (!document.querySelector('.dm-skip-link')) {
+      var skip = document.createElement('a');
+      skip.href = '#main-content';
+      skip.className = 'dm-skip-link';
+      skip.textContent = 'Skip to main content';
+      document.body.insertBefore(skip, document.body.firstChild);
+    }
+
+    // 2. Ensure target id exists on the main view container
+    var main = document.querySelector('#view-home, main[role="main"]');
+    if (main && !main.id) main.id = 'main-content';
+    if (main && main.id && main.id !== 'main-content' && !document.getElementById('main-content')) {
+      // Add a hidden anchor so the skip-link target always resolves
+      var anchor = document.createElement('span');
+      anchor.id = 'main-content';
+      anchor.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;';
+      main.insertBefore(anchor, main.firstChild);
+    }
+
+    // 3. Empty-state CTA — augment #products-empty with a reset button
+    var empty = document.getElementById('products-empty');
+    if (empty && !empty.querySelector('.dm-reset-filters-cta')) {
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-primary dm-reset-filters-cta';
+      btn.type = 'button';
+      btn.innerHTML = '<i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset filters & browse all';
+      btn.onclick = function() {
+        // Trigger the existing reset wiring if it exists; otherwise
+        // manually clear the common filter inputs.
+        var resetBtn = document.querySelector('[onclick*="resetFilters"], [data-reset-filters]');
+        if (resetBtn) { resetBtn.click(); return; }
+        var cat   = document.querySelector('.cat-pill.active, .filter-btn.active');
+        var allCat = document.querySelector('[data-cat="all"], .cat-pill[data-value="all"]');
+        if (allCat && allCat.click) allCat.click();
+        var sort  = document.getElementById('sort-select');
+        if (sort) { sort.value = 'newest'; sort.dispatchEvent(new Event('change', {bubbles:true})); }
+        var price = document.getElementById('price-range');
+        if (price) { price.value = price.max || 99999; price.dispatchEvent(new Event('input', {bubbles:true})); }
+        // Final fallback — re-render
+        if (typeof window.renderProducts === 'function') window.renderProducts();
+      };
+      empty.appendChild(btn);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else { init(); }
+  setTimeout(init, 1000); // catch any late re-renders
+})();
+</script>
+
 <script>
 /**
  * Trust strip injection + view_cart GA4 event.

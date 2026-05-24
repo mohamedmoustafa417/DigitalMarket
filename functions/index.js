@@ -186,6 +186,27 @@ async function revokeDriveAccess(fileId, permissionId) {
   }
 }
 
+// Strip HTML → readable plaintext for the multipart text/plain alt.
+// Mail-Tester deducted -0.6 specifically for the missing plain part
+// (lifted welcome-email score from 9.4 → 10).
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/(h[1-6]|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function sendEmail({ to, subject, body }) {
   const resendKey   = process.env.RESEND_KEY;
   const sendgridKey = process.env.SENDGRID_KEY;
@@ -194,6 +215,17 @@ async function sendEmail({ to, subject, body }) {
     console.warn(`[sendEmail] No email provider configured — skipping email to ${to}. Set RESEND_KEY or SENDGRID_KEY.`);
     return { ok: false, reason: 'no-provider' };
   }
+
+  // Standard transactional-email headers buyers' inbox providers (Gmail,
+  // Outlook, Yahoo) reward with higher inbox placement:
+  //   • List-Unsubscribe + List-Unsubscribe-Post → required for bulk by Gmail 2024.
+  //   • Auto-Submitted: auto-generated → tells mail clients it's transactional.
+  const COMMON_HEADERS = {
+    'List-Unsubscribe':       `<mailto:unsubscribe@digitalmarketstore.shop?subject=unsubscribe>, <https://digitalmarketstore.shop/?unsub=1>`,
+    'List-Unsubscribe-Post':  'List-Unsubscribe=One-Click',
+    'Auto-Submitted':         'auto-generated',
+    'X-Entity-Ref-ID':        require('crypto').randomUUID()
+  };
 
   try {
     // Resend (preferred — clean modern API)
@@ -209,7 +241,9 @@ async function sendEmail({ to, subject, body }) {
           to: [to],
           reply_to: REPLY_TO,
           subject,
-          html: body
+          html: body,
+          text: htmlToText(body),   // multipart alt — +0.6 SpamAssassin
+          headers: COMMON_HEADERS
         })
       });
       if (!r.ok) {
@@ -230,10 +264,19 @@ async function sendEmail({ to, subject, body }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          personalizations: [{ to: [{ email: to }], subject }],
+          personalizations: [{
+            to: [{ email: to }],
+            subject,
+            headers: COMMON_HEADERS
+          }],
           from: { email: FROM_EMAIL, name: FROM_NAME },
           reply_to: { email: REPLY_TO },
-          content: [{ type: 'text/html', value: body }]
+          // Order matters: SendGrid uses LAST content type as the preferred one,
+          // and RFC 1341 says text/plain MUST come first in multipart/alternative.
+          content: [
+            { type: 'text/plain', value: htmlToText(body) },
+            { type: 'text/html',  value: body }
+          ]
         })
       });
       if (!r.ok) {
@@ -1655,6 +1698,25 @@ exports.onNewsletterSignup = onDocumentCreated(
     } catch (e) {
       console.error('[onNewsletterSignup] failed:', e.message);
     }
+  }
+);
+
+// ─── healthCheck ───────────────────────────────────────────────────
+// Plain GET endpoint that returns 200 + JSON. UptimeRobot, BetterStack,
+// Pingdom, etc. can hit this — onCall callables are POST-only and
+// return 404 on GET, which is why the previous /generateSitemap
+// monitor was permanently red. Cheap (no Firestore reads).
+
+exports.healthCheck = onRequest(
+  { region: 'us-central1', cors: true, invoker: 'public' },
+  (req, res) => {
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.status(200).json({
+      ok: true,
+      service: 'digitalmarket',
+      timestamp: new Date().toISOString(),
+      uptime_s: Math.round(process.uptime())
+    });
   }
 );
 
