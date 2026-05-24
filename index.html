@@ -13127,7 +13127,15 @@ function setCurrency(code) {
     const egp = Number(el.dataset.priceEgp || 0);
     el.textContent = formatPriceMulti(egp);
   });
-  document.getElementById('dm-currency-btn').textContent = `${DM_CURRENCIES[code].flag} ${code}`;
+  // Header label uses #currency-label inside #currency-btn (legacy id);
+  // the #dm-currency-btn id was a planning-only placeholder that never
+  // shipped to HTML, so always null-guard before touching it. Without
+  // this guard, setCurrency() throws and every downstream wrapper
+  // (toast retry, dropdown label refresh, etc.) never runs.
+  var _legacyBtn = document.getElementById('dm-currency-btn');
+  if (_legacyBtn) _legacyBtn.textContent = `${DM_CURRENCIES[code].flag} ${code}`;
+  var _lbl = document.getElementById('currency-label');
+  if (_lbl) _lbl.textContent = `${DM_CURRENCIES[code].flag} ${code}`;
 }
 
 function formatPriceMulti(egpAmount) {
