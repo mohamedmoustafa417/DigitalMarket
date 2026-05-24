@@ -17128,19 +17128,20 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
 
     // Permanent fix: another module (attachToCurrencyBtn IIFE) sometimes
     // overwrites our label.textContent AFTER Twemoji has parsed, putting
-    // raw emoji back. Dedicate a MutationObserver to the label element
-    // so we re-parse on every characterData change. Idempotent: parsing
-    // a node that already has the <img> is a no-op.
-    if (initLbl && 'MutationObserver' in window) {
-      var parsing = false;
-      new MutationObserver(function() {
-        if (parsing || !window.twemoji) return;
-        // Skip if already parsed (has the img.emoji as a child)
-        if (initLbl.querySelector('img.emoji')) return;
-        parsing = true;
-        try { window.twemoji.parse(initLbl); } catch(_){}
-        parsing = false;
-      }).observe(initLbl, { childList: true, characterData: true, subtree: true });
+    // raw emoji back. MutationObserver didn't reliably catch this in
+    // testing (timing race with another IIFE that wraps setCurrency).
+    // Brute-force fallback: a 600ms poll re-parses the label if a raw
+    // flag emoji has reappeared. Stops itself when not needed.
+    if (initLbl) {
+      setInterval(function() {
+        if (!window.twemoji) return;
+        // Only re-parse if there's a raw flag-emoji character present
+        // (heuristic: text contains a regional-indicator surrogate pair).
+        var t = initLbl.textContent || '';
+        if (/[\uD83C][\uDDE6-\uDDFF]/.test(t) && !initLbl.querySelector('img.emoji')) {
+          try { window.twemoji.parse(initLbl); } catch(_){}
+        }
+      }, 600);
     }
   }
 
