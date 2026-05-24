@@ -8854,18 +8854,18 @@ function showAutocomplete(query) {
         <div style="font-size:0.72rem;color:var(--text-muted);">${formatPrice(p.price || 0)} · ${sanitize(p.category||'')}</div>
       </div>
     </div>`).join('');
-  dd.classList.add('open');
+  dd.classList.add('show');
   _acSetExpanded(true);
 }
 function hideAutocomplete() {
   const dd = document.getElementById('autocomplete-dropdown');
-  if (dd) dd.classList.remove('open');
+  if (dd) dd.classList.remove('show');
   _acSelected = -1;
   _acSetExpanded(false);
 }
 function handleAutocompleteKey(e) {
   const dd = document.getElementById('autocomplete-dropdown');
-  if (!dd || !dd.classList.contains('open')) return;
+  if (!dd || !dd.classList.contains('show')) return;
   const items = dd.querySelectorAll('.autocomplete-item');
   if (!items.length) return;
   const applySelection = () => {
