@@ -12793,6 +12793,46 @@ const DM_VAT_RATE = 0;
 })();
 
 // ─── ROUND 9 Feature 5: ADMIN EMAIL CAMPAIGNS ────────────────────────
+// Admin diagnostic: call the emailHealthCheck Cloud Function and surface
+// recent /emailFailures rows so it's instantly visible why campaigns
+// might not be arriving (no RESEND_KEY, unverified domain, 4xx from
+// Resend, etc.).
+async function dmTestEmailPipeline() {
+  if (!isAdmin()) { toast('Admins only.', 'danger'); return; }
+  const myEmail = firebase.auth().currentUser?.email;
+  if (!myEmail) { toast('Sign in first.', 'warning'); return; }
+  const out = document.getElementById('dm-email-failures');
+  if (out) out.innerHTML = '⏳ Sending test email to ' + myEmail + '…';
+  try {
+    const fn = firebase.app().functions('us-central1').httpsCallable('emailHealthCheck');
+    const r  = await fn({ to: myEmail });
+    const ok = r?.data?.ok;
+    if (ok) {
+      toast('✅ Test email sent. Check ' + myEmail + ' (incl. Spam).', 'success', 8000);
+      if (out) out.innerHTML = '✅ Pipeline OK — test sent to <code>' + sanitize(myEmail) + '</code> at ' + new Date().toLocaleTimeString();
+    } else {
+      const reason = r?.data?.reason || r?.data?.status || 'unknown';
+      toast('❌ Pipeline broken — reason: ' + reason, 'danger', 10000);
+      if (out) out.innerHTML = '❌ <strong>FAILED</strong> — reason: <code>' + sanitize(String(reason)) + '</code>. Check RESEND_KEY secret + Resend sender domain verification.';
+    }
+  } catch (e) {
+    toast('❌ Health check threw: ' + (e.message || e), 'danger', 10000);
+    if (out) out.innerHTML = '❌ Threw: <code>' + sanitize(e.message || String(e)) + '</code>';
+  }
+  // Show recent failures so admin can diagnose
+  try {
+    const snap = await db.collection('emailFailures').orderBy('createdAt','desc').limit(5).get();
+    if (!snap.empty && out) {
+      const rows = snap.docs.map(d => {
+        const x = d.data();
+        const t = x.createdAt?.toDate?.()?.toLocaleString?.() || '?';
+        return `<li>${sanitize(x.type || '?')} — <code>${sanitize(x.reason || '?')}</code> <span style="opacity:0.7;">(${t})</span></li>`;
+      }).join('');
+      out.innerHTML += `<div style="margin-top:0.6rem;"><strong>Recent failures:</strong><ul style="margin:0.3rem 0 0 1.1rem;line-height:1.55;">${rows}</ul></div>`;
+    }
+  } catch(_) {}
+}
+
 async function sendEmailCampaign(subject, body, target) {
   if (!isAdmin()) { toast('Admins only.', 'danger'); return; }
   try {
@@ -12840,6 +12880,8 @@ async function sendEmailCampaign(subject, body, target) {
             if(!confirm('Queue campaign to '+t+'?'))return;
             await sendEmailCampaign(s,b,t);
           })()"><i class="fa-solid fa-paper-plane"></i> Queue Campaign</button>
+          <button class="btn btn-outline" style="font-size:0.85rem;" onclick="dmTestEmailPipeline()" title="Send a test email to YOUR address right now. If it doesn't arrive, the pipeline is broken (Resend key, DNS, sender verification) — campaigns won't either."><i class="fa-solid fa-stethoscope"></i> Test Email Pipeline</button>
+          <div id="dm-email-failures" style="margin-top:0.5rem;font-size:0.78rem;color:var(--text-muted);"></div>
         </div>`;
       view.appendChild(sec);
     }, 800);
