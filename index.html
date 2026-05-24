@@ -17125,6 +17125,23 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
       initLbl.textContent = initC.flag + ' ' + currentCode();
       if (window.twemoji) { try { window.twemoji.parse(initLbl); } catch(_){} }
     }
+
+    // Permanent fix: another module (attachToCurrencyBtn IIFE) sometimes
+    // overwrites our label.textContent AFTER Twemoji has parsed, putting
+    // raw emoji back. Dedicate a MutationObserver to the label element
+    // so we re-parse on every characterData change. Idempotent: parsing
+    // a node that already has the <img> is a no-op.
+    if (initLbl && 'MutationObserver' in window) {
+      var parsing = false;
+      new MutationObserver(function() {
+        if (parsing || !window.twemoji) return;
+        // Skip if already parsed (has the img.emoji as a child)
+        if (initLbl.querySelector('img.emoji')) return;
+        parsing = true;
+        try { window.twemoji.parse(initLbl); } catch(_){}
+        parsing = false;
+      }).observe(initLbl, { childList: true, characterData: true, subtree: true });
+    }
   }
 
   // Poll until the button and DM_CURRENCIES both exist (the existing
