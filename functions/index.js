@@ -1563,3 +1563,40 @@ exports.notifyIndexNow = onDocumentWritten(
     }
   }
 );
+
+// ─── 11. scheduledFirestoreBackup ─────────────────────────────────────
+// Exports every Firestore collection to a Cloud Storage bucket once a
+// day. Retention is managed by a GCS lifecycle rule on the bucket itself
+// (configure: 30-day delete). If the bucket doesn't exist or the SA
+// lacks the `Cloud Datastore Import Export Admin` role, the call throws
+// and the function fails — a Firebase Functions error notification is
+// then your alert.
+//
+// One-time setup (run from Cloud Shell or local with gcloud auth):
+//   gcloud storage buckets create gs://digitalmarket-38db5-backups \
+//     --location=us-central1 --uniform-bucket-level-access
+//   gcloud projects add-iam-policy-binding digitalmarket-38db5 \
+//     --member="serviceAccount:digitalmarket-38db5@appspot.gserviceaccount.com" \
+//     --role="roles/datastore.importExportAdmin"
+//   gsutil lifecycle set <(echo '{"rule":[{"action":{"type":"Delete"},
+//     "condition":{"age":30}}]}') gs://digitalmarket-38db5-backups
+
+const firestoreAdminClient =
+  new (require('@google-cloud/firestore').v1.FirestoreAdminClient)();
+
+exports.scheduledFirestoreBackup = onSchedule(
+  { schedule: 'every day 03:00', timeZone: 'Africa/Cairo', region: 'us-central1' },
+  async () => {
+    const projectId = process.env.GCLOUD_PROJECT || 'digitalmarket-38db5';
+    const databaseName = firestoreAdminClient.databasePath(projectId, '(default)');
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const outputUriPrefix = `gs://${projectId}-backups/firestore/${today}`;
+
+    const [operation] = await firestoreAdminClient.exportDocuments({
+      name: databaseName,
+      outputUriPrefix,
+      collectionIds: [] // empty = all collections
+    });
+    console.log(`[backup] Started → ${outputUriPrefix}; op=${operation.name}`);
+  }
+);

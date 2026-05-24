@@ -4530,6 +4530,16 @@ function addToCart(productId) {
 }
 
 function removeFromCart(productId) {
+  // GA4 funnel: emit remove_from_cart BEFORE we lose the price lookup.
+  try {
+    var _p = (window.allProducts || []).find(function(x) { return x.id === productId; });
+    if (_p && typeof trackEvent === 'function') {
+      trackEvent('remove_from_cart', {
+        currency: 'EGP', value: Number(_p.price || 0),
+        items: [{ item_id: _p.id, item_name: _p.name, price: Number(_p.price || 0), quantity: 1 }]
+      });
+    }
+  } catch(_) {}
   cart = cart.filter(id => id !== productId);
   saveCart();
   renderCart();
@@ -5908,6 +5918,20 @@ async function openCheckout(ids) {
     .filter(r => r.status === 'fulfilled' && r.value.exists)
     .map(r => ({ id: r.value.id, ...r.value.data() }));
   if (!checkoutItems.length) return;
+
+  // GA4 funnel: begin_checkout — the single most important conversion event.
+  // Without this you cannot diagnose checkout drop-off vs cart drop-off.
+  try {
+    if (typeof trackEvent === 'function') {
+      var _total = checkoutItems.reduce(function(s, it) { return s + Number(it.price || 0); }, 0);
+      trackEvent('begin_checkout', {
+        currency: 'EGP', value: _total,
+        items: checkoutItems.map(function(it) {
+          return { item_id: it.id, item_name: it.name, price: Number(it.price || 0), quantity: 1 };
+        })
+      });
+    }
+  } catch(_) {}
 
   _orderSubmitting = false; // reset in case a previous attempt left it true
 
@@ -16573,6 +16597,132 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
 })();
 </script>
 
+<style>
+  /* Trust strip — sits under the hero, before the products grid.
+     Conveys "we're a real business" in 3 seconds. */
+  .dm-trust-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--dm-s-3);
+    padding: var(--dm-s-5) var(--dm-s-4);
+    margin: var(--dm-s-6) auto;
+    max-width: 1100px;
+    background: color-mix(in srgb, var(--bg2) 65%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: 18px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .dm-trust-item {
+    display: flex; align-items: center; gap: var(--dm-s-3);
+    padding: 0 var(--dm-s-2);
+  }
+  .dm-trust-item .dm-trust-icon {
+    flex: 0 0 auto;
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+    font-size: 1.1rem;
+  }
+  .dm-trust-item .dm-trust-text { min-width: 0; }
+  .dm-trust-item .dm-trust-title {
+    font-weight: 700; font-size: 0.95rem; color: var(--text);
+    line-height: 1.2;
+  }
+  .dm-trust-item .dm-trust-sub {
+    font-size: 0.78rem; color: var(--text-muted);
+    margin-top: 2px; line-height: 1.3;
+  }
+  @media (max-width: 640px) {
+    .dm-trust-strip { padding: var(--dm-s-4) var(--dm-s-3); margin: var(--dm-s-5) var(--dm-s-3); }
+    .dm-trust-item .dm-trust-icon { width: 36px; height: 36px; }
+    .dm-trust-item .dm-trust-title { font-size: 0.88rem; }
+    .dm-trust-item .dm-trust-sub { font-size: 0.72rem; }
+  }
+</style>
+<script>
+/**
+ * Trust strip injection + view_cart GA4 event.
+ *
+ * Two concerns bundled because they share the same hook (DOMContentLoaded
+ * + navigate() interception):
+ *
+ *   1. Inject a 4-pillar trust strip directly under the hero. Marketplaces
+ *      on day 1 have zero social proof; this surfaces the credibility we
+ *      DO have (secured payments, refund policy, instant delivery, real
+ *      support) in the first 3 seconds of attention.
+ *
+ *   2. Emit GA4 view_cart whenever navigate('cart') is invoked. Pairs
+ *      with begin_checkout (in openCheckout) and remove_from_cart (in
+ *      removeFromCart) so the entire cart→purchase funnel is diagnosable
+ *      in GA4 Funnel Exploration.
+ */
+(function dmTrustStripAndCartEvent() {
+  // ── 1. Trust strip ──────────────────────────────────────────────────
+  function injectTrustStrip() {
+    if (document.querySelector('.dm-trust-strip')) return; // idempotent
+    var hero = document.querySelector('.hero-3d');
+    if (!hero) return;
+    var strip = document.createElement('section');
+    strip.className = 'dm-trust-strip';
+    strip.setAttribute('aria-label', 'Why buyers trust DigitalMarket');
+    strip.innerHTML = [
+      ['fa-shield-halved', 'Secure Payments',     'Encrypted checkout'],
+      ['fa-rotate-left',   '30-Day Refund',       'No-questions guarantee'],
+      ['fa-bolt',          'Instant Delivery',    'Download right after purchase'],
+      ['fa-headset',       '24/7 Real Support',   'support@digitalmarketstore.shop']
+    ].map(function(t) {
+      return '<div class="dm-trust-item">' +
+               '<div class="dm-trust-icon" aria-hidden="true"><i class="fa-solid ' + t[0] + '"></i></div>' +
+               '<div class="dm-trust-text">' +
+                 '<div class="dm-trust-title">' + t[1] + '</div>' +
+                 '<div class="dm-trust-sub">' + t[2] + '</div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+    // Insert right after the hero (and before products / banners).
+    hero.parentNode.insertBefore(strip, hero.nextSibling);
+  }
+
+  // ── 2. GA4 view_cart ────────────────────────────────────────────────
+  function wrapNavigateForViewCart() {
+    if (typeof window.navigate !== 'function' || window.navigate.__dmCartWrapped) return;
+    var orig = window.navigate;
+    window.navigate = function(view) {
+      var r = orig.apply(this, arguments);
+      try {
+        if (view === 'cart' && typeof trackEvent === 'function') {
+          var items = (Array.isArray(window.cart) ? window.cart : []).map(function(id) {
+            var p = (window.allProducts || []).find(function(x) { return x.id === id; });
+            return p ? { item_id: p.id, item_name: p.name, price: Number(p.price || 0), quantity: 1 } : null;
+          }).filter(Boolean);
+          var value = items.reduce(function(s, it) { return s + it.price; }, 0);
+          trackEvent('view_cart', { currency: 'EGP', value: value, items: items });
+        }
+      } catch(_) {}
+      return r;
+    };
+    window.navigate.__dmCartWrapped = true;
+  }
+
+  // Run on DOM ready, but also retry on a short loop until hero exists
+  // (the hero is in the initial HTML, but Trustpilot-style features fire
+  // before main script init in some routing scenarios).
+  function tryInit() {
+    injectTrustStrip();
+    wrapNavigateForViewCart();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInit);
+  } else {
+    tryInit();
+  }
+  // Retry once after 800ms in case scripts re-render the hero.
+  setTimeout(tryInit, 800);
+})();
+</script>
 <script>
 /**
  * Currency picker — flag dropdown.
