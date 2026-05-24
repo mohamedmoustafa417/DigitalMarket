@@ -17107,19 +17107,24 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
       window.setCurrency = function(code) {
         var r = origSet.apply(this, arguments);
         // Keep the label flag + code visible (in case setCurrency's own DOM
-        // touch missed our element).
+        // touch missed our element). Re-run Twemoji on the label since
+        // textContent overwrites any previously-parsed <img>.
         var lbl = document.getElementById('currency-label');
         if (lbl && DM_CURRENCIES[code]) {
           lbl.textContent = DM_CURRENCIES[code].flag + ' ' + code;
+          if (window.twemoji) { try { window.twemoji.parse(lbl); } catch(_){} }
         }
         return r;
       };
       window.setCurrency.__dmDdWrapped = true;
     }
-    // Set the initial label to show the flag from the start.
+    // Set the initial label to show the flag from the start, then parse.
     var initLbl = document.getElementById('currency-label');
     var initC = DM_CURRENCIES[currentCode()];
-    if (initLbl && initC) initLbl.textContent = initC.flag + ' ' + currentCode();
+    if (initLbl && initC) {
+      initLbl.textContent = initC.flag + ' ' + currentCode();
+      if (window.twemoji) { try { window.twemoji.parse(initLbl); } catch(_){} }
+    }
   }
 
   // Poll until the button and DM_CURRENCIES both exist (the existing
