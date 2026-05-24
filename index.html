@@ -16253,4 +16253,83 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
 
 console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for first-time visitors)');
 </script>
+<script>
+/**
+ * Listing-quality scorer wire-up patch.
+ *
+ * Bug: dmRecalcListingQuality is bound via the form's `oninput` attribute,
+ * so it only runs when the user *types*. Both populate paths
+ * (adminEditProduct, openProductModal-edit) set field values
+ * programmatically via `.value = …`, which does NOT fire `input`. Result:
+ * editing an existing product opens with score 0/6 even though every
+ * field is filled.
+ *
+ * Fix: wrap both functions in the IIFE-patch pattern (per CLAUDE.md,
+ * always call orig first), then directly invoke the scorer once the
+ * fields are populated. Also re-invoke whenever `add-product-modal`
+ * becomes visible, as a belt-and-braces fallback for any future
+ * populate path we don't yet know about.
+ */
+(function dmListingQualityWireUp() {
+  function safeRecalc() {
+    try { if (typeof window.dmRecalcListingQuality === 'function') window.dmRecalcListingQuality(); }
+    catch (e) { console.warn('[lq] recalc failed:', e); }
+  }
+
+  function wrap(name) {
+    var orig = window[name];
+    if (typeof orig !== 'function' || orig.__lqWrapped) return false;
+    var wrapped = async function() {
+      var ret = orig.apply(this, arguments);
+      // orig may be async (returns a Promise) or sync — handle both.
+      if (ret && typeof ret.then === 'function') { try { await ret; } catch(_){} }
+      // Two recalcs: one immediately (in case fields are sync-populated),
+      // one on the next paint (in case anything finishes on rAF).
+      safeRecalc();
+      requestAnimationFrame(safeRecalc);
+      return ret;
+    };
+    wrapped.__lqWrapped = true;
+    window[name] = wrapped;
+    return true;
+  }
+
+  // Watch for the modal becoming visible (covers any populate path).
+  var modal = document.getElementById('add-product-modal');
+  var pollIv = null;
+  function startPolling() {
+    if (pollIv) return;
+    pollIv = setInterval(function() {
+      if (!modal || modal.offsetParent === null) { clearInterval(pollIv); pollIv = null; return; }
+      safeRecalc();
+    }, 400);
+  }
+  if (modal && 'MutationObserver' in window) {
+    new MutationObserver(function() {
+      if (modal.offsetParent !== null) {
+        // Modal just opened — recalc immediately, on next paint, and keep
+        // polling while it's open so any async/late populate is captured.
+        safeRecalc();
+        requestAnimationFrame(safeRecalc);
+        setTimeout(safeRecalc, 250);
+        setTimeout(safeRecalc, 800);
+        setTimeout(safeRecalc, 1500);
+        startPolling();
+      }
+    }).observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
+  }
+
+  // Wrap target functions as soon as they exist on window.
+  var deadline = Date.now() + 15000;
+  var iv = setInterval(function() {
+    var done = wrap('adminEditProduct') | wrap('openProductModal');
+    // Stop when both wrapped, or after 15s.
+    if ((window.adminEditProduct && window.adminEditProduct.__lqWrapped &&
+         window.openProductModal && window.openProductModal.__lqWrapped) ||
+        Date.now() > deadline) {
+      clearInterval(iv);
+    }
+  }, 250);
+})();
+</script>
 </body></html>
