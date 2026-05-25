@@ -58,8 +58,11 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
   <link rel="dns-prefetch" href="https://api.exchangerate.host">
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Inter (body) + Manrope (display) + JetBrains Mono (code/numerals) + Cairo (Arabic).
+       Manrope is what Vercel uses for headings — generous counters, modern, premium.
+       JetBrains Mono renders prices/codes with tabular figures so they don't dance. -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Cairo:wght@400;600;700&display=swap">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
   <!-- EARLY PRODUCT SCHEMA (SEO).
        For deep-link URLs (/?p=PRODUCT_ID), fetch the product JSON
        directly from Firestore REST API and inject JSON-LD Product
@@ -16452,6 +16455,154 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   }
 
   /* ═════════════════════════════════════════════════════════════════
+     #1-IN-THE-WORLD TYPOGRAPHY + VISUAL PASS
+     The pattern set used by Linear, Vercel, Stripe, Arc Browser.
+     Pure CSS additive — reversible by removing this block.
+     ─────────────────────────────────────────────────────────── */
+
+  :root {
+    --font-display: 'Manrope', 'Inter', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  }
+
+  /* DISPLAY TYPOGRAPHY — Manrope for headings, tighter tracking, optical sizing */
+  h1, h2, h3, .brand-name, .h1, .h2, .h3, .display, .hero-title,
+  .modal-title, .product-title, .section-title {
+    font-family: var(--font-display) !important;
+    font-feature-settings: 'ss01','ss02','cv11';
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numerals — tabular figures everywhere so prices don't jitter */
+  .price, [class*="price"], [data-currency-aware],
+  .product-card *, .timer-unit, .num,
+  .order-total, .cart-total, .license-key-box {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+
+  /* Code / coupon codes / license keys use JetBrains Mono */
+  code, kbd, samp, pre,
+  .license-key-box, .affiliate-link-box,
+  [style*="monospace"], [style*="font-family:monospace"] {
+    font-family: var(--font-mono) !important;
+    letter-spacing: 0.02em;
+  }
+
+  /* HERO BRAND — kinetic gradient text that shifts subtly over 8s */
+  .brand-name {
+    background: linear-gradient(
+      120deg,
+      #818cf8 0%, #c084fc 25%, #f472b6 50%, #c084fc 75%, #818cf8 100%
+    ) !important;
+    background-size: 200% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+    animation: dm-grad-shift 8s ease-in-out infinite alternate;
+    letter-spacing: -0.05em !important;
+  }
+  @keyframes dm-grad-shift {
+    from { background-position: 0% 50%; }
+    to   { background-position: 100% 50%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .brand-name { animation: none; background-position: 0 50%; }
+  }
+
+  /* SUBTLE NOISE TEXTURE — the Linear/Vercel trick. Adds film-grain depth,
+     hides JPEG banding on the mesh gradient, costs ~2 KB. */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    z-index: -1; pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+  }
+
+  /* CUSTOM SELECTION — branded text-highlight */
+  ::selection { background: color-mix(in srgb, var(--primary) 50%, transparent); color: #fff; }
+  ::-moz-selection { background: color-mix(in srgb, var(--primary) 50%, transparent); color: #fff; }
+
+  /* MORE REFINED SHADOWS — multi-layer, like Apple, that read as "depth" */
+  .product-card, .vm-card, .card, .modal-overlay > .modal {
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.06),
+      0 2px 4px rgba(0,0,0,0.08),
+      0 6px 14px rgba(0,0,0,0.10),
+      0 20px 40px -16px rgba(0,0,0,0.30) !important;
+  }
+  .product-card:hover {
+    box-shadow:
+      0 2px 2px rgba(0,0,0,0.08),
+      0 6px 16px rgba(0,0,0,0.14),
+      0 24px 48px -12px color-mix(in srgb, var(--primary) 28%, rgba(0,0,0,0.35)) !important;
+  }
+
+  /* TIGHTER HEADER on scroll — JS-driven via .dm-scrolled class */
+  header[role="banner"].dm-scrolled {
+    padding-top: 0.5rem; padding-bottom: 0.5rem;
+    border-bottom-color: color-mix(in srgb, var(--border) 100%, transparent);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.2), 0 6px 24px -12px rgba(0,0,0,0.25);
+  }
+
+  /* HERO BUTTONS — magnetic shine sweep on hover */
+  .hero-btns .btn { position: relative; overflow: hidden; }
+  .hero-btns .btn::before {
+    content: '';
+    position: absolute; top: 0; bottom: 0; left: -150%;
+    width: 150%;
+    background: linear-gradient(105deg,
+      transparent 40%,
+      rgba(255,255,255,0.18) 50%,
+      transparent 60%);
+    transition: left 0.6s var(--dm-ease);
+    pointer-events: none;
+  }
+  .hero-btns .btn:hover::before { left: 150%; }
+
+  /* SECTION HEADERS — tighter, bolder, with a colored leading accent */
+  h2 {
+    font-size: clamp(1.5rem, 3.6vw, 2.25rem) !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.028em !important;
+    line-height: 1.15 !important;
+  }
+
+  /* IMPROVED LINK STYLE — animated underline reveals */
+  a:not(.btn):not(.nav-link):not(.btn-icon):not([class*="card"]) {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    transition: background-size 0.32s var(--dm-ease);
+    text-decoration: none;
+  }
+  a:not(.btn):not(.nav-link):not(.btn-icon):not([class*="card"]):hover {
+    background-size: 100% 1px;
+  }
+
+  /* IMPROVED SCROLLBAR — thin, themed */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--primary) 60%, transparent),
+      color-mix(in srgb, var(--secondary) 60%, transparent));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--primary), var(--secondary));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::after { display: none; }
+    .hero-btns .btn::before { display: none; }
+    a:not(.btn) { background-image: none !important; text-decoration: underline; }
+  }
+
+  /* ═════════════════════════════════════════════════════════════════
      WORLD-CLASS PASS — 2026 trends, sustainable design, finalizing
      for Kashier launch. Modern patterns from Linear, Vercel, Stripe,
      Framer, Arc Browser. Pure additive CSS — zero markup edits.
@@ -16941,6 +17092,33 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     .dm-trust-item .dm-trust-sub { font-size: 0.72rem; }
   }
 </style>
+<script>
+/**
+ * Header-shrink on scroll — the Stripe/Linear pattern. Adds the
+ * .dm-scrolled class to <header> when the user has scrolled past 24px.
+ * Throttled to one update per requestAnimationFrame. Removes itself
+ * with prefers-reduced-motion via CSS, but the JS still tracks so the
+ * border/shadow change applies.
+ */
+(function dmHeaderScrollShrink() {
+  var header = document.querySelector('header[role="banner"]');
+  if (!header) {
+    document.addEventListener('DOMContentLoaded', dmHeaderScrollShrink, { once: true });
+    return;
+  }
+  var ticking = false;
+  function update() {
+    var scrolled = window.scrollY > 24;
+    header.classList.toggle('dm-scrolled', scrolled);
+    ticking = false;
+  }
+  window.addEventListener('scroll', function() {
+    if (!ticking) { requestAnimationFrame(update); ticking = true; }
+  }, { passive: true });
+  update();
+})();
+</script>
+
 <script>
 /**
  * Launch-week DOM injections — keep markup edits to zero so it's all
