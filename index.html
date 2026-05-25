@@ -3946,25 +3946,24 @@ try { emailjs.init(EMAILJS_PUBLIC_KEY); } catch(e) {}
 // EMAIL AUTOMATION
 // ═══════════════════════════════════════════════════════════════════
 function sendOrderEmail(eventType, params) {
-  // LEGACY: this used to send transactional email via EmailJS from the
-  // browser. It is now a NO-OP for events that the Cloud Function pipeline
-  // (Resend) handles — to stop the 2-3 duplicate emails buyers were
-  // receiving when both pipelines fired on the same event.
+  // FULLY DISABLED — the Cloud Function pipeline (Resend) now handles
+  // every transactional email:
+  //   • order_submitted (creation)   — buyer confirmation + admin + seller notifications
+  //   • order_approved               — download-ready email to buyer
+  //   • order_rejected               — rejection notice
+  //   • refunded                     — refund confirmation
+  //   • product_approved / rejected  — seller listing-status update
+  //   • abandoned_cart               — 24-hour reminder
+  //   • newsletter_welcome           — onNewsletterSignup
   //
-  // CF (onOrderStatusChange) now handles:
-  //   • order_submitted   — buyer confirmation + admin notification
-  //   • order_approved    — download links email
-  //   • order_rejected    — rejection notice
-  //   • refunded          — refund confirmation
-  //
-  // EmailJS is still used for non-order flows (abandoned cart fallback,
-  // newsletter welcome, etc.) — those keep working. If we later move them
-  // to CF too, we can delete this function entirely.
-  const CF_HANDLED = ['order_submitted', 'order_approved', 'order_rejected', 'admin_new_order'];
-  if (CF_HANDLED.includes(eventType)) {
-    console.log(`[sendOrderEmail] '${eventType}' is handled by Cloud Function (Resend) — client EmailJS skipped to avoid duplicate.`);
-    return Promise.resolve();
-  }
+  // The legacy EmailJS template was hardcoded with approval-language
+  // ("Your payment has been confirmed and your download is ready")
+  // regardless of which event fired it — so a 'seller_new_order' call
+  // sent the SELLER an email worded like they had purchased the product.
+  // No-op for every event type. Safe to remove this function entirely
+  // once all call sites are gone.
+  console.log(`[sendOrderEmail] '${eventType}' is now handled by Cloud Function — client call skipped.`);
+  return Promise.resolve();
   if (EMAILJS_PUBLIC_KEY === 'YOUR_EMAILJS_PUBLIC_KEY') return; // not configured yet
   const siteUrl = 'https://digitalmarketstore.shop';
   // download_link: use real product download URLs if provided, else link to Orders page
