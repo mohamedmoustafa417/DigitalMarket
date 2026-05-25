@@ -8919,14 +8919,53 @@ function _acSetExpanded(open, activeId) {
   if (activeId) inp.setAttribute('aria-activedescendant', activeId);
   else          inp.removeAttribute('aria-activedescendant');
 }
+// Scored relevance — replaces the naive substring filter. Returns the
+// top-N products ranked by how well they match `q`. Heuristic:
+//   • exact name match           → 100
+//   • name starts with q         → 80
+//   • word in name starts with q → 60
+//   • q is substring of name     → 40
+//   • category exact match       → 35
+//   • category starts with q     → 25
+//   • exact tag match            → 30
+//   • tag starts with q          → 20
+//   • tag contains q             → 10
+// Anything scoring < 15 is dropped — kills the "every product matches 'a'"
+// problem entirely. Ties broken by purchaseCount, then by name length asc.
+function _dmScoreProduct(p, q) {
+  if (!q) return 0;
+  const name = (p.name || '').toLowerCase();
+  const cat  = (p.category || '').toLowerCase();
+  const tags = (safeTags ? safeTags(p) : (Array.isArray(p.tags) ? p.tags : [])).map(t => (t||'').toLowerCase());
+  let score = 0;
+  if (name === q) score = Math.max(score, 100);
+  else if (name.startsWith(q)) score = Math.max(score, 80);
+  else if (name.split(/[\s\-_]+/).some(w => w.startsWith(q))) score = Math.max(score, 60);
+  else if (name.includes(q) && q.length >= 3) score = Math.max(score, 40);
+  if (cat === q) score = Math.max(score, 35);
+  else if (cat.startsWith(q)) score = Math.max(score, 25);
+  for (const t of tags) {
+    if (t === q) { score = Math.max(score, 30); break; }
+    if (t.startsWith(q)) score = Math.max(score, 20);
+    else if (t.includes(q) && q.length >= 3) score = Math.max(score, 10);
+  }
+  return score;
+}
+
 function showAutocomplete(query) {
   const dd = document.getElementById('autocomplete-dropdown');
   if (!dd) return;
   const q = (query || '').toLowerCase().trim();
   if (!q || q.length < 2) { hideAutocomplete(); return; }
-  const matches = allProducts.filter(p => p.status === 'approved' &&
-    ((p.name||'').toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q) || safeTags(p).some(t => t.toLowerCase().includes(q)))
-  ).slice(0, 7);
+  const matches = allProducts
+    .filter(p => p.status === 'approved')
+    .map(p => ({ p, score: _dmScoreProduct(p, q) }))
+    .filter(x => x.score >= 15)
+    .sort((a, b) => b.score - a.score
+                 || (b.p.purchaseCount || 0) - (a.p.purchaseCount || 0)
+                 || (a.p.name || '').length - (b.p.name || '').length)
+    .slice(0, 7)
+    .map(x => x.p);
   if (!matches.length) { hideAutocomplete(); return; }
   _acSelected = -1;
   dd.innerHTML = matches.map((p, i) => `
@@ -14735,13 +14774,20 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
     input.addEventListener('input', () => {
       const q = input.value.trim().toLowerCase();
       if (q.length < 2) { dropdown.classList.remove('show'); return; }
+      // Use the scored relevance helper (_dmScoreProduct) instead of naive
+      // substring matching — kills the "every product matches 'a'" problem.
+      const score = typeof _dmScoreProduct === 'function'
+        ? _dmScoreProduct
+        : (p, qq) => ((p.name || '').toLowerCase().includes(qq) ? 50 : 0);
       const matches = (window.allProducts || [])
-        .filter(p => p.status === 'approved' && (
-          (p.name || '').toLowerCase().includes(q) ||
-          (p.category || '').toLowerCase().includes(q) ||
-          (Array.isArray(p.tags) && p.tags.some(t => (t || '').toLowerCase().includes(q)))
-        ))
-        .slice(0, 6);
+        .filter(p => p.status === 'approved')
+        .map(p => ({ p, s: score(p, q) }))
+        .filter(x => x.s >= 15)
+        .sort((a, b) => b.s - a.s
+                     || (b.p.purchaseCount || 0) - (a.p.purchaseCount || 0)
+                     || (a.p.name || '').length - (b.p.name || '').length)
+        .slice(0, 6)
+        .map(x => x.p);
       render(matches);
     });
 
@@ -16800,7 +16846,10 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     letter-spacing: 0.02em;
   }
 
-  /* HERO BRAND — kinetic gradient text that shifts subtly over 8s */
+  /* HERO BRAND — kinetic gradient text that shifts subtly over 8s.
+     line-height bumped to 1.18 + padding-bottom so the 'g' descender
+     in "DigitalMarket" has room (background-clip:text only paints
+     inside the glyph bounding box, so tight line-height clips it). */
   .brand-name {
     background: linear-gradient(
       120deg,
@@ -16812,7 +16861,13 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     -webkit-text-fill-color: transparent !important;
     color: transparent !important;
     animation: dm-grad-shift 8s ease-in-out infinite alternate;
-    letter-spacing: -0.05em !important;
+    letter-spacing: -0.035em !important;
+    line-height: 1.18 !important;
+    padding-bottom: 0.08em !important;
+    overflow: visible !important;
+  }
+  .brand-content, .brand-icon-wrap, .hero-3d {
+    overflow: visible !important;  /* prevents clipping of descender */
   }
   @keyframes dm-grad-shift {
     from { background-position: 0% 50%; }
