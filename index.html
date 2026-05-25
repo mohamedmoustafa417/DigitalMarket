@@ -5335,6 +5335,11 @@ async function loadProducts(append = false) {
     const newProducts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     allProducts = append ? [...allProducts, ...newProducts] : newProducts;
+    // Keep window.allProducts in sync so the dm-autocomplete IIFE (which
+    // can't see the lexical variable) can search the full list. Without
+    // this, typing "cv" returned "No matches" because the IIFE was
+    // searching an empty array.
+    window.allProducts = allProducts;
     lastProductDoc  = snap.docs[snap.docs.length - 1] || null;
     hasMoreProducts = snap.docs.length === PAGE_SIZE;
     // Server already returns in createdAt desc order — no client sort needed
@@ -17211,12 +17216,17 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   h3, .h3 { font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; }
   p { line-height: 1.65; }
 
-  /* Hero brand title — large, bold, fluid */
+  /* Hero brand title — large, bold, fluid.
+     line-height must clear the lowercase 'g' descender — background-clip:text
+     only paints inside the glyph box, so tight line-height crops it. */
   .brand-name {
     font-size: clamp(2.5rem, 7vw, 5.5rem) !important;
     font-weight: 900 !important;
     letter-spacing: -0.045em !important;
-    line-height: 1.02 !important;
+    line-height: 1.2 !important;
+    padding-bottom: 0.1em !important;
+    overflow: visible !important;
+    display: inline-block !important;
   }
   .brand-tagline {
     font-size: clamp(0.95rem, 1.6vw, 1.15rem) !important;
