@@ -16455,6 +16455,102 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   }
 
   /* ═════════════════════════════════════════════════════════════════
+     FINAL CREATIVE LAYER — perfect aspect ratios, IO-driven reveals,
+     optimal measure, count-up animations, route progress bar.
+     Hard stop after this — additional layers would be noise.
+     ─────────────────────────────────────────────────────────── */
+
+  /* 1. ASPECT-RATIO TOKENS — apply everywhere for visual consistency */
+  :root {
+    --ar-square:  1 / 1;     /* avatars, icons */
+    --ar-card:    4 / 3;     /* product thumbs */
+    --ar-wide:    16 / 9;    /* hero / modal cover */
+    --ar-banner:  21 / 9;    /* flash sale / banner art */
+    --ar-golden:  1.618 / 1; /* big cards */
+  }
+  .ar-square  { aspect-ratio: var(--ar-square);  }
+  .ar-card    { aspect-ratio: var(--ar-card);    }
+  .ar-wide    { aspect-ratio: var(--ar-wide);    }
+  .ar-banner  { aspect-ratio: var(--ar-banner);  }
+  .ar-golden  { aspect-ratio: var(--ar-golden);  }
+
+  /* Avatars — square + cover, no stretch */
+  .avatar, [class*="-avatar"], img[class*="avatar"] {
+    aspect-ratio: 1 / 1; object-fit: cover; border-radius: 50%;
+  }
+  /* Storefront / banner imagery — 16:9 */
+  .storefront-banner img, .flash-sale-banner img, [class*="-banner"] > img:first-child {
+    aspect-ratio: 16 / 9; object-fit: cover; width: 100%;
+  }
+
+  /* 2. OPTIMAL MEASURE — 60-75ch reading width on body copy */
+  .view p, .vm-card p, .product-detail-desc, [class*="description"],
+  .modal-body p, footer p {
+    max-width: 65ch;
+  }
+
+  /* 3. INTERSECTION-OBSERVER REVEALS — works in Safari (unlike @scroll-timeline)
+        Elements opt in via [data-reveal] which the JS toggles to .dm-revealed. */
+  @media (prefers-reduced-motion: no-preference) {
+    [data-reveal] {
+      opacity: 0; transform: translateY(18px);
+      transition: opacity 0.6s var(--dm-ease), transform 0.6s var(--dm-ease);
+      transition-delay: var(--dm-reveal-delay, 0ms);
+    }
+    [data-reveal].dm-revealed {
+      opacity: 1; transform: translateY(0);
+    }
+  }
+
+  /* 4. ROUTE PROGRESS BAR — top-of-page Stripe/NProgress-style */
+  .dm-route-progress {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 2px; z-index: 99999;
+    background: linear-gradient(90deg, var(--primary), var(--secondary), var(--primary));
+    background-size: 200% 100%;
+    transform: scaleX(0); transform-origin: left;
+    transition: transform 0.32s var(--dm-ease), opacity 0.18s ease;
+    opacity: 0; pointer-events: none;
+  }
+  .dm-route-progress.dm-active {
+    opacity: 1; transform: scaleX(0.85);
+    animation: dm-prog-shift 1.2s linear infinite;
+  }
+  .dm-route-progress.dm-done {
+    opacity: 1; transform: scaleX(1);
+  }
+  @keyframes dm-prog-shift {
+    from { background-position: 0% 50%; }
+    to   { background-position: 200% 50%; }
+  }
+
+  /* 5. MAGNETIC CURSOR — primary CTAs subtly follow cursor on desktop hover */
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .btn-primary[data-magnetic] {
+      transition: transform 0.18s var(--dm-ease), box-shadow 0.18s var(--dm-ease), filter 0.18s var(--dm-ease) !important;
+    }
+  }
+
+  /* 6. COUNT-UP — visual hook for stats that the JS animates */
+  .dm-count { font-variant-numeric: tabular-nums; }
+
+  /* 7. PULL-QUOTE / DROP-CAP polish for long-form content (terms/privacy/help pages) */
+  .view-help .view-terms .view-privacy p:first-of-type:first-letter {
+    font-family: var(--font-display);
+    font-size: 3.2em;
+    line-height: 0.9;
+    float: left;
+    margin: 0.05em 0.12em 0 0;
+    color: var(--primary);
+    font-weight: 800;
+  }
+
+  /* 8. SECTION RHYTHM perfected — last visual breath */
+  section, .view > div, .view > section {
+    scroll-margin-top: 96px;  /* anchor jumps don't tuck under header */
+  }
+
+  /* ═════════════════════════════════════════════════════════════════
      MOBILE POLISH + ANIMATION LAYER
      Goal: clean and tidy on every phone, premium motion vocabulary
      throughout. Mobile-first, ≤480 / ≤640 / ≤768 breakpoints.
@@ -17307,6 +17403,154 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     .dm-trust-item .dm-trust-sub { font-size: 0.72rem; }
   }
 </style>
+<script>
+/**
+ * Final creative layer JS — IntersectionObserver reveals, route
+ * progress bar, count-up numbers, magnetic CTA cursor follow.
+ *
+ * All motion respects prefers-reduced-motion. All observers are torn
+ * down once an element has revealed (single-shot). Cheap enough to
+ * run on the slowest phones — no rAF loops, no scroll listeners.
+ */
+(function dmCreativeLayer() {
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── A. SECTION REVEALS — Safari-compatible scroll-driven ─────── */
+  function setupReveals() {
+    if (reduced || !('IntersectionObserver' in window)) {
+      // Reveal immediately if user disabled motion or browser is ancient.
+      document.querySelectorAll('[data-reveal]').forEach(function(el) {
+        el.classList.add('dm-revealed');
+      });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries) {
+      entries.forEach(function(ent) {
+        if (ent.isIntersecting) {
+          ent.target.classList.add('dm-revealed');
+          io.unobserve(ent.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+
+    // Tag the right elements once
+    var selectors = [
+      '.product-card', '.vm-card', '.dm-trust-strip',
+      'h2', '.card', '#products-section > *', 'footer > *'
+    ].join(',');
+    document.querySelectorAll(selectors).forEach(function(el, i) {
+      if (el.hasAttribute('data-reveal')) return;
+      el.setAttribute('data-reveal', '');
+      el.style.setProperty('--dm-reveal-delay', (i % 6) * 40 + 'ms');
+      io.observe(el);
+    });
+  }
+
+  /* ── B. ROUTE PROGRESS BAR — Stripe-style top loader ──────────── */
+  var progressEl;
+  function getProgress() {
+    if (progressEl) return progressEl;
+    progressEl = document.createElement('div');
+    progressEl.className = 'dm-route-progress';
+    document.body.appendChild(progressEl);
+    return progressEl;
+  }
+  function startProgress() {
+    var p = getProgress();
+    p.classList.remove('dm-done');
+    p.offsetWidth;        // force reflow
+    p.classList.add('dm-active');
+  }
+  function endProgress() {
+    var p = getProgress();
+    p.classList.remove('dm-active');
+    p.classList.add('dm-done');
+    setTimeout(function() { p.classList.remove('dm-done'); }, 360);
+  }
+  // Wrap navigate() so every route-change shows the bar
+  function wrapNavigateForProgress() {
+    if (typeof window.navigate !== 'function' || window.navigate.__dmProgWrapped) return;
+    var orig = window.navigate;
+    window.navigate = function() {
+      startProgress();
+      try {
+        var r = orig.apply(this, arguments);
+        if (r && typeof r.then === 'function') {
+          r.finally(function() { setTimeout(endProgress, 280); });
+        } else {
+          setTimeout(endProgress, 280);
+        }
+        return r;
+      } catch (e) { endProgress(); throw e; }
+    };
+    window.navigate.__dmProgWrapped = true;
+  }
+  // Bar also during initial page load
+  if (document.readyState === 'loading') {
+    startProgress();
+    window.addEventListener('load', function() { setTimeout(endProgress, 200); });
+  }
+
+  /* ── C. COUNT-UP — animate numbers inside [data-count] as they enter ── */
+  function setupCountUp() {
+    if (reduced || !('IntersectionObserver' in window)) return;
+    var io2 = new IntersectionObserver(function(entries) {
+      entries.forEach(function(ent) {
+        if (!ent.isIntersecting) return;
+        var el = ent.target;
+        var target = parseFloat(el.dataset.count || el.textContent || 0);
+        var dur = 900;
+        var t0 = performance.now();
+        var fmt = el.dataset.countFmt || '';   // '%', '+', etc.
+        function tick(now) {
+          var p = Math.min(1, (now - t0) / dur);
+          var eased = 1 - Math.pow(1 - p, 3);  // easeOutCubic
+          el.textContent = Math.round(target * eased).toLocaleString() + fmt;
+          if (p < 1) requestAnimationFrame(tick);
+          else el.classList.add('dm-counted');
+        }
+        requestAnimationFrame(tick);
+        io2.unobserve(el);
+      });
+    }, { threshold: 0.4 });
+    document.querySelectorAll('[data-count]:not(.dm-counted)').forEach(function(el) {
+      io2.observe(el);
+    });
+  }
+
+  /* ── D. MAGNETIC CURSOR — primary CTAs subtly pull toward mouse ── */
+  function setupMagnetic() {
+    if (reduced || !window.matchMedia('(hover: hover)').matches) return;
+    document.querySelectorAll('.btn-primary, .btn.btn-lg').forEach(function(btn) {
+      if (btn.dataset.magnetic) return;
+      btn.dataset.magnetic = '1';
+      btn.addEventListener('mousemove', function(e) {
+        var r = btn.getBoundingClientRect();
+        var x = e.clientX - r.left - r.width  / 2;
+        var y = e.clientY - r.top  - r.height / 2;
+        // Pull strength capped at 6px so it never feels jittery
+        btn.style.transform = 'translate(' + (x * 0.18).toFixed(1) + 'px, ' + (y * 0.18).toFixed(1) + 'px)';
+      });
+      btn.addEventListener('mouseleave', function() {
+        btn.style.transform = '';
+      });
+    });
+  }
+
+  function tickAll() {
+    setupReveals();
+    wrapNavigateForProgress();
+    setupCountUp();
+    setupMagnetic();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tickAll);
+  } else { tickAll(); }
+  // Re-scan periodically — new cards/links keep being injected
+  setInterval(tickAll, 2000);
+})();
+</script>
+
 <script>
 /**
  * Interaction-feedback animation hooks.
