@@ -352,6 +352,45 @@ exports.onOrderStatusChange = onDocumentWritten(
       } catch (e) {
         console.warn(`[onOrderStatusChange:created] admin email failed for ${orderId}:`, e.message);
       }
+
+      // Seller notifications — one email per unique seller whose product
+      // is in this order. Skips items with sellerId='admin' (the admin
+      // already got their notification above). Replaces the legacy SPA-
+      // side EmailJS seller_new_order call, which used a template that
+      // confusingly said "Your payment has been confirmed and your
+      // download is ready" — wrong recipient + wrong wording.
+      try {
+        const sellerIds = [...new Set(
+          (after.items || []).map(i => i.sellerId).filter(s => s && s !== 'admin')
+        )];
+        for (const sid of sellerIds) {
+          try {
+            const sellerSnap = await db.collection('users').doc(sid).get();
+            if (!sellerSnap.exists) continue;
+            const sd = sellerSnap.data();
+            if (!sd.email) continue;
+            const sellerItems = (after.items || []).filter(i => i.sellerId === sid);
+            const sellerTotal = sellerItems.reduce((s, i) => s + Number(i.price || 0), 0);
+            await sendEmail({
+              to: sd.email,
+              subject: `[Seller] New order EGP ${sellerTotal} — ${sellerItems.map(i => i.name).join(', ').slice(0, 60)}`,
+              body: `<p>Hi ${sd.shopName || sd.name || 'there'},</p>
+                     <p>Good news — a buyer just placed an order that includes one of your products. We will process the payment and once approved you'll see the sale in your seller dashboard.</p>
+                     <p><strong>Items:</strong> ${sellerItems.map(i => i.name).join(', ')}<br>
+                        <strong>Your earnings (this order):</strong> EGP ${sellerTotal}<br>
+                        <strong>Buyer:</strong> ${buyerName}<br>
+                        <strong>Order ID:</strong> #${orderShort}</p>
+                     <p><a href="https://digitalmarketstore.shop/#seller">Open seller dashboard →</a></p>
+                     <p>— The DigitalMarket Team</p>`
+            });
+          } catch (e) {
+            console.warn(`[onOrderStatusChange:created] seller email failed for ${sid}:`, e.message);
+          }
+        }
+      } catch (e) {
+        console.warn(`[onOrderStatusChange:created] seller-loop failed for ${orderId}:`, e.message);
+      }
+
       return; // creation flow done — don't fall through to status-change logic
     }
 
