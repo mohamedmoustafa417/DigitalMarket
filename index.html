@@ -16313,17 +16313,35 @@ console.log('[DigitalMarket] Launch prep pack loaded ✅ (GA4 conversions, PWA i
 // ONBOARDING TOUR — first-time visitor spotlight (4 steps)
 // ═════════════════════════════════════════════════════════════════════
 (function onboardingTour() {
-  // Skip if user has seen it OR signed in (returning user)
+  // Tour auto-start DISABLED: the spotlight mask with smooth-scroll
+  // positioning had a race-condition that could lock the page on slow
+  // devices — clicking "Next" appeared to do nothing. Auto-marking the
+  // tour as done so no first-time visitor gets trapped. The tour code
+  // still exists below; expose via window.dmStartTour() to trigger
+  // manually if/when we want to bring it back behind a "Take the tour"
+  // CTA.
+  try { localStorage.setItem('dm_tour_done', '1'); } catch (_) {}
+  // Auto-dismiss any in-progress tour from a stale tab
+  setTimeout(function() {
+    var t = document.getElementById('dm-tour');
+    if (t) t.remove();
+  }, 100);
+  // Expose for manual trigger (returns nothing if signed in / no products)
+  window.dmStartTour = function() {
+    if (document.getElementById('dm-tour')) return;
+    if (!window.allProducts?.length) return;
+    startTour();
+  };
+  if (false) { /* legacy auto-start, kept for reference */
   if (localStorage.getItem('dm_tour_done') === '1') return;
-  // BUGFIX: was using arguments.callee which throws in strict mode (Sentry-caught).
-  // Use a named function so we can self-reference safely.
   function maybeStart() {
-    if (curUser) return; // existing user — don't bother
+    if (curUser) return;
     if (document.getElementById('dm-tour')) return;
     if (!window.allProducts?.length) { setTimeout(maybeStart, 1500); return; }
     startTour();
   }
   document.addEventListener('DOMContentLoaded', () => setTimeout(maybeStart, 4000));
+  }
 
   const STEPS = [
     { target: '.product-card',
