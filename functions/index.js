@@ -1657,8 +1657,11 @@ exports.notifyIndexNow = onDocumentWritten(
 // One-time setup (run from Cloud Shell or local with gcloud auth):
 //   gcloud storage buckets create gs://digitalmarket-38db5-backups \
 //     --location=us-central1 --uniform-bucket-level-access
+//   # IMPORTANT: gen-2 functions run as the COMPUTE default SA, NOT the
+//   # App Engine default SA. Grant the export role to the compute SA or
+//   # the call fails with `7 PERMISSION_DENIED`.
 //   gcloud projects add-iam-policy-binding digitalmarket-38db5 \
-//     --member="serviceAccount:digitalmarket-38db5@appspot.gserviceaccount.com" \
+//     --member="serviceAccount:825210967355-compute@developer.gserviceaccount.com" \
 //     --role="roles/datastore.importExportAdmin"
 //   gsutil lifecycle set <(echo '{"rule":[{"action":{"type":"Delete"},
 //     "condition":{"age":30}}]}') gs://digitalmarket-38db5-backups
