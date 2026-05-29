@@ -582,6 +582,17 @@
       .dashboard-grid > * { min-width: 0; }
     }
     .sidebar { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; height: fit-content; position: sticky; top: 80px; }
+    /* CRITICAL: in the single-column layout the sidebar must NOT be sticky.
+       A sticky sidebar (650px tall, top:80px) stays pinned while the page
+       scrolls, so the next DOM sibling (the revenue/content card, which has
+       a solid background) is painted OVER the sidebar's lower menu rows
+       (Stats / Email Failures / Review Moderation). Static restores normal
+       document flow: sidebar on top, content below, no overlap.
+       NOTE: this MUST come *after* the base .sidebar rule above — same
+       specificity, so source order decides the winner at ≤768px. */
+    @media(max-width: 768px) {
+      .sidebar { position: static; top: auto; }
+    }
     .sidebar-link { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; border-radius: 8px; color: var(--text-muted); cursor: pointer; transition: all var(--transition); font-size: 0.875rem; }
     .sidebar-link:hover { background: var(--bg3); color: var(--text); }
     .sidebar-link.active { background: rgba(99,102,241,0.15); color: var(--primary); font-weight: 600; }
