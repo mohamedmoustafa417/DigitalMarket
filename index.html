@@ -15635,7 +15635,7 @@ console.log('[DigitalMarket] UX Enhancement Pack loaded ✅ (focus rings, micro-
         <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 1rem;"></div>
         <h4 style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.85rem;">Settings</h4>
         <div style="display:grid;gap:0.5rem;">
-          <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="toggleCurrency();document.getElementById('dm-header-sheet').remove();">
+          <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="document.getElementById('dm-header-sheet').remove();dmOpenCurrencySheet();">
             ${flag} Currency · <span style="margin-left:auto;color:var(--text-muted);">${cur}</span>
           </button>
           <button class="btn btn-outline" style="justify-content:flex-start;font-size:0.9rem;" onclick="(typeof toggleTheme==='function'?toggleTheme:toggleDark)();document.getElementById('dm-header-sheet').remove();">
@@ -15653,6 +15653,56 @@ console.log('[DigitalMarket] UX Enhancement Pack loaded ✅ (focus rings, micro-
     el.addEventListener('click', e => { if (e.target === el) el.remove(); });
     document.body.appendChild(el);
   }
+
+  // Dedicated mobile currency picker — a bottom sheet that lists every
+  // currency and calls setCurrency() DIRECTLY. This replaces the broken
+  // path where the More-sheet's Currency button called toggleCurrency(),
+  // which opens a dropdown anchored to #currency-btn — but that button is
+  // display:none on mobile (header compaction), so the dropdown had no
+  // anchor and nothing usable ever appeared. Exposed on window so the
+  // inline onclick in the More sheet can reach it.
+  function openCurrencySheet() {
+    document.getElementById('dm-header-sheet')?.remove();
+    document.getElementById('dm-currency-sheet')?.remove();
+    if (typeof DM_CURRENCIES !== 'object') return;
+    var cur = (typeof getCurrentCurrency === 'function') ? getCurrentCurrency() : 'EGP';
+    var opts = Object.keys(DM_CURRENCIES).map(function(code){
+      var c = DM_CURRENCIES[code];
+      var sel = code === cur;
+      return '<button type="button" class="btn btn-outline" data-code="' + code + '" '
+           + 'style="justify-content:flex-start;font-size:0.95rem;padding:0.7rem 0.85rem;'
+           + (sel ? 'border-color:var(--primary);color:var(--primary);font-weight:600;' : '') + '">'
+           + '<span style="margin-right:0.6rem;">' + c.flag + '</span>' + code
+           + '<span style="margin-left:0.5rem;color:var(--text-muted);">' + c.symbol + '</span>'
+           + (sel ? '<span style="margin-left:auto;">✓</span>' : '')
+           + '</button>';
+    }).join('');
+    var el = document.createElement('div');
+    el.id = 'dm-currency-sheet';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Select currency');
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;animation:dm-fadein 0.18s ease;';
+    el.innerHTML =
+      '<div style="width:100%;background:var(--bg2);border-radius:16px 16px 0 0;padding:1rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom,0px));max-height:75vh;overflow-y:auto;box-shadow:0 -12px 30px rgba(0,0,0,0.45);animation:dm-sheetin 0.28s var(--ease-out);">'
+      + '<div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 1rem;"></div>'
+      + '<h4 style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.85rem;">Select currency</h4>'
+      + '<div style="display:grid;gap:0.5rem;">' + opts + '</div>'
+      + '<button type="button" class="btn" data-close="1" style="width:100%;margin-top:1rem;background:var(--bg3);border:1px solid var(--border);color:var(--text-muted);font-size:0.85rem;padding:0.55rem;">Close</button>'
+      + '</div>';
+    el.addEventListener('click', function(e){
+      if (e.target === el || (e.target.getAttribute && e.target.getAttribute('data-close') === '1')) { el.remove(); return; }
+      var b = e.target.closest('[data-code]');
+      if (b) {
+        var code = b.getAttribute('data-code');
+        if (code && typeof setCurrency === 'function') {
+          try { setCurrency(code); } catch (err) { console.warn('[currency] setCurrency failed:', err); }
+        }
+        el.remove();
+      }
+    });
+    document.body.appendChild(el);
+  }
+  window.dmOpenCurrencySheet = openCurrencySheet;
 })();
 
 // ─── Show recently-viewed strip on home (commit's existing RV_KEY data) ─
