@@ -18131,4 +18131,92 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   }, 250);
 })();
 </script>
+
+<!-- ════════════════════════════════════════════════════════════════
+     MOBILE FUNCTIONALITY FIX (2026-05-29)
+     The stacked "premium" visual layers — content-visibility:auto, dual
+     scroll-reveal systems (CSS scroll-timeline + JS IntersectionObserver),
+     opacity:0 lazy-images + [data-reveal], and heavy backdrop-filter —
+     individually fine but together broke layout, dead-tapped buttons, and
+     froze scrolling on phones. This block GUARANTEES correctness on touch
+     devices instead of adding more motion. MUST stay last so it wins the
+     cascade. See CLAUDE.md "death by layers" note.
+     ════════════════════════════════════════════════════════════════ -->
+<style id="dm-mobile-fix">
+  /* 1. Touch devices: never hide content behind reveal/lazy animations. */
+  @media (hover: none), (pointer: coarse) {
+    [data-reveal],
+    [data-reveal].dm-revealed,
+    .product-card, .vm-card, .dm-trust-strip, .card,
+    #products-section > *, footer > * {
+      opacity: 1 !important;
+      transform: none !important;
+      animation: none !important;          /* kill CSS scroll-timeline reveal */
+      animation-timeline: auto !important;
+    }
+    img[loading="lazy"] { opacity: 1 !important; }  /* no iOS cached-image trap */
+  }
+
+  /* 2. content-visibility:auto causes blank gaps + scroll jumps on mobile. */
+  @media (max-width: 768px) {
+    .products-grid, #products-section, .vm-cards, footer {
+      content-visibility: visible !important;
+      contain-intrinsic-size: auto !important;
+    }
+  }
+
+  /* 3. backdrop-filter blur is the freeze/jank source on mobile GPUs —
+        swap for a solid translucent surface on phones. */
+  @media (max-width: 768px) {
+    .vm-card, .modal-overlay, .dm-confirm-backdrop,
+    .fomo-badge, .card-countdown, header[role="banner"] {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    .modal-overlay, .dm-confirm-backdrop { background: rgba(0,0,0,0.8) !important; }
+  }
+</style>
+<script>
+/* MOBILE FUNCTIONALITY FIX — JS safety net. Guarantees reveal/lazy content
+   is never left hidden, regardless of observer timing or dynamic re-renders
+   (search/filter/paginate/navigate). Idempotent and cheap (only touches
+   not-yet-revealed nodes). */
+(function dmMobileVisibilityGuard() {
+  function revealAll() {
+    try {
+      document.querySelectorAll('[data-reveal]:not(.dm-revealed)')
+        .forEach(function(el){ el.classList.add('dm-revealed'); });
+      document.querySelectorAll('img[loading="lazy"]:not(.dm-loaded)')
+        .forEach(function(img){ img.classList.add('dm-loaded'); });
+    } catch (e) {}
+  }
+  if (document.readyState === 'complete') revealAll();
+  else window.addEventListener('load', revealAll);
+  setTimeout(revealAll, 1200);
+  setTimeout(revealAll, 3000);
+
+  // Re-reveal after every SPA navigation (preserves the patch chain).
+  if (typeof window.navigate === 'function' && !window.navigate.__dmVisGuard) {
+    var orig = window.navigate;
+    window.navigate = function() {
+      var r = orig.apply(this, arguments);
+      if (r && typeof r.then === 'function') r.finally(function(){ setTimeout(revealAll, 60); });
+      else setTimeout(revealAll, 60);
+      return r;
+    };
+    window.navigate.__dmVisGuard = true;
+  }
+
+  // Catch dynamically-rendered cards/sections.
+  if ('MutationObserver' in window) {
+    try {
+      new MutationObserver(function(muts){
+        for (var i = 0; i < muts.length; i++) {
+          if (muts[i].addedNodes && muts[i].addedNodes.length) { revealAll(); break; }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    } catch (e) {}
+  }
+})();
+</script>
 </body></html>
