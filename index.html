@@ -6346,6 +6346,28 @@ async function viewProof(orderId) {
 // ═══════════════════════════════════════════════════════════════════
 // SELLER DASHBOARD
 // ═══════════════════════════════════════════════════════════════════
+
+// On mobile the dashboard is single-column: the sidebar menu (~650px tall)
+// stacks ABOVE the content column. So tapping a tab swaps content that's
+// far below the fold — the user taps and "nothing happens". This scrolls
+// the freshly-shown panel up under the sticky header so the selected tab's
+// content is immediately visible. No-op on desktop (two-column layout).
+function dmRevealDashPanel(panelId) {
+  try {
+    if (!window.matchMedia || !window.matchMedia('(max-width: 768px)').matches) return;
+    var el = document.getElementById(panelId);
+    if (!el) return;
+    // Reading getBoundingClientRect() right after the .hidden toggle forces a
+    // synchronous layout, so the rect is already correct — no need to defer
+    // via requestAnimationFrame (which is *paused* in backgrounded tabs and
+    // would silently never fire). Direct call is robust everywhere.
+    var header = document.querySelector('header');
+    var headerH = (header && header.offsetHeight) ? header.offsetHeight : 72;
+    var y = el.getBoundingClientRect().top + window.pageYOffset - headerH - 8;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  } catch (e) { /* scrolling is best-effort; never block tab switching */ }
+}
+
 function sellerTab(tab) {
   ['products','orders','settings','affiliate','updates','stats'].forEach(t => {
     document.getElementById(`seller-tab-${t}`)?.classList.toggle('hidden', t !== tab);
@@ -6369,6 +6391,7 @@ function sellerTab(tab) {
   }
   if (tab === 'settings') loadSellerSettings();
   if (tab === 'stats')    loadSellerStats();
+  dmRevealDashPanel('seller-tab-' + tab);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -6910,6 +6933,7 @@ function adminTab(tab) {
     if (tab === 'emails')        loadEmailFailures();
     if (tab === 'reviews')       loadAdminReviews();
   }
+  dmRevealDashPanel('admin-tab-' + tab);
 }
 
 // ═══════════════════════════════════════════════════════════════════
