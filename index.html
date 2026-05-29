@@ -15721,7 +15721,10 @@ console.log('[DigitalMarket] UX Enhancement Pack loaded ✅ (focus rings, micro-
       localStorage.setItem('dm_cookie_consent', 'declined');
       banner.style.display = 'none';
     };
-    banner.style.position = 'relative';
+    // NOTE: do NOT set position:relative here — the banner is position:fixed
+    // (a containing block for the absolute × button already). Forcing relative
+    // overrode fixed and broke the mobile floating-card left/right:8px layout,
+    // shoving the full-width banner 8px sideways → horizontal overflow.
     banner.appendChild(x);
   }, 1500));
 })();
@@ -16814,8 +16817,14 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     user-select: none;
   }
 
-  /* B13. Mobile-only horizontal-overflow safety belt */
-  html, body { overflow-x: hidden; max-width: 100vw; }
+  /* B13. Horizontal-overflow safety belt — iOS-zoom-SAFE.
+     NEVER put overflow-x:hidden or max-width:100vw on <html>: on iOS Safari
+     that locks pinch-zoom AND 100vw is wider than the visual viewport (it
+     ignores the scrollbar / safe-area), which forces a sideways shift.
+     `overflow-x: clip` on <body> contains stray overflow without creating a
+     scroll container, so zoom keeps working. */
+  html { overflow-x: clip; }
+  body { overflow-x: clip; max-width: 100%; }
   img, video, iframe { max-width: 100%; }
 
   /* B14. Form inputs — prevent iOS zoom-on-focus (16px min) */
