@@ -1655,8 +1655,13 @@ exports.notifyIndexNow = onDocumentWritten(
 // then your alert.
 //
 // One-time setup (run from Cloud Shell or local with gcloud auth):
+//   # CRITICAL: the bucket MUST be in the SAME location as the Firestore
+//   # database. This project's DB is the EU multi-region (eur3), so the
+//   # bucket must be europe-west1 (or the `eu` multi-region). A us-* bucket
+//   # fails with `3 INVALID_ARGUMENT: ... can only operate on buckets
+//   # spanning location eu...`.
 //   gcloud storage buckets create gs://digitalmarket-38db5-backups \
-//     --location=us-central1 --uniform-bucket-level-access
+//     --location=europe-west1 --uniform-bucket-level-access
 //   # IMPORTANT: gen-2 functions run as the COMPUTE default SA, NOT the
 //   # App Engine default SA. Grant the export role to the compute SA or
 //   # the call fails with `7 PERMISSION_DENIED`.
