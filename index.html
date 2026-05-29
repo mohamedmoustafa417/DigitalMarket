@@ -5663,10 +5663,13 @@ function openProductDetail(id) {
   injectProductJsonLd(p);
   injectBreadcrumbJsonLd(p);
   updateOGMeta(p.name, p.description || '', p.imageUrl || '');
-  // Deep-link URL
+  // Deep-link URL — preserve the CURRENT history.state (the view we opened the
+  // product from) instead of nulling it. This runs before the product history
+  // entry is pushed, so nulling here would wipe the "behind" view's dmView and
+  // make Back from a product default to home instead of returning to it.
   const deepUrl = new URL(window.location.href);
   deepUrl.searchParams.set('p', id);
-  history.replaceState(null, '', deepUrl.toString());
+  history.replaceState(history.state, '', deepUrl.toString());
   openModal('product-modal');
   loadAndRenderReviews(id);
   loadAndRenderQA(id);
@@ -7874,8 +7877,10 @@ function updateOGMeta(title, description, imageUrl) {
   set('og:description', description);
   if (imageUrl) set('og:image', imageUrl);
   document.title = base + title;
-  // Update canonical URL with hash
-  window.history.replaceState(null,'', `#product/${currentProductId}`);
+  // Update canonical URL with hash — preserve current history.state (see the
+  // note in openProductDetail's deep-link block) so the "behind" view isn't
+  // wiped before the product entry is pushed.
+  window.history.replaceState(history.state,'', `#product/${currentProductId}`);
 }
 
 function resetOGMeta() {
@@ -7906,7 +7911,10 @@ function handleHashRoute() {
   if (sectionMap[hash]) navigate(sectionMap[hash]);
 }
 
-window.addEventListener('hashchange', handleHashRoute);
+// NOTE: the 'hashchange' listener was removed — back/forward is now owned by
+// the unified dmHistoryRouter (popstate) at the end of this script, which would
+// otherwise double-fire against this handler. The load-time call is kept so
+// EXTERNAL deep links (#product/id, #orders, …) still resolve on first paint.
 window.addEventListener('load', () => setTimeout(handleHashRoute, 800));
 
 // ═══════════════════════════════════════════════════════════════════
@@ -9458,7 +9466,8 @@ function handleStorefrontRoute() {
   };
   tryFilter();
 }
-window.addEventListener('hashchange', handleStorefrontRoute);
+// 'hashchange' listener removed — see note on handleHashRoute. The immediate
+// call below still resolves an external #seller/<shop> deep link on load.
 handleStorefrontRoute();
 
 // ═══════════════════════════════════════════════════════════════════
@@ -12847,7 +12856,10 @@ function slugify(text) {
       origClose.apply(this, arguments);
       if (modalId === 'product-modal') {
         document.title = 'DigitalMarket – Digital Marketplace';
-        try { history.replaceState({}, document.title, location.pathname === '/' ? '/' : location.pathname); } catch {}
+        // Clean the ?p= URL but PRESERVE the current history.state so the
+        // dmHistoryRouter's view memory (dmView) on the entry we landed on
+        // isn't wiped to {} (which would make a later Back default to home).
+        try { history.replaceState(history.state || {}, document.title, location.pathname === '/' ? '/' : location.pathname); } catch {}
       }
     };
   }
@@ -18319,6 +18331,182 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
       }).observe(document.body, { childList: true, subtree: true });
     } catch (e) {}
   }
+})();
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SPA HISTORY ROUTER — keep the browser Back button INSIDE the app.
+
+   Root cause of "Back goes to the search engine, not the website": navigate(),
+   openProductDetail() and openModal() only ever called history.replaceState(),
+   so moving between sections created ZERO history entries. The browser's back
+   stack stayed [referrer, site] — so one Back left the site entirely.
+
+   Fix: pushState() one entry per in-app move (state object only; the URL is
+   left untouched so existing deep-link URLs and SEO are unaffected), and own a
+   single popstate handler that restores the right view / product / modal on
+   Back/Forward. The old hashchange listeners were removed (their load-time
+   calls remain) so they can't double-fire against this handler.
+
+   LOCK guards every wrapper: while WE drive navigation (popstate restore or an
+   internal redirect) we must NEVER push, or the stack would corrupt.
+   ───────────────────────────────────────────────────────────────────────── */
+(function dmHistoryRouter(){
+  if (window.__dmHistoryRouter) return;
+  window.__dmHistoryRouter = true;
+
+  var LOCK = false;
+
+  function activeView(){
+    var el = document.querySelector('.view.active');
+    return el ? el.id.replace('view-','') : 'home';
+  }
+  function isShow(id){
+    var m = document.getElementById(id);
+    return !!(m && m.classList.contains('show'));
+  }
+  function openModals(){
+    return Array.prototype.slice.call(
+      document.querySelectorAll('.modal-overlay.show, .modal.show')
+    );
+  }
+  function S(){ return history.state || {}; }
+
+  // ── view changes: detected via MutationObserver, NOT by wrapping navigate.
+  //    navigate() runs the view swap asynchronously through
+  //    document.startViewTransition(), so a synchronous before/after check
+  //    inside a wrapper always sees "no change" and never pushes. Observing
+  //    the .active class flip catches the REAL settled view — and naturally
+  //    handles gating redirects (only the final view fires) too. ──
+  function pushViewIfChanged(){
+    if (LOCK) return;
+    // A modal/product entry sits "above" the view; don't overwrite it just
+    // because the view underneath is unchanged.
+    if (openModals().length) return;
+    var v = activeView();
+    var s = S();
+    if (s.dmModal || s.dmProduct) return; // top entry is a modal; leave it
+    if (s.dmView !== v){
+      history.pushState({ dmView: v }, '');
+    }
+  }
+  (function observeViews(){
+    try {
+      var obs = new MutationObserver(function(){ pushViewIfChanged(); });
+      var attach = function(){
+        document.querySelectorAll('.view').forEach(function(el){
+          obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+        });
+      };
+      attach();
+      // Re-attach for any views added after first paint.
+      if (document.readyState !== 'complete'){
+        window.addEventListener('load', attach);
+      }
+      setTimeout(attach, 1500);
+    } catch(_){}
+  })();
+
+  // ── openProductDetail(): push a product entry (it opens product-modal) ──
+  (function wrapProduct(){
+    var orig = window.openProductDetail;
+    if (typeof orig !== 'function') return;
+    window.openProductDetail = function(id){
+      var behind = activeView();
+      var r = orig.apply(this, arguments);
+      try {
+        if (!LOCK && id != null && S().dmProduct !== String(id)){
+          history.pushState({ dmProduct: String(id), behind: behind }, '');
+        }
+      } catch(_){}
+      return r;
+    };
+  })();
+
+  // ── openModal(): push a modal entry (product-modal handled above) ──
+  (function wrapOpenModal(){
+    var orig = window.openModal;
+    if (typeof orig !== 'function') return;
+    window.openModal = function(id){
+      var behind = activeView();
+      var r = orig.apply(this, arguments);
+      try {
+        if (!LOCK && id && id !== 'product-modal' && S().dmModal !== id){
+          history.pushState({ dmModal: id, behind: behind }, '');
+        }
+      } catch(_){}
+      return r;
+    };
+  })();
+
+  // ── closeModal(): a USER close pops the matching entry so Back/stack stay
+  //    in sync. When WE are restoring (LOCK) just close normally. ──
+  (function wrapCloseModal(){
+    var orig = window.closeModal;
+    if (typeof orig !== 'function') return;
+    window.closeModal = function(id){
+      if (LOCK) return orig.apply(this, arguments);
+      var s = S();
+      var isTop = (s.dmModal === id) || (id === 'product-modal' && !!s.dmProduct);
+      if (isTop){
+        // history.back() → popstate runs the real close (orig) under LOCK,
+        // keeping the back stack consistent.
+        history.back();
+        return;
+      }
+      return orig.apply(this, arguments);
+    };
+  })();
+
+  // ── single source of truth for Back / Forward ──
+  window.addEventListener('popstate', function(e){
+    var s = e.state || {};
+    // The SEO patch stores the product entry as {productId}; treat it as a
+    // product entry too so Forward-into-a-product reopens it.
+    var prod = s.dmProduct || s.productId;
+    LOCK = true;
+    try {
+      // 1) close any modal that should NOT be open in the target state
+      openModals().forEach(function(m){
+        var keep = (s.dmModal === m.id) || (prod && m.id === 'product-modal');
+        if (!keep){ try { window.closeModal(m.id); } catch(_){} }
+      });
+      // 2) realise the target state
+      if (prod){
+        if (s.behind) window.navigate(s.behind);
+        if (!isShow('product-modal') && typeof window.openProductDetail === 'function'){
+          window.openProductDetail(prod);
+        }
+      } else if (s.dmModal){
+        if (s.behind) window.navigate(s.behind);
+        if (!isShow(s.dmModal) && typeof window.openModal === 'function'){
+          window.openModal(s.dmModal);
+        }
+      } else if (s.dmView){
+        window.navigate(s.dmView);
+      } else {
+        // Bottom entry (landed from an external referrer) → home, stay in app.
+        window.navigate('home');
+      }
+    } finally {
+      LOCK = false;
+    }
+  });
+
+  // ── seed the bottom entry so the FIRST Back lands in-app, not on the
+  //    referrer, and so an external product deep link restores correctly ──
+  function seed(){
+    var s = S();
+    if (s.dmView || s.dmProduct || s.dmModal) return;
+    var pid = null;
+    try { pid = new URLSearchParams(location.search).get('p'); } catch(_){}
+    if (pid && isShow('product-modal')){
+      history.replaceState({ dmProduct: String(pid), behind: 'home' }, '');
+    } else {
+      history.replaceState({ dmView: activeView() }, '');
+    }
+  }
+  if (document.readyState === 'complete') setTimeout(seed, 1000);
+  else window.addEventListener('load', function(){ setTimeout(seed, 1000); });
 })();
 </script>
 </body></html>
