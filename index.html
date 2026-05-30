@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v61';
+    window.DM_RELEASE_TAG = 'digitalmarket@v94';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -194,7 +194,7 @@
                 const NOISE = [
                   /ResizeObserver loop/i,             // benign layout signal
                   /Non-Error promise rejection captured/i,
-                  /Transition was aborted/i,          // CSS view-transition / Web Animations interrupt
+                  /Transition was (aborted|skipped)/i,// CSS view-transition / Web Animations interrupt (skipped = a newer nav interrupted an in-flight transition)
                   /InvalidStateError.*invalid state/i,// general DOMException 11 noise
                   /AbortError|aborted a request/i,    // fetch + AbortController normal cancel
                   /Failed to fetch.*\bfont\b/i,       // font CDN occasional 4xx — non-blocking
@@ -15635,7 +15635,21 @@ function dmConfetti() {
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
     };
     if (document.startViewTransition && currentView !== view) {
-      try { return document.startViewTransition(doNav); }
+      try {
+        const vt = document.startViewTransition(doNav);
+        // When a navigation interrupts an in-flight transition the browser
+        // SKIPS the old one and rejects its promises with
+        // "AbortError: Transition was skipped". That's expected and harmless
+        // (the new view still renders via doNav), but the rejection would
+        // otherwise bubble up as an unhandled rejection and spam Sentry.
+        // Swallow the three transition promises so they never surface.
+        if (vt) {
+          vt.ready && vt.ready.catch(() => {});
+          vt.finished && vt.finished.catch(() => {});
+          vt.updateCallbackDone && vt.updateCallbackDone.catch(() => {});
+        }
+        return vt;
+      }
       catch { /* fall through */ }
     }
     doNav();
