@@ -2158,8 +2158,11 @@ exports.kashierRefund = onCall(
     amount = Math.round(amount * 100) / 100;
     const isFull = amount >= orderTotal;
 
-    // Call Kashier's Refund API.
-    const url = `${KASHIER_FEP_BASE}/orders/${encodeURIComponent(kashierOrderId)}/`;
+    // Call Kashier's Refund API. The endpoint is /v3/orders/:orderId (the
+    // missing /v3/ was why Kashier's backend errored with "getaddrinfo
+    // undefined"). orderId is the Kashier Order ID; no query params needed.
+    const url = `${KASHIER_FEP_BASE}/v3/orders/${encodeURIComponent(kashierOrderId)}`;
+    console.log('[kashierRefund] calling', url, '| txn:', order.kashierTransactionId || '(none)', '| amount:', amount);
     let kres, kjson;
     try {
       kres = await fetch(url, {
@@ -2177,7 +2180,11 @@ exports.kashierRefund = onCall(
       throw new HttpsError('unavailable', 'Could not reach Kashier. Please try again.');
     }
 
-    const ok = kres.ok && (String(kjson?.status || '').toUpperCase() === 'SUCCESS' || kres.status === 200);
+    // Kashier returns top-level status SUCCESS (done) or PENDING (initiated,
+    // will settle) on acceptance; FAILURE means rejected. Treat SUCCESS +
+    // PENDING as accepted.
+    const kStatus = String(kjson?.status || kjson?.response?.status || '').toUpperCase();
+    const ok = kres.ok && (kStatus === 'SUCCESS' || kStatus === 'PENDING');
     if (!ok) {
       console.error('[kashierRefund] refund rejected', { orderId, status: kres.status, body: kjson });
       const msg = kjson?.messages?.en || kjson?.message || `Kashier refund failed (HTTP ${kres.status}).`;
