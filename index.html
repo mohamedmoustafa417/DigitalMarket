@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v102';
+    window.DM_RELEASE_TAG = 'digitalmarket@v103';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -269,8 +269,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <!-- Functions compat — required for httpsCallable() (Kashier payments + emailHealthCheck) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
-  <!-- EmailJS -->
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  <!-- EmailJS removed: all transactional email is sent server-side by the
+       Cloud Functions (Resend) pipeline. The client sendOrderEmail() is a
+       disabled no-op, so this render-blocking script was pure dead weight. -->
 
   <!-- SEO: Organization + WebSite JSON-LD (for rich Google search results) -->
   <script type="application/ld+json">
@@ -3961,7 +3962,8 @@ try {
   console.error('Firebase init failed:', e);
 }
 
-try { emailjs.init(EMAILJS_PUBLIC_KEY); } catch(e) {}
+// EmailJS removed — sendOrderEmail() is a disabled no-op and all email is sent
+// server-side via the Cloud Functions (Resend) pipeline. (init removed.)
 
 // ═══════════════════════════════════════════════════════════════════
 // EMAIL AUTOMATION
