@@ -77,12 +77,16 @@ const DRIVE_SECRETS  = [GDRIVE_SA_JSON];
 const KASHIER_MID         = defineSecret('KASHIER_MID');
 const KASHIER_PAYMENT_KEY = defineSecret('KASHIER_PAYMENT_KEY');
 const KASHIER_SECRET_KEY  = defineSecret('KASHIER_SECRET_KEY');
-const KASHIER_SECRETS     = [KASHIER_MID, KASHIER_PAYMENT_KEY];                    // payments + webhook
-const KASHIER_REFUND_SECRETS = [KASHIER_MID, KASHIER_PAYMENT_KEY, KASHIER_SECRET_KEY]; // refunds (needs Secret Key)
+const KASHIER_SECRETS     = [KASHIER_MID, KASHIER_PAYMENT_KEY];                       // webhook (signature)
+const KASHIER_FULL_SECRETS = [KASHIER_MID, KASHIER_PAYMENT_KEY, KASHIER_SECRET_KEY];  // create-session + refund (need both keys)
 const KASHIER_MODE        = 'test';   // ← change to 'live' when going live
 const SITE_ORIGIN         = 'https://digitalmarketstore.shop';
-// Kashier "FEP" API base (used for refunds). Test vs live host.
-const KASHIER_FEP_BASE    = KASHIER_MODE === 'live'
+const KASHIER_BRAND_COLOR = '#6366f1'; // matches the site --primary
+// Kashier API hosts. Test vs live.
+const KASHIER_API_BASE    = KASHIER_MODE === 'live'   // Payment Sessions
+  ? 'https://api.kashier.io'
+  : 'https://test-api.kashier.io';
+const KASHIER_FEP_BASE    = KASHIER_MODE === 'live'   // refunds (FEP)
   ? 'https://fep.kashier.io'
   : 'https://test-fep.kashier.io';
 
@@ -1949,7 +1953,7 @@ exports.scheduledFirestoreBackup = onSchedule(
 // ═══════════════════════════════════════════════════════════════════
 
 exports.createKashierPayment = onCall(
-  { region: 'us-central1', secrets: KASHIER_SECRETS },
+  { region: 'us-central1', secrets: KASHIER_FULL_SECRETS },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Please sign in to pay.');
@@ -1957,10 +1961,11 @@ exports.createKashierPayment = onCall(
     const orderId = String(request.data?.orderId || '').trim();
     if (!orderId) throw new HttpsError('invalid-argument', 'orderId is required.');
 
-    const mid = KASHIER_MID.value();
-    const key = KASHIER_PAYMENT_KEY.value();
-    if (!mid || !key) {
-      console.error('[kashier] MID or PAYMENT_KEY not configured');
+    const mid       = KASHIER_MID.value();
+    const apiKey    = KASHIER_PAYMENT_KEY.value();   // → api-key header
+    const secretKey = KASHIER_SECRET_KEY.value();    // → Authorization header
+    if (!mid || !apiKey || !secretKey) {
+      console.error('[kashier] keys not fully configured');
       throw new HttpsError('failed-precondition', 'Card payments are not configured yet.');
     }
 
@@ -1980,45 +1985,72 @@ exports.createKashierPayment = onCall(
     const total = Number(order.total || 0);
     if (!(total > 0)) throw new HttpsError('failed-precondition', 'Order total must be greater than zero.');
 
-    const amount   = total.toFixed(2);
-    const currency = 'EGP';                       // store base currency
-    const hash     = kashierOrderHash(mid, orderId, amount, currency, key);
-
+    const amount   = total.toFixed(2);   // Sessions require amount as a STRING
+    const currency = 'EGP';              // store base currency
+    const serverWebhook    = `https://us-central1-${process.env.GCLOUD_PROJECT || 'digitalmarket-38db5'}.cloudfunctions.net/kashierWebhook`;
     const merchantRedirect = `${SITE_ORIGIN}/?kashier=return&order=${encodeURIComponent(orderId)}`;
-    // serverWebhook is sent WITH the payment request (Kashier has no dashboard
-    // webhook page). This is the signed server-to-server notification that
-    // actually fulfills the order; merchantRedirect is only the browser bounce.
-    const serverWebhook = `https://us-central1-${process.env.GCLOUD_PROJECT || 'digitalmarket-38db5'}.cloudfunctions.net/kashierWebhook`;
-    const params = new URLSearchParams({
-      merchantId:       mid,
-      orderId:          orderId,
-      amount:           amount,
-      currency:         currency,
-      hash:             hash,
-      mode:             KASHIER_MODE,             // 'test' | 'live'
-      merchantRedirect: merchantRedirect,
-      serverWebhook:    serverWebhook,
-      allowedMethods:   'card',
-      display:          'en',
-      type:             'external'
-    });
-    const paymentUrl = `https://checkout.kashier.io/?${params.toString()}`;
+
+    // ── Create a Payment Session (server-side). The hash is computed by
+    // Kashier and returned inside the session — it never touches the browser
+    // (more secure than the old query-string Hosted-Payment-Page method). ──
+    const sessionBody = {
+      amount,                       // STRING
+      currency,
+      order: orderId,               // our merchant order id
+      merchantId: mid,
+      merchantRedirect,             // browser bounce-back (success AND failure)
+      failureRedirect: true,        // BOOLEAN — also bounce back on failure
+      serverWebhook,                // signed server-to-server fulfillment
+      allowedMethods: 'card',       // STRING
+      enable3DS: true,
+      brandColor: KASHIER_BRAND_COLOR,
+      type: 'one-time',
+      paymentType: 'one-time',
+      customer: {                   // REQUIRED by the Sessions API
+        email: order.buyerEmail || request.auth.token?.email || 'buyer@digitalmarketstore.shop',
+        reference: uid
+      }
+    };
+
+    let kres, kjson;
+    try {
+      kres = await fetch(`${KASHIER_API_BASE}/v3/payment/sessions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': secretKey,
+          'api-key': apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(sessionBody)
+      });
+      kjson = await kres.json().catch(() => ({}));
+    } catch (e) {
+      console.error('[kashier] session create network error:', e.message);
+      throw new HttpsError('unavailable', 'Could not reach the payment provider. Please try again.');
+    }
+
+    const paymentUrl = kjson?.sessionUrl;
+    if (!kres.ok || !paymentUrl) {
+      console.error('[kashier] session create failed', { orderId, status: kres.status, msg: kjson?.message });
+      throw new HttpsError('aborted', 'Could not start the payment. Please try again.');
+    }
 
     // Mark the order as awaiting payment + write an audit row in /payments.
     await ref.set({
       paymentMethod: 'kashier',
       paymentStatus: 'initiated',
+      kashierSessionId: kjson._id || null,
       status: order.status === 'pending' ? 'awaiting_payment' : order.status,
       updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
     await db.collection('payments').doc(orderId).set({
       orderId, buyerId: uid, provider: 'kashier', mode: KASHIER_MODE,
-      amount: total, currency, status: 'initiated',
+      amount: total, currency, status: 'initiated', sessionId: kjson._id || null,
       createdAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
-    console.log(`[kashier] payment initiated order=${orderId} amount=${amount} ${currency} mode=${KASHIER_MODE}`);
+    console.log(`[kashier] session created order=${orderId} amount=${amount} ${currency} mode=${KASHIER_MODE} session=${kjson._id}`);
     return { paymentUrl };
   }
 );
@@ -2043,7 +2075,8 @@ exports.kashierWebhook = onRequest(
         return;
       }
 
-      const orderId = String(data.merchantOrderId || '').trim();
+      // Order id field name varies between HPP + Payment Sessions payloads.
+      const orderId = String(data.merchantOrderId || data.order || data.orderReference || '').trim();
       const status  = String(data.status || '').toUpperCase();
       if (!orderId) { res.status(200).send('no order'); return; }
 
@@ -2122,7 +2155,7 @@ exports.kashierWebhook = onRequest(
 // notifies buyer & seller). Partial refunds keep the order 'approved' but
 // record the partial amount.
 exports.kashierRefund = onCall(
-  { region: 'us-central1', secrets: KASHIER_REFUND_SECRETS },
+  { region: 'us-central1', secrets: KASHIER_FULL_SECRETS },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
