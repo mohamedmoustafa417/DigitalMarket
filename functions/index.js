@@ -79,7 +79,7 @@ const KASHIER_PAYMENT_KEY = defineSecret('KASHIER_PAYMENT_KEY');
 const KASHIER_SECRET_KEY  = defineSecret('KASHIER_SECRET_KEY');
 const KASHIER_SECRETS     = [KASHIER_MID, KASHIER_PAYMENT_KEY];                       // webhook (signature)
 const KASHIER_FULL_SECRETS = [KASHIER_MID, KASHIER_PAYMENT_KEY, KASHIER_SECRET_KEY];  // create-session + refund (need both keys)
-const KASHIER_MODE        = 'test';   // ← change to 'live' when going live
+const KASHIER_MODE        = 'live';   // LIVE — real payments (was 'test')
 const SITE_ORIGIN         = 'https://digitalmarketstore.shop';
 const KASHIER_BRAND_COLOR = '#6366f1'; // matches the site --primary
 // Kashier API hosts. Test vs live.

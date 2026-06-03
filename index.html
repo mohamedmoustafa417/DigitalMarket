@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v101';
+    window.DM_RELEASE_TAG = 'digitalmarket@v102';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -11727,7 +11727,7 @@ window._kashierPay = false;
 // real buyers don't land on a Kashier test page. Flip DM_KASHIER_TESTING to
 // false (together with KASHIER_MODE='live' on the server) to reveal card
 // payments to everyone once we go live.
-window.DM_KASHIER_TESTING = true;
+window.DM_KASHIER_TESTING = false;  // LIVE — card payments visible to all buyers
 (function gateKashierOptionWhileTesting(){
   // Hidden test override: visiting any page with ?dmcard=test reveals the card
   // option to a NON-admin buyer for that browser session (so you can validate
