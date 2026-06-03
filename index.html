@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v98';
+    window.DM_RELEASE_TAG = 'digitalmarket@v99';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -11727,11 +11727,22 @@ window._kashierPay = false;
 // payments to everyone once we go live.
 window.DM_KASHIER_TESTING = true;
 (function gateKashierOptionWhileTesting(){
+  // Hidden test override: visiting any page with ?dmcard=test reveals the card
+  // option to a NON-admin buyer for that browser session (so you can validate
+  // the buyer card experience in test mode without exposing the test page to
+  // random visitors). Remove DM_KASHIER_TESTING entirely when going live.
+  try {
+    if (new URLSearchParams(location.search).get('dmcard') === 'test') {
+      sessionStorage.setItem('dm_cardtest', '1');
+    }
+  } catch (e) {}
   function applyGate(){
     var opt = document.querySelector('#pay-method-select option[value="kashier"]');
     if (!opt) return;
     var adminOK = (typeof isAdmin === 'function') ? !!isAdmin() : false;
-    var show = !window.DM_KASHIER_TESTING || adminOK;
+    var override = false;
+    try { override = sessionStorage.getItem('dm_cardtest') === '1'; } catch (e) {}
+    var show = !window.DM_KASHIER_TESTING || adminOK || override;
     opt.hidden = !show;
     opt.disabled = !show;
   }
