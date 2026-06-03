@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v94';
+    window.DM_RELEASE_TAG = 'digitalmarket@v95';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -267,6 +267,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <!-- Functions compat — required for httpsCallable() (Kashier payments + emailHealthCheck) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
   <!-- EmailJS -->
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
@@ -3804,6 +3806,7 @@
         <div class="form-group" style="margin-bottom:1rem;">
           <select id="pay-method-select" class="form-control" onchange="onPayMethodChange()" style="font-size:0.95rem;cursor:pointer;">
             <option value="">— Select Payment Method —</option>
+            <option value="kashier">💳 Pay by Card (Visa / Mastercard) — instant</option>
             <option value="instapay">📱 InstaPay</option>
             <option value="bank">🏦 Bank Transfer</option>
           </select>
@@ -6327,8 +6330,10 @@ async function loadOrders() {
 }
 
 function statusBadge(status) {
-  const map = { approved: 'badge-success', pending: 'badge-warning', rejected: 'badge-danger' };
-  return `<span class="badge ${map[status] || 'badge-primary'}" data-status="${status}">${sanitize(t(status) || status)}</span>`;
+  const map = { approved: 'badge-success', pending: 'badge-warning', rejected: 'badge-danger', refunded: 'badge-danger', awaiting_payment: 'badge-warning' };
+  const labelMap = { awaiting_payment: 'Awaiting payment' };
+  const label = labelMap[status] || (t(status) || status);
+  return `<span class="badge ${map[status] || 'badge-primary'}" data-status="${status}">${sanitize(label)}</span>`;
 }
 
 function orderAgeBadge(createdAt) {
@@ -7448,7 +7453,9 @@ function _renderOrderRow(d) {
           <button class="btn btn-sm btn-success" onclick="updateOrderStatus('${d.id}','approved')" title="Approve">✓</button>
           <button class="btn btn-sm btn-danger"  onclick="updateOrderStatus('${d.id}','rejected')" title="Reject">✗</button>
         </div>
-      ` : '—'}
+      ` : (o.status==='approved' && o.paymentMethod==='kashier' ? `
+        <button class="btn btn-sm btn-outline" onclick="kashierRefundOrder('${d.id}', ${Number(o.total)||0})" title="Refund this card payment via Kashier">↩ Refund</button>
+      ` : '—')}
     </td>
   </tr>`;
 }
@@ -11703,6 +11710,243 @@ window._isFreeOrder = false;
     return orig.apply(this, arguments);
   };
 })();
+
+// ═══════════════════════════════════════════════════════════════════
+// KASHIER CARD PAYMENTS (client)
+//
+// When the buyer picks "Pay by Card", we skip the manual reference + proof
+// fields, create the order as `awaiting_payment`, ask the createKashierPayment
+// Cloud Function for a SIGNED hosted-payment-page URL, and redirect there.
+// Fulfillment is driven by the SIGNED webhook (kashierWebhook) flipping the
+// order to `approved` — the browser redirect back is only used to show status.
+// ═══════════════════════════════════════════════════════════════════
+window._kashierPay = false;
+
+// While we're validating in TEST mode, show the card option to ADMINS ONLY so
+// real buyers don't land on a Kashier test page. Flip DM_KASHIER_TESTING to
+// false (together with KASHIER_MODE='live' on the server) to reveal card
+// payments to everyone once we go live.
+window.DM_KASHIER_TESTING = true;
+(function gateKashierOptionWhileTesting(){
+  function applyGate(){
+    var opt = document.querySelector('#pay-method-select option[value="kashier"]');
+    if (!opt) return;
+    var adminOK = (typeof isAdmin === 'function') ? !!isAdmin() : false;
+    var show = !window.DM_KASHIER_TESTING || adminOK;
+    opt.hidden = !show;
+    opt.disabled = !show;
+  }
+  const orig = window.openCheckout;
+  if (typeof orig === 'function') {
+    window.openCheckout = async function(){ const r = await orig.apply(this, arguments); setTimeout(applyGate, 350); return r; };
+  }
+  if (document.readyState === 'complete') setTimeout(applyGate, 1500);
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(applyGate, 1500); });
+})();
+
+(function patchPayMethodForKashier(){
+  const orig = window.onPayMethodChange;
+  window.onPayMethodChange = function(){
+    if (typeof orig === 'function') orig.apply(this, arguments);
+    const sel = document.getElementById('pay-method-select');
+    const isK = sel && sel.value === 'kashier';
+    window._kashierPay = !!isK;
+
+    // Reference field: not needed for card — Kashier generates the txn ref.
+    const refGroup = document.getElementById('pay-ref-input')?.closest('.form-group');
+    if (refGroup) refGroup.style.display = isK ? 'none' : '';
+
+    // Step-3 proof panel: replace with a "you'll be redirected" note for card.
+    const proofPanel = document.querySelector('#checkout-modal .dm-step-panel[data-step="3"]');
+    let note = document.getElementById('kashier-card-note');
+    if (isK) {
+      if (proofPanel && !note) {
+        note = document.createElement('div');
+        note.id = 'kashier-card-note';
+        note.className = 'alert alert-info';
+        note.style.cssText = 'margin-top:0.5rem;line-height:1.5;';
+        note.innerHTML = '🔒 You\'ll be redirected to Kashier\'s secure payment page to enter your card details. '
+          + 'Your download links unlock automatically the moment payment succeeds — no waiting for manual review.';
+        proofPanel.insertBefore(note, proofPanel.firstChild);
+      }
+      // Hide the proof uploader + the "an admin will review" note (direct
+      // child <p> of the panel) while card is selected.
+      const fileUpload = proofPanel?.querySelector('.file-upload');
+      if (fileUpload) fileUpload.style.display = 'none';
+      proofPanel?.querySelectorAll(':scope > p').forEach(p => { p.style.display = 'none'; });
+      // Relabel the submit button.
+      const submBtn = document.getElementById('submit-order-btn');
+      if (submBtn) submBtn.innerHTML = '<i class="fa-solid fa-lock" aria-hidden="true"></i> Pay Securely by Card';
+    } else {
+      if (note) note.remove();
+      const proofPanel2 = document.querySelector('#checkout-modal .dm-step-panel[data-step="3"]');
+      const fileUpload = proofPanel2?.querySelector('.file-upload');
+      if (fileUpload) fileUpload.style.display = '';
+      proofPanel2?.querySelectorAll(':scope > p').forEach(p => { p.style.display = ''; });
+      const submBtn = document.getElementById('submit-order-btn');
+      if (submBtn) submBtn.textContent = (typeof t === 'function' ? t('submitOrder') : 'Submit Order');
+    }
+  };
+})();
+
+// Relax wizard validation for the card path (no manual ref / no proof).
+(function patchCheckoutValidateForKashier(){
+  const orig = window.dmCheckoutValidate;
+  if (typeof orig !== 'function') return;
+  window.dmCheckoutValidate = function(step){
+    if (window._kashierPay) {
+      if (step === 2) {
+        const pm = document.getElementById('pay-method-select')?.value;
+        if (!pm) { toast('Please select a payment method.', 'warning'); return false; }
+        return true;                 // no reference number needed for card
+      }
+      if (step === 3) return true;   // no proof needed for card
+    }
+    return orig.apply(this, arguments);
+  };
+})();
+
+// Route submit to the card flow when card is selected.
+(function patchSubmitOrderForKashier(){
+  const orig = window.submitOrder;
+  if (typeof orig !== 'function') return;
+  window.submitOrder = async function(){
+    if (window._kashierPay) return submitKashierOrder();
+    return orig.apply(this, arguments);
+  };
+})();
+
+async function submitKashierOrder(){
+  if (window._orderSubmitting) return;
+  if (!curUser) { toast('Please sign in to pay.', 'warning'); return; }
+  const items = window.checkoutItems || [];
+  if (!items.length) { showAlert('checkout-alert', 'danger', 'Your cart is empty.'); return; }
+
+  window._orderSubmitting = true;
+  const btn = document.getElementById('submit-order-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" aria-hidden="true"></span> Redirecting to secure payment…'; }
+
+  try {
+    const subtotal  = items.reduce((s, p) => s + Number(p.price || 0), 0);
+    const discount  = (typeof calcCouponDiscount === 'function') ? calcCouponDiscount(subtotal) : 0;
+    const total     = Math.max(0, subtotal - discount);
+    const sellerIds = [...new Set(items.map(p => p.sellerId || 'admin'))];
+    if (!(total > 0)) { showAlert('checkout-alert', 'danger', 'This order is free — use Submit instead of card.'); window._orderSubmitting = false; return; }
+
+    const pointsRedeemed = (typeof _redeemingPoints !== 'undefined' && _redeemingPoints && _redeemPointsCount > 0) ? _redeemPointsCount : 0;
+
+    // Create the order as awaiting_payment — NOT 'pending', so the manual
+    // "proof being reviewed" email never fires for card orders.
+    const orderRef = await db.collection('orders').add({
+      buyerId:    curUser.uid,
+      buyerEmail: sanitize(curUser.email || ''),
+      buyerName:  sanitize(curUserData?.name || ''),
+      items:      items.map(p => ({ id: p.id, name: sanitize(p.name), price: Number(p.price || 0), sellerId: p.sellerId || 'admin', downloadUrl: p.downloadUrl || '' })),
+      sellerIds,
+      subtotal, discount, total, pointsRedeemed,
+      publicAttribution: !!document.getElementById('public-attrib-check')?.checked,
+      couponCode:   _appliedCoupon?.code || null,
+      proof:        '',
+      paymentMethod: 'kashier',
+      paymentStatus: 'initiated',
+      referenceNum: null,
+      referredBy:   (typeof getReferralId === 'function' ? getReferralId() : null) || null,
+      status:       'awaiting_payment',
+      createdAt:    FV.serverTimestamp()
+    });
+
+    // Ask the server for a signed payment URL (amount is validated server-side).
+    const fn  = firebase.app().functions('us-central1').httpsCallable('createKashierPayment');
+    const res = await fn({ orderId: orderRef.id });
+    const url = res?.data?.paymentUrl;
+    if (!url) throw new Error('Could not start the payment. Please try again.');
+
+    // Remember which order we're paying so the return handler can poll it.
+    try { sessionStorage.setItem('dm_kashier_order', orderRef.id); } catch {}
+    if (_appliedCoupon?.id) { try { await db.collection('coupons').doc(_appliedCoupon.id).update({ usageCount: FV.increment(1) }); } catch {} }
+
+    window.location.href = url;   // → Kashier hosted payment page
+  } catch (err) {
+    window._orderSubmitting = false;
+    showAlert('checkout-alert', 'danger', sanitize(err.message || 'Payment could not be started.'));
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock" aria-hidden="true"></i> Pay Securely by Card'; }
+  }
+}
+
+// On return from Kashier (/?kashier=return&order=ID) verify the order status.
+// The order is only fulfilled by the signed webhook — so we POLL Firestore for
+// status=approved rather than trusting the redirect.
+async function dmHandleKashierReturn(){
+  let params;
+  try { params = new URLSearchParams(location.search); } catch { return; }
+  if (params.get('kashier') !== 'return') return;
+  const orderId = params.get('order') || (function(){ try { return sessionStorage.getItem('dm_kashier_order'); } catch { return null; } })();
+  // Clean the URL so a refresh doesn't re-trigger.
+  try { history.replaceState(history.state, '', location.pathname); } catch {}
+  if (!orderId || !curUser) { if (typeof navigate === 'function') navigate('orders'); return; }
+
+  toast('Verifying your payment…', 'info', 4000);
+  const ref = db.collection('orders').doc(orderId);
+  const deadline = Date.now() + 30000;   // poll up to 30s for the webhook
+  while (Date.now() < deadline) {
+    let snap;
+    try { snap = await ref.get(); } catch { break; }
+    const o = snap.exists ? snap.data() : null;
+    if (o && o.status === 'approved') {
+      try { sessionStorage.removeItem('dm_kashier_order'); } catch {}
+      if (typeof clearCart === 'function') clearCart();
+      if (typeof showOrderReceipt === 'function') {
+        showOrderReceipt(orderId, (o.items || []), Number(o.total || 0));
+      } else { toast('Payment confirmed — your downloads are ready! 🎉', 'success', 6000); }
+      if (typeof navigate === 'function') navigate('orders');
+      return;
+    }
+    if (o && (o.paymentStatus === 'amount_mismatch')) {
+      toast('Payment verification failed. Please contact support.', 'danger', 8000);
+      if (typeof navigate === 'function') navigate('orders');
+      return;
+    }
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  // Webhook hasn't landed yet — common when the buyer returns instantly.
+  toast('Payment received — we\'re confirming it now. Your downloads will appear in My Orders and you\'ll get an email shortly.', 'info', 9000);
+  if (typeof navigate === 'function') navigate('orders');
+}
+// Run after auth is ready so curUser exists.
+(function wireKashierReturn(){
+  function go(){
+    if (new URLSearchParams(location.search).get('kashier') !== 'return') return;
+    if (typeof auth !== 'undefined' && auth.onAuthStateChanged) {
+      const off = auth.onAuthStateChanged(function(){ setTimeout(dmHandleKashierReturn, 200); if (off) off(); });
+    } else {
+      setTimeout(dmHandleKashierReturn, 800);
+    }
+  }
+  if (document.readyState === 'complete') go();
+  else window.addEventListener('load', go);
+})();
+
+// Admin: refund a card order via the kashierRefund Cloud Function.
+async function kashierRefundOrder(orderId, total){
+  const amt = Number(total) || 0;
+  if (!confirm(`Refund EGP ${amt} to the buyer via Kashier?\n\nThis returns the money to their card, REVOKES their download access, and reverses the seller's sale. This cannot be undone.`)) return;
+  let reason = prompt('Refund reason (shown in your records):', 'Customer refund');
+  if (reason === null) return;            // admin cancelled
+  reason = reason || 'Customer refund';
+  try {
+    toast('Processing refund with Kashier…', 'info', 5000);
+    const fn  = firebase.app().functions('us-central1').httpsCallable('kashierRefund');
+    const res = await fn({ orderId, reason });
+    if (res?.data?.ok) {
+      toast(`Refunded EGP ${res.data.refundAmount} ✓`, 'success', 6000);
+      if (typeof loadAdminOrders === 'function') loadAdminOrders();
+    } else {
+      toast('Refund did not complete — check the order status.', 'warning', 7000);
+    }
+  } catch (e) {
+    toast('Refund failed: ' + sanitize(e.message || 'Unknown error'), 'danger', 9000);
+  }
+}
 
 // ─── ROUND 7 Feature 2: DOWNLOADABLE ORDER INVOICE ─────────────────────
 function printOrderInvoice(orderId) {

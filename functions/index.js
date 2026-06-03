@@ -60,6 +60,61 @@ const EMAIL_SECRETS = [RESEND_KEY];
 const GDRIVE_SA_JSON = defineSecret('GDRIVE_SA_JSON');
 const DRIVE_SECRETS  = [GDRIVE_SA_JSON];
 
+// ─── Kashier payment gateway ────────────────────────────────────────────────
+// Two values, set ONE-TIME from your terminal (the KEY is sensitive — it signs
+// every payment hash + validates every webhook, so it MUST stay server-side
+// only, never in index.html):
+//   firebase functions:secrets:set KASHIER_MID           # e.g. MID-xxxx-xxxx
+//   firebase functions:secrets:set KASHIER_PAYMENT_KEY   # the Payment API key
+//   firebase deploy --only functions
+// KASHIER_MODE stays 'test' until we've proven a full sandbox payment end-to-end;
+// flip to 'live' (one-line edit + redeploy) when you're ready to take real money.
+const KASHIER_MID         = defineSecret('KASHIER_MID');
+const KASHIER_PAYMENT_KEY = defineSecret('KASHIER_PAYMENT_KEY');
+const KASHIER_SECRETS     = [KASHIER_MID, KASHIER_PAYMENT_KEY];
+const KASHIER_MODE        = 'test';   // ← change to 'live' when going live
+const SITE_ORIGIN         = 'https://digitalmarketstore.shop';
+// Kashier "FEP" API base (used for refunds). Test vs live host.
+const KASHIER_FEP_BASE    = KASHIER_MODE === 'live'
+  ? 'https://fep.kashier.io'
+  : 'https://test-fep.kashier.io';
+
+/**
+ * Kashier HPP order hash — HMAC-SHA256 over the canonical
+ * `/?payment=${mid}.${orderId}.${amount}.${currency}` path, keyed with the
+ * Payment API key. Verified against Kashier's published test vector
+ * (/?payment=mid-0-1.99.20.EGP, secret 11111 → 606a8a13…e4bec).
+ */
+function kashierOrderHash(mid, orderId, amount, currency, key) {
+  const path = `/?payment=${mid}.${orderId}.${amount}.${currency}`;
+  return require('crypto').createHmac('sha256', key).update(path).digest('hex');
+}
+
+/**
+ * Validate a Kashier webhook signature. Kashier tells us WHICH fields it signed
+ * via `data.signatureKeys`; we rebuild the exact query string from those keys
+ * (sorted), HMAC-SHA256 it with the Payment API key, and compare in constant
+ * time against the `x-kashier-signature` header.
+ */
+function kashierVerifyWebhook(data, headerSig, key) {
+  try {
+    if (!data || !Array.isArray(data.signatureKeys) || !headerSig) return false;
+    const qs = require('querystring');
+    const crypto = require('crypto');
+    const keys = data.signatureKeys.slice().sort();
+    const obj = {};
+    keys.forEach(k => { obj[k] = data[k]; });
+    const payload = qs.stringify(obj);
+    const expected = crypto.createHmac('sha256', key).update(payload).digest('hex');
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(String(headerSig), 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch (e) {
+    console.error('[kashier] signature verify threw:', e.message);
+    return false;
+  }
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 /**
@@ -645,11 +700,13 @@ exports.onOrderStatusChange = onDocumentWritten(
     // ── Order refunded → notify buyer ──
     if (after.status === 'refunded') {
       const buyerEmail = after.buyerEmail || '';
+      const orderShort = orderId.slice(0,8).toUpperCase();
       if (buyerEmail) {
         await sendEmail({
           to:      buyerEmail,
           subject: '↩ Refund processed – DigitalMarket',
-          body:    `<p>Your refund for order #${orderId.slice(0,8).toUpperCase()} has been processed. Funds will appear within 5–10 business days.</p>`
+          body:    `<p>Your refund for order #${orderShort} has been processed. Funds will appear within 5–10 business days.</p>
+                    <p>Your access to the downloaded files for this order has been removed.</p>`
         });
       }
 
@@ -658,11 +715,53 @@ exports.onOrderStatusChange = onDocumentWritten(
         await db.collection('notifications').add({
           userId:    after.buyerId,
           type:      'refund',
-          message:   `Refund for order #${orderId.slice(0,8).toUpperCase()} has been processed.`,
+          message:   `Refund for order #${orderShort} has been processed.`,
           orderId,
           read:      false,
           createdAt: FieldValue.serverTimestamp()
         });
+      }
+
+      // ── Seller-side reversal — guarded so a pending⇄refunded toggle or a
+      //    double webhook can't double-decrement. Only runs once. ──
+      if (!after.refundProcessedAt) {
+        // 1) Revoke the buyer's download access (a refunded buyer must NOT
+        //    keep the product). Expire the token + flag the order.
+        try {
+          await event.data.after.ref.update({
+            downloadExpired: true,
+            downloadToken: FieldValue.delete(),
+            refundProcessedAt: FieldValue.serverTimestamp()
+          });
+        } catch (e) {
+          console.warn(`[refund] could not revoke downloads for ${orderId}:`, e.message);
+        }
+
+        // 2) Reverse the seller's sale count + recompute tier (mirror of the
+        //    approval-time logic), and notify each seller in-app.
+        const TIERS = [[200,'Platinum'],[50,'Gold'],[10,'Silver'],[0,'Bronze']];
+        for (const sid of (after.sellerIds || [])) {
+          if (!sid || sid === 'admin') continue;
+          try {
+            const sellerRef = db.collection('users').doc(sid);
+            await db.runTransaction(async tx => {
+              const snap     = await tx.get(sellerRef);
+              const newCount = Math.max(0, (snap.data()?.totalSales || 0) - 1);
+              const tier     = (TIERS.find(([min]) => newCount >= min) || TIERS[3])[1];
+              tx.update(sellerRef, { totalSales: newCount, tier });
+            });
+            await db.collection('notifications').add({
+              userId:    sid,
+              type:      'refund',
+              message:   `Order #${orderShort} was refunded — the sale has been reversed.`,
+              orderId,
+              read:      false,
+              createdAt: FieldValue.serverTimestamp()
+            });
+          } catch (e) {
+            console.warn(`[refund] seller reversal failed for ${sid}:`, e.message);
+          }
+        }
       }
     }
   }
@@ -1824,5 +1923,279 @@ exports.scheduledFirestoreBackup = onSchedule(
       collectionIds: [] // empty = all collections
     });
     console.log(`[backup] Started → ${outputUriPrefix}; op=${operation.name}`);
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// KASHIER PAYMENTS
+//
+//  createKashierPayment (callable) — builds a SIGNED hosted-payment-page URL
+//    for an order the caller owns. The amount is taken from the order doc in
+//    Firestore (NEVER trusted from the client) and the hash is computed here
+//    with the server-only Payment API key, so a buyer can't tamper with price.
+//
+//  kashierWebhook (HTTPS) — Kashier's server calls this after a payment. We
+//    verify the x-kashier-signature, re-check the amount against the order,
+//    then flip the order to 'approved' — which fires onOrderStatusChange and
+//    issues the download links + license keys exactly like a manual approval.
+//    A 'refund' event flips the order to 'refunded' (reuses that branch too).
+// ═══════════════════════════════════════════════════════════════════
+
+exports.createKashierPayment = onCall(
+  { region: 'us-central1', secrets: KASHIER_SECRETS },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Please sign in to pay.');
+
+    const orderId = String(request.data?.orderId || '').trim();
+    if (!orderId) throw new HttpsError('invalid-argument', 'orderId is required.');
+
+    const mid = KASHIER_MID.value();
+    const key = KASHIER_PAYMENT_KEY.value();
+    if (!mid || !key) {
+      console.error('[kashier] MID or PAYMENT_KEY not configured');
+      throw new HttpsError('failed-precondition', 'Card payments are not configured yet.');
+    }
+
+    const ref  = db.collection('orders').doc(orderId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Order not found.');
+    const order = snap.data();
+
+    // Ownership + state guards — only the buyer can pay, and only an order
+    // that is still awaiting payment (idempotent: don't re-charge a paid one).
+    if (order.buyerId !== uid) throw new HttpsError('permission-denied', 'Not your order.');
+    if (order.status === 'approved') throw new HttpsError('failed-precondition', 'Order already paid.');
+    if (!['awaiting_payment', 'pending'].includes(order.status)) {
+      throw new HttpsError('failed-precondition', `Order is ${order.status}; cannot pay.`);
+    }
+
+    const total = Number(order.total || 0);
+    if (!(total > 0)) throw new HttpsError('failed-precondition', 'Order total must be greater than zero.');
+
+    const amount   = total.toFixed(2);
+    const currency = 'EGP';                       // store base currency
+    const hash     = kashierOrderHash(mid, orderId, amount, currency, key);
+
+    const merchantRedirect = `${SITE_ORIGIN}/?kashier=return&order=${encodeURIComponent(orderId)}`;
+    const params = new URLSearchParams({
+      merchantId:       mid,
+      orderId:          orderId,
+      amount:           amount,
+      currency:         currency,
+      hash:             hash,
+      mode:             KASHIER_MODE,             // 'test' | 'live'
+      merchantRedirect: merchantRedirect,
+      allowedMethods:   'card',
+      display:          'en',
+      type:             'external'
+    });
+    const paymentUrl = `https://checkout.kashier.io/?${params.toString()}`;
+
+    // Mark the order as awaiting payment + write an audit row in /payments.
+    await ref.set({
+      paymentMethod: 'kashier',
+      paymentStatus: 'initiated',
+      status: order.status === 'pending' ? 'awaiting_payment' : order.status,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    await db.collection('payments').doc(orderId).set({
+      orderId, buyerId: uid, provider: 'kashier', mode: KASHIER_MODE,
+      amount: total, currency, status: 'initiated',
+      createdAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    console.log(`[kashier] payment initiated order=${orderId} amount=${amount} ${currency} mode=${KASHIER_MODE}`);
+    return { paymentUrl };
+  }
+);
+
+exports.kashierWebhook = onRequest(
+  { region: 'us-central1', secrets: KASHIER_SECRETS, cors: false },
+  async (req, res) => {
+    // Always 200 on benign cases so Kashier doesn't endlessly retry; only
+    // 401 on a bad signature (that's a real security signal worth surfacing).
+    try {
+      if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+      const key = KASHIER_PAYMENT_KEY.value();
+      const body = req.body || {};
+      const data = body.data || {};
+      const event = body.event || data.event || '';
+      const headerSig = req.get('x-kashier-signature') || req.get('X-Kashier-Signature');
+
+      if (!kashierVerifyWebhook(data, headerSig, key)) {
+        console.error('[kashier] webhook signature INVALID', { event, order: data.merchantOrderId });
+        res.status(401).send('invalid signature');
+        return;
+      }
+
+      const orderId = String(data.merchantOrderId || '').trim();
+      const status  = String(data.status || '').toUpperCase();
+      if (!orderId) { res.status(200).send('no order'); return; }
+
+      const ref  = db.collection('orders').doc(orderId);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        console.warn('[kashier] webhook for unknown order', orderId);
+        res.status(200).send('unknown order');
+        return;
+      }
+      const order = snap.data();
+
+      // ── Refund event → flip to refunded (reuses onOrderStatusChange) ──
+      if (event === 'refund' && status === 'SUCCESS') {
+        if (order.status !== 'refunded') {
+          await ref.set({ status: 'refunded', paymentStatus: 'refunded',
+            kashierTransactionId: data.transactionId || null,
+            updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          await db.collection('payments').doc(orderId).set({
+            status: 'refunded', refundedAt: FieldValue.serverTimestamp() }, { merge: true });
+          console.log('[kashier] order refunded', orderId);
+        }
+        res.status(200).send('ok'); return;
+      }
+
+      // ── Payment success → approve (idempotent + anti-tamper) ──
+      if ((event === 'pay' || event === 'capture') && status === 'SUCCESS') {
+        if (order.status === 'approved') { res.status(200).send('already approved'); return; }
+
+        const paidAmount  = Number(data.amount || 0).toFixed(2);
+        const orderAmount = Number(order.total || 0).toFixed(2);
+        const paidCur     = String(data.currency || '').toUpperCase();
+        if (paidAmount !== orderAmount || (paidCur && paidCur !== 'EGP')) {
+          console.error('[kashier] AMOUNT/CURRENCY MISMATCH — not approving', {
+            orderId, paidAmount, orderAmount, paidCur });
+          await ref.set({ paymentStatus: 'amount_mismatch',
+            updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          res.status(200).send('amount mismatch'); return;
+        }
+
+        await ref.set({
+          status: 'approved',                 // ← triggers download issuance
+          paymentStatus: 'paid',
+          paymentMethod: 'kashier',
+          kashierTransactionId: data.transactionId || null,
+          kashierOrderId: data.kashierOrderId || null,
+          paidAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        await db.collection('payments').doc(orderId).set({
+          status: 'paid', transactionId: data.transactionId || null,
+          method: data.method || 'card', paidAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        console.log('[kashier] order APPROVED via card', orderId);
+        res.status(200).send('ok'); return;
+      }
+
+      // Any other event/status — acknowledge, record, take no action.
+      await db.collection('payments').doc(orderId).set({
+        lastEvent: event, lastStatus: status, updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+      res.status(200).send('ack');
+    } catch (e) {
+      console.error('[kashier] webhook handler error:', e);
+      res.status(200).send('error-logged'); // 200 so Kashier won't hammer retries
+    }
+  }
+);
+
+// ── kashierRefund (callable, ADMIN) ──────────────────────────────────
+// Actually moves money back via Kashier's Refund API, then (for a FULL
+// refund) flips the order to 'refunded' — which fires the refund branch in
+// onOrderStatusChange (revokes downloads, reverses the seller sale, emails +
+// notifies buyer & seller). Partial refunds keep the order 'approved' but
+// record the partial amount.
+exports.kashierRefund = onCall(
+  { region: 'us-central1', secrets: KASHIER_SECRETS },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+    const adminSnap = await db.collection('users').doc(uid).get();
+    if (adminSnap.data()?.role !== 'admin') throw new HttpsError('permission-denied', 'Admin only.');
+
+    const key = KASHIER_PAYMENT_KEY.value();
+    if (!key) throw new HttpsError('failed-precondition', 'Kashier is not configured.');
+
+    const orderId = String(request.data?.orderId || '').trim();
+    const reason  = String(request.data?.reason || 'Customer refund').slice(0, 200);
+    if (!orderId) throw new HttpsError('invalid-argument', 'orderId is required.');
+
+    const ref  = db.collection('orders').doc(orderId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Order not found.');
+    const order = snap.data();
+
+    if (order.paymentMethod !== 'kashier') {
+      throw new HttpsError('failed-precondition', 'Only card (Kashier) orders can be refunded here. Refund InstaPay/bank orders manually.');
+    }
+    if (order.status === 'refunded') throw new HttpsError('failed-precondition', 'Order already refunded.');
+    if (order.status !== 'approved')  throw new HttpsError('failed-precondition', `Order is ${order.status}; only paid orders can be refunded.`);
+    const kashierOrderId = order.kashierOrderId;
+    if (!kashierOrderId) throw new HttpsError('failed-precondition', 'Missing Kashier order reference; cannot refund automatically.');
+
+    const orderTotal = Number(order.total || 0);
+    let amount = (request.data?.amount != null) ? Number(request.data.amount) : orderTotal;
+    if (!(amount > 0) || amount > orderTotal) {
+      throw new HttpsError('invalid-argument', `Refund amount must be between 0 and ${orderTotal}.`);
+    }
+    amount = Math.round(amount * 100) / 100;
+    const isFull = amount >= orderTotal;
+
+    // Call Kashier's Refund API.
+    const url = `${KASHIER_FEP_BASE}/orders/${encodeURIComponent(kashierOrderId)}/`;
+    let kres, kjson;
+    try {
+      kres = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': key,
+          'accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ apiOperation: 'REFUND', reason, transaction: { amount } })
+      });
+      kjson = await kres.json().catch(() => ({}));
+    } catch (e) {
+      console.error('[kashierRefund] network error:', e.message);
+      throw new HttpsError('unavailable', 'Could not reach Kashier. Please try again.');
+    }
+
+    const ok = kres.ok && (String(kjson?.status || '').toUpperCase() === 'SUCCESS' || kres.status === 200);
+    if (!ok) {
+      console.error('[kashierRefund] refund rejected', { orderId, status: kres.status, body: kjson });
+      const msg = kjson?.messages?.en || kjson?.message || `Kashier refund failed (HTTP ${kres.status}).`;
+      throw new HttpsError('aborted', msg);
+    }
+
+    // Record + update order. FULL refund → flip to 'refunded' (fires the
+    // refund branch). Partial → annotate but keep the order approved.
+    await db.collection('payments').doc(orderId).set({
+      refundAmount: amount, refundReason: reason, refundBy: uid,
+      refundStatus: isFull ? 'full' : 'partial',
+      refundedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    if (isFull) {
+      await ref.set({
+        status: 'refunded',
+        paymentStatus: 'refunded',
+        refundAmount: amount,
+        refundReason: reason,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    } else {
+      await ref.set({
+        paymentStatus: 'partially_refunded',
+        refundAmount: FieldValue.increment(amount),
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
+    console.log(`[kashierRefund] ${isFull ? 'FULL' : 'PARTIAL'} refund ${amount} EGP order=${orderId} by admin ${uid.slice(0,8)}`);
+    return { ok: true, refundAmount: amount, full: isFull };
   }
 );
