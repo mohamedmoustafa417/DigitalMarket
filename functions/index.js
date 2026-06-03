@@ -1978,6 +1978,10 @@ exports.createKashierPayment = onCall(
     const hash     = kashierOrderHash(mid, orderId, amount, currency, key);
 
     const merchantRedirect = `${SITE_ORIGIN}/?kashier=return&order=${encodeURIComponent(orderId)}`;
+    // serverWebhook is sent WITH the payment request (Kashier has no dashboard
+    // webhook page). This is the signed server-to-server notification that
+    // actually fulfills the order; merchantRedirect is only the browser bounce.
+    const serverWebhook = `https://us-central1-${process.env.GCLOUD_PROJECT || 'digitalmarket-38db5'}.cloudfunctions.net/kashierWebhook`;
     const params = new URLSearchParams({
       merchantId:       mid,
       orderId:          orderId,
@@ -1986,6 +1990,7 @@ exports.createKashierPayment = onCall(
       hash:             hash,
       mode:             KASHIER_MODE,             // 'test' | 'live'
       merchantRedirect: merchantRedirect,
+      serverWebhook:    serverWebhook,
       allowedMethods:   'card',
       display:          'en',
       type:             'external'
