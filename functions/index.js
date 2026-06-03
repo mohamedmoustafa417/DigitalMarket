@@ -69,9 +69,16 @@ const DRIVE_SECRETS  = [GDRIVE_SA_JSON];
 //   firebase deploy --only functions
 // KASHIER_MODE stays 'test' until we've proven a full sandbox payment end-to-end;
 // flip to 'live' (one-line edit + redeploy) when you're ready to take real money.
+// Kashier issues TWO keys per mode:
+//   • Payment API Key → generates the payment hash + validates the webhook
+//     x-kashier-signature.  (KASHIER_PAYMENT_KEY)
+//   • Secret Key       → authorizes server-to-server API calls (refunds).
+//     (KASHIER_SECRET_KEY — only used by kashierRefund)
 const KASHIER_MID         = defineSecret('KASHIER_MID');
 const KASHIER_PAYMENT_KEY = defineSecret('KASHIER_PAYMENT_KEY');
-const KASHIER_SECRETS     = [KASHIER_MID, KASHIER_PAYMENT_KEY];
+const KASHIER_SECRET_KEY  = defineSecret('KASHIER_SECRET_KEY');
+const KASHIER_SECRETS     = [KASHIER_MID, KASHIER_PAYMENT_KEY];                    // payments + webhook
+const KASHIER_REFUND_SECRETS = [KASHIER_MID, KASHIER_PAYMENT_KEY, KASHIER_SECRET_KEY]; // refunds (needs Secret Key)
 const KASHIER_MODE        = 'test';   // ← change to 'live' when going live
 const SITE_ORIGIN         = 'https://digitalmarketstore.shop';
 // Kashier "FEP" API base (used for refunds). Test vs live host.
@@ -2115,15 +2122,16 @@ exports.kashierWebhook = onRequest(
 // notifies buyer & seller). Partial refunds keep the order 'approved' but
 // record the partial amount.
 exports.kashierRefund = onCall(
-  { region: 'us-central1', secrets: KASHIER_SECRETS },
+  { region: 'us-central1', secrets: KASHIER_REFUND_SECRETS },
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
     const adminSnap = await db.collection('users').doc(uid).get();
     if (adminSnap.data()?.role !== 'admin') throw new HttpsError('permission-denied', 'Admin only.');
 
-    const key = KASHIER_PAYMENT_KEY.value();
-    if (!key) throw new HttpsError('failed-precondition', 'Kashier is not configured.');
+    // Refunds authorize with the SECRET key (not the Payment key).
+    const key = KASHIER_SECRET_KEY.value();
+    if (!key) throw new HttpsError('failed-precondition', 'Kashier refund key (KASHIER_SECRET_KEY) is not configured.');
 
     const orderId = String(request.data?.orderId || '').trim();
     const reason  = String(request.data?.reason || 'Customer refund').slice(0, 200);
