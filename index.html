@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v95';
+    window.DM_RELEASE_TAG = 'digitalmarket@v96';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -11773,7 +11773,7 @@ window.DM_KASHIER_TESTING = true;
       // child <p> of the panel) while card is selected.
       const fileUpload = proofPanel?.querySelector('.file-upload');
       if (fileUpload) fileUpload.style.display = 'none';
-      proofPanel?.querySelectorAll(':scope > p').forEach(p => { p.style.display = 'none'; });
+      proofPanel?.querySelectorAll(':scope > p, :scope > h4').forEach(el => { el.style.display = 'none'; });
       // Relabel the submit button.
       const submBtn = document.getElementById('submit-order-btn');
       if (submBtn) submBtn.innerHTML = '<i class="fa-solid fa-lock" aria-hidden="true"></i> Pay Securely by Card';
@@ -11782,7 +11782,7 @@ window.DM_KASHIER_TESTING = true;
       const proofPanel2 = document.querySelector('#checkout-modal .dm-step-panel[data-step="3"]');
       const fileUpload = proofPanel2?.querySelector('.file-upload');
       if (fileUpload) fileUpload.style.display = '';
-      proofPanel2?.querySelectorAll(':scope > p').forEach(p => { p.style.display = ''; });
+      proofPanel2?.querySelectorAll(':scope > p, :scope > h4').forEach(el => { el.style.display = ''; });
       const submBtn = document.getElementById('submit-order-btn');
       if (submBtn) submBtn.textContent = (typeof t === 'function' ? t('submitOrder') : 'Submit Order');
     }
@@ -11819,7 +11819,9 @@ window.DM_KASHIER_TESTING = true;
 async function submitKashierOrder(){
   if (window._orderSubmitting) return;
   if (!curUser) { toast('Please sign in to pay.', 'warning'); return; }
-  const items = window.checkoutItems || [];
+  // checkoutItems is a lexical `let` (not a window property) — reference it
+  // directly. Reading window.checkoutItems always came back empty ("cart empty").
+  const items = (typeof checkoutItems !== 'undefined' && Array.isArray(checkoutItems)) ? checkoutItems : [];
   if (!items.length) { showAlert('checkout-alert', 'danger', 'Your cart is empty.'); return; }
 
   window._orderSubmitting = true;
