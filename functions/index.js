@@ -742,6 +742,8 @@ exports.onOrderStatusChange = onDocumentWritten(
           await event.data.after.ref.update({
             downloadExpired: true,
             downloadToken: FieldValue.delete(),
+            licenseKeys: FieldValue.delete(),   // revoke license keys too
+            refundRequested: false,             // clear the "Refund Pending" flag
             refundProcessedAt: FieldValue.serverTimestamp()
           });
         } catch (e) {

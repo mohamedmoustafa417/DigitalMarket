@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v99';
+    window.DM_RELEASE_TAG = 'digitalmarket@v100';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -6296,8 +6296,10 @@ async function loadOrders() {
         ${canRefund ? `<button class="btn btn-sm btn-warning" onclick="openRefundModal('${d.id}')" title="Request Refund" style="font-size:0.72rem;"><i class="fa-solid fa-rotate-left"></i></button>` : ''}
         <button class="report-btn" onclick="openReportModal('order','${d.id}')" title="Report issue"><i class="fa-solid fa-flag"></i></button>
       </div>`;
-      // License keys cell
-      const licenseKeys = o.licenseKeys || {};
+      // License keys cell — ONLY for orders with active access. A refunded,
+      // rejected, or expired order must NOT keep showing the license key.
+      const accessActive = o.status === 'approved' && o.downloadExpired !== true;
+      const licenseKeys = accessActive ? (o.licenseKeys || {}) : {};
       const licenseCell = Object.keys(licenseKeys).length
         ? Object.entries(licenseKeys).map(([pid, k]) =>
             `<div class="license-key-box" style="font-size:0.72rem;margin-bottom:0.2rem;">${sanitize(k)}
@@ -6315,7 +6317,7 @@ async function loadOrders() {
         <td>${date}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</td>
         <td>${formatPrice(o.total)}</td>
-        <td>${badge}${o.refundRequested ? `<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>` : ''}</td>
+        <td>${badge}${(o.refundRequested && o.status !== 'refunded' && o.status !== 'rejected') ? `<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>` : ''}</td>
         <td>${proofCell}</td>
         <td>${dlCell}${licenseCell}</td>
         <td>${timelineCell}</td>
@@ -12204,7 +12206,7 @@ function bulkDownloadOrder(orderId) {
           const o = d.data();
           window._cachedOrders[d.id] = o;
           const date  = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString() : '—';
-          const badge = (function(s){ const m={approved:'badge-success',pending:'badge-warning',rejected:'badge-danger'}; return `<span class="badge ${m[s]||'badge-primary'}">${sanitize(s||'pending')}</span>`; })(o.status);
+          const badge = (function(s){ const m={approved:'badge-success',pending:'badge-warning',rejected:'badge-danger',refunded:'badge-danger',awaiting_payment:'badge-warning'}; const lbl={awaiting_payment:'Awaiting payment'}; return `<span class="badge ${m[s]||'badge-primary'}">${sanitize(lbl[s]||s||'pending')}</span>`; })(o.status);
           const names = (o.items||[]).map(i=>sanitize(i.name)).join(', ');
 
           // Download cell — now goes through the secure proxy (downloadFile
@@ -12228,8 +12230,9 @@ function bulkDownloadOrder(orderId) {
             }
           }
 
-          // License keys
-          const lk = o.licenseKeys || {};
+          // License keys — only while access is active. A refunded / rejected /
+          // expired order must not keep displaying the key.
+          const lk = (o.status === 'approved' && o.downloadExpired !== true) ? (o.licenseKeys || {}) : {};
           const licenseCell = Object.keys(lk).length
             ? Object.entries(lk).map(([,k])=>`<div class="license-key-box" style="font-size:0.72rem;margin-bottom:0.2rem;">${sanitize(k)}<button class="copy-btn" onclick="navigator.clipboard.writeText('${sanitize(k)}').then(()=>showToast('Copied!','success'))"><i class="fa-solid fa-copy"></i></button></div>`).join('')
             : '';
@@ -12258,7 +12261,7 @@ function bulkDownloadOrder(orderId) {
             <td>${date}</td>
             <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${names}">${names}</td>
             <td>${formatPrice(o.total)}</td>
-            <td>${badge}${o.refundRequested?`<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>`:''}</td>
+            <td>${badge}${(o.refundRequested && o.status!=='refunded' && o.status!=='rejected')?`<span style="font-size:0.65rem;background:var(--warning);color:#000;padding:0.1rem 0.3rem;border-radius:4px;margin-left:0.3rem;">Refund Pending</span>`:''}</td>
             <td>${proofCell}</td>
             <td>${dlCell}${licenseCell}</td>
             <td>${timelineCell}</td>
