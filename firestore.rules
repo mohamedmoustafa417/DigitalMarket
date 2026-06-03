@@ -77,10 +77,17 @@ service cloud.firestore {
       // SECURITY: seller can ONLY add a sellerNote / mark fulfilled.
       // status='approved' is admin-only — sellers cannot self-approve an order
       // to unlock download tokens and license keys.
+      // The BUYER may ONLY flag their own order as refund-requested (true) —
+      // nothing else (status, total, tokens stay locked to admin/CF).
       allow update: if isAdmin()
                     || (
                       isSeller() && resource.data.sellerIds.hasAny([request.auth.uid])
                       && changedKeys().hasOnly(['sellerNote', 'updatedAt'])
+                    )
+                    || (
+                      request.auth.uid == resource.data.buyerId
+                      && changedKeys().hasOnly(['refundRequested', 'updatedAt'])
+                      && request.resource.data.refundRequested == true
                     );
 
       allow delete: if isAdmin();
