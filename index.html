@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v100';
+    window.DM_RELEASE_TAG = 'digitalmarket@v101';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -13668,47 +13668,10 @@ function formatPriceMulti(egpAmount) {
 // ═════════════════════════════════════════════════════════════════════
 // TIER 2 #7 — BNPL / INSTALLMENT PLANS (info display)
 // ═════════════════════════════════════════════════════════════════════
-function getBNPLOptions(totalEgp) {
-  if (totalEgp < 100) return [];
-  // CORRECTNESS: show ceil(total/n) for the "per installment" figure so
-  // n × per >= total. Previously `(total/3).toFixed(0)` truncated: EGP 100
-  // displayed as "EGP 33 × 3" = EGP 99, under-collecting the buyer by 1
-  // EGP on the final installment.
-  const perInst = (t, n) => Math.ceil(t / n);
-  const opts = [];
-  if (totalEgp >= 100)  opts.push({ name: 'Pay in 3', logo: '💳', per: perInst(totalEgp, 3), provider: 'ValU' });
-  if (totalEgp >= 200)  opts.push({ name: 'Pay in 4', logo: '💎', per: perInst(totalEgp, 4), provider: 'Tabby' });
-  if (totalEgp >= 500)  opts.push({ name: '6 months', logo: '📅', per: perInst(totalEgp, 6), provider: 'Tamara' });
-  return opts;
-}
-
-(function injectBNPLIntoCheckout() {
-  const orig = window.openCheckout;
-  if (typeof orig !== 'function') return;
-  window.openCheckout = async function(ids) {
-    await orig.apply(this, arguments);
-    setTimeout(() => {
-      const total = (checkoutItems||[]).reduce((s,p)=>s+Number(p.price||0),0);
-      const opts = getBNPLOptions(total);
-      if (!opts.length || document.getElementById('dm-bnpl')) return;
-      const body = document.getElementById('checkout-body');
-      if (!body) return;
-      const div = document.createElement('div');
-      div.id = 'dm-bnpl';
-      div.style.cssText = 'background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.08));border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius);padding:0.85rem;margin-bottom:0.85rem;';
-      div.innerHTML = `<div style="font-size:0.82rem;font-weight:700;color:var(--primary);margin-bottom:0.5rem;">💳 Or pay in installments</div>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-          ${opts.map(o=>`<div style="flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.5rem;text-align:center;font-size:0.78rem;">
-            <div style="font-size:1.2rem;">${o.logo}</div>
-            <div style="font-weight:600;">${o.name}</div>
-            <div style="color:var(--text-muted);">EGP ${o.per} × via ${o.provider}</div>
-          </div>`).join('')}
-        </div>
-        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem;">Contact support@digitalmarketstore.shop to arrange installments before paying.</div>`;
-      body.insertBefore(div, body.firstChild);
-    }, 250);
-  };
-})();
+// Installments / BNPL section removed per request — the "Or pay in
+// installments" block (ValU / Tabby / Tamara info) is no longer injected into
+// checkout. (openCheckout's patch chain is unaffected — this simply no longer
+// adds a wrapper.)
 
 // ═════════════════════════════════════════════════════════════════════
 // TIER 2 #8 — SELLER KYC (identity verification)
