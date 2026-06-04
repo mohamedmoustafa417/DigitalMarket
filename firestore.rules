@@ -88,6 +88,9 @@ service cloud.firestore {
                       request.auth.uid == resource.data.buyerId
                       && changedKeys().hasOnly(['refundRequested', 'updatedAt'])
                       && request.resource.data.refundRequested == true
+                      // Refund policy: digital goods are non-refundable once
+                      // downloaded — block the request after the order is consumed.
+                      && resource.data.downloaded != true
                     );
 
       allow delete: if isAdmin();

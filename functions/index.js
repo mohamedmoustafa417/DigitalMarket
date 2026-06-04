@@ -1549,6 +1549,19 @@ exports.downloadFile = onRequest(
       ip:       req.ip || req.headers['x-forwarded-for'] || ''
     }).catch(() => {});
 
+    // Mark the order as DOWNLOADED (consumed). Refund policy: digital products
+    // are non-refundable once downloaded, so this flag gates refund eligibility.
+    // Server-side + awaited so a buyer cannot avoid it to stay refund-eligible.
+    // (A no-status-change write — onOrderStatusChange returns early on it.)
+    try {
+      await db.collection('orders').doc(orderId).set({
+        downloaded: true,
+        downloadedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      console.warn('[downloadFile] downloaded-flag write failed:', e.message);
+    }
+
     // Firebase Storage → issue a 5-minute signed URL so it expires.
     if (provider === 'firebase' && storagePath && storagePath.startsWith('products/')) {
       try {
