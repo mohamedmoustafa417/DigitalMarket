@@ -165,7 +165,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v103';
+    window.DM_RELEASE_TAG = 'digitalmarket@v104';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -18745,6 +18745,67 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   }
   if (document.readyState === 'complete') setTimeout(seed, 1000);
   else window.addEventListener('load', function(){ setTimeout(seed, 1000); });
+})();
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FUTURISTIC FX — 3D card tilt + cursor-follow glow.
+   Scoped to product cards (.product-card) + home Vision/Mission cards
+   (.vm-card). GPU-only transforms, rAF-throttled to one update/frame, and
+   ONLY on fine-pointer desktops. Fully disabled under prefers-reduced-motion.
+   Purely additive: no markup changes, clicks unaffected (overlay is
+   pointer-events:none), reverts cleanly on mouse-out.
+   ───────────────────────────────────────────────────────────────────────── */
+(function dmCardTiltFX(){
+  if (window.__dmTiltFX) return; window.__dmTiltFX = true;
+  try {
+    var fine   = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!fine || reduce) return;   // touch devices / reduced-motion → skip entirely
+  } catch (e) { return; }
+
+  var SELS = ['.product-card', '.vm-card'];
+  var SEL  = SELS.join(',');
+  var MAX  = 6; // max tilt in degrees
+
+  // Inject scoped styles: smooth transition + a soft cursor-following glow
+  // overlay (::after). The glow is invisible until .dm-glow is added.
+  function sfx(suffix){ return SELS.map(function(s){ return s + suffix; }).join(','); }
+  var css =
+    sfx('.dm-tiltfx') + '{position:relative;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease;transform-style:preserve-3d;will-change:transform;}' +
+    sfx('.dm-tiltfx::after') + '{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;' +
+      'background:radial-gradient(220px circle at var(--dm-mx,50%) var(--dm-my,50%),rgba(139,92,246,.20),rgba(99,102,241,.06) 42%,transparent 66%);' +
+      'opacity:0;transition:opacity .3s ease;}' +
+    sfx('.dm-tiltfx.dm-glow::after') + '{opacity:1;}' +
+    sfx('.dm-tiltfx.dm-glow') + '{box-shadow:0 12px 40px -12px rgba(99,102,241,.55);}';
+  var st = document.createElement('style'); st.id = 'dm-tiltfx-style'; st.textContent = css;
+  document.head.appendChild(st);
+
+  var raf = 0, cx = 0, cy = 0, card = null;
+  function apply(){
+    raf = 0;
+    if (!card) return;
+    var r = card.getBoundingClientRect();
+    if (r.width <= 0) return;
+    var px = Math.max(0, Math.min(1, (cx - r.left) / r.width));
+    var py = Math.max(0, Math.min(1, (cy - r.top)  / r.height));
+    var rx = (0.5 - py) * (MAX * 2);
+    var ry = (px - 0.5) * (MAX * 2);
+    card.style.transform = 'perspective(800px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) scale(1.015)';
+    card.style.setProperty('--dm-mx', (px * 100).toFixed(1) + '%');
+    card.style.setProperty('--dm-my', (py * 100).toFixed(1) + '%');
+  }
+  function release(c){ if (c){ c.style.transform = ''; c.classList.remove('dm-glow'); } }
+
+  document.addEventListener('mousemove', function(e){
+    var c = e.target.closest ? e.target.closest(SEL) : null;
+    if (c !== card){ release(card); card = c; if (card){ card.classList.add('dm-tiltfx','dm-glow'); } }
+    if (!card) return;
+    cx = e.clientX; cy = e.clientY;
+    if (!raf) raf = requestAnimationFrame(apply);
+  }, { passive: true });
+  document.addEventListener('mouseleave', function(){ release(card); card = null; }, { passive: true });
+  // Safety: clear tilt before a route change so a tilted card never "sticks".
+  window.addEventListener('popstate', function(){ release(card); card = null; });
 })();
 </script>
 </body></html>
