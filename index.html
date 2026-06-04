@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v108';
+    window.DM_RELEASE_TAG = 'digitalmarket@v109';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -1138,6 +1138,18 @@
     .product-card .quick-view-btn, .product-card .dm-card-buynow { transition: opacity 0.2s var(--ease-out), transform 0.2s var(--ease-out); }
     .product-card .quick-view-btn { transition-delay: 0s; }
     .product-card .dm-card-buynow { transition-delay: 0.05s; }
+    /* Keep the round card action buttons (⚡ Buy-Now, ♥ Wishlist) PERFECTLY
+       circular — a touch-target min-height was stretching them into vertical
+       ovals (32×44). Force equal width/height + box-sizing so border-radius:50%
+       reads as a true circle on every viewport. */
+    .product-card .dm-card-buynow,
+    .product-card > button[aria-label="Wishlist"] {
+      width: 2.1rem !important;  height: 2.1rem !important;
+      min-width: 2.1rem !important; min-height: 2.1rem !important;
+      max-height: 2.1rem !important;
+      padding: 0 !important; box-sizing: border-box; flex: 0 0 auto;
+      aspect-ratio: 1 / 1;
+    }
 
     /* (Skeleton .dm-skel + @keyframes already defined at line 772-773 — no duplicate here.) */
 
@@ -2285,7 +2297,7 @@
     <span class="nav-link active" id="nav-home" onclick="navigate('home')" role="button" tabindex="0">
       <i class="fa-solid fa-house" aria-hidden="true"></i> <span data-i18n="home">Home</span>
     </span>
-    <span class="nav-link" id="nav-products" onclick="navigate('home');setTimeout(()=>document.getElementById('products-section')?.scrollIntoView({behavior:'smooth'}),100)" role="button" tabindex="0">
+    <span class="nav-link" id="nav-products" onclick="navigate('home');document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));this.classList.add('active');setTimeout(()=>document.getElementById('products-section')?.scrollIntoView({behavior:'smooth'}),100)" role="button" tabindex="0">
       <i class="fa-solid fa-grid-2" aria-hidden="true"></i> <span data-i18n="products">Products</span>
     </span>
     <span class="nav-link" id="nav-cart" onclick="navigate('cart')" role="button" tabindex="0">
@@ -5036,6 +5048,9 @@ function navigate(view) {
     if (el) el.classList.toggle('active', v === view);
     if (nav) nav.classList.toggle('active', v === view);
   });
+  // 'Products' is a pseudo-tab (scrolls to a section, not a real view) — clear
+  // its highlight whenever we navigate to an actual view so it doesn't stick.
+  document.getElementById('nav-products')?.classList.remove('active');
 
   // Clean up canvas animation when navigating away from home
   if (view !== 'home') {
@@ -6296,7 +6311,8 @@ async function loadOrders() {
       // Actions: refund + report (only for approved orders within 7 days)
       const purchaseDate = o.createdAt?.toDate ? o.createdAt.toDate() : null;
       const daysSince = purchaseDate ? Math.floor((Date.now() - purchaseDate.getTime()) / 86400000) : 999;
-      const canRefund = o.status === 'approved' && daysSince <= 7 && !o.refundRequested;
+      // Refund only BEFORE download — digital goods are non-refundable once downloaded.
+      const canRefund = o.status === 'approved' && daysSince <= 7 && !o.refundRequested && !o.downloaded;
       const actionsCell = `<div style="display:flex;gap:0.3rem;flex-wrap:wrap;">
         ${canRefund ? `<button class="btn btn-sm btn-warning" onclick="openRefundModal('${d.id}')" title="Request Refund" style="font-size:0.72rem;"><i class="fa-solid fa-rotate-left"></i></button>` : ''}
         <button class="report-btn" onclick="openReportModal('order','${d.id}')" title="Report issue"><i class="fa-solid fa-flag"></i></button>
@@ -12260,7 +12276,8 @@ function bulkDownloadOrder(orderId) {
           // Actions
           const pd = o.createdAt?.toDate ? o.createdAt.toDate() : null;
           const days = pd ? Math.floor((Date.now()-pd.getTime())/86400000) : 999;
-          const canRefund = o.status==='approved' && days<=7 && !o.refundRequested;
+          // Refund only BEFORE download — digital goods non-refundable once downloaded.
+          const canRefund = o.status==='approved' && days<=7 && !o.refundRequested && !o.downloaded;
           const actionsCell = `<div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center;">
             ${canRefund?`<button class="btn btn-sm btn-warning" onclick="openRefundModal('${d.id}')" title="Refund" style="font-size:0.72rem;"><i class="fa-solid fa-rotate-left"></i></button>`:''}
             <button class="report-btn" onclick="openReportModal('order','${d.id}')" title="Report"><i class="fa-solid fa-flag"></i></button>
