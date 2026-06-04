@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v106';
+    window.DM_RELEASE_TAG = 'digitalmarket@v107';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -8274,34 +8274,12 @@ function trackRecentlyViewed(productId) {
 // JSON-LD STRUCTURED DATA  (Product schema for SEO)
 // ═══════════════════════════════════════════════════════════════════
 function injectProductJsonLd(p) {
-  // Remove any existing product JSON-LD
+  // DISABLED to avoid DUPLICATE Product structured data. The richer schema —
+  // with sku, brand, category, itemCondition, multi-image and bestRating/
+  // worstRating — is emitted by dmInjectProductSchema() (called alongside this
+  // on product open). Two Product JSON-LD blocks make Google ignore both, so
+  // this older injector is now a cleanup no-op.
   document.getElementById('product-jsonld')?.remove();
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: p.name || '',
-    description: p.description || '',
-    image: p.imageUrl || '',
-    offers: {
-      '@type': 'Offer',
-      price: p.price || 0,
-      priceCurrency: 'EGP',
-      availability: 'https://schema.org/InStock',
-      seller: { '@type': 'Organization', name: p.sellerName || 'DigitalMarket' }
-    },
-    ...(p.ratingCount ? {
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: +(p.ratingAvg||0).toFixed(1),
-        reviewCount: p.ratingCount
-      }
-    } : {})
-  };
-  const el = document.createElement('script');
-  el.id   = 'product-jsonld';
-  el.type = 'application/ld+json';
-  el.textContent = JSON.stringify(schema);
-  document.head.appendChild(el);
 }
 
 // JSON-LD cleanup happens in closeModal() which patches product-modal close below
