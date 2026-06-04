@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v107';
+    window.DM_RELEASE_TAG = 'digitalmarket@v108';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -7879,6 +7879,16 @@ function filterByTag(tag) {
 // ═══════════════════════════════════════════════════════════════════
 // DYNAMIC OG META TAGS  (update when product modal opens)
 // ═══════════════════════════════════════════════════════════════════
+// Point the <link rel="canonical"> at a specific URL. Critical for SEO: each
+// product page MUST canonicalize to ITSELF, not the homepage — otherwise Google
+// treats every product as a duplicate of "/" and refuses to index it (the
+// "14 not indexed pages" symptom in Search Console).
+function dmSetCanonical(url) {
+  let el = document.querySelector('link[rel="canonical"]');
+  if (!el) { el = document.createElement('link'); el.setAttribute('rel', 'canonical'); document.head.appendChild(el); }
+  el.setAttribute('href', url);
+}
+
 function updateOGMeta(title, description, imageUrl) {
   const set = (prop, val) => {
     let el = document.querySelector(`meta[property="${prop}"]`);
@@ -7890,6 +7900,11 @@ function updateOGMeta(title, description, imageUrl) {
   set('og:description', description);
   if (imageUrl) set('og:image', imageUrl);
   document.title = base + title;
+  // Self-referencing canonical for this product (matches the sitemap URL).
+  if (typeof currentProductId !== 'undefined' && currentProductId) {
+    dmSetCanonical('https://digitalmarketstore.shop/?p=' + encodeURIComponent(currentProductId));
+    set('og:url', 'https://digitalmarketstore.shop/?p=' + encodeURIComponent(currentProductId));
+  }
   // Update canonical URL with hash — preserve current history.state (see the
   // note in openProductDetail's deep-link block) so the "behind" view isn't
   // wiped before the product entry is pushed.
@@ -7900,6 +7915,12 @@ function resetOGMeta() {
   document.title = 'DigitalMarket – Digital Marketplace';
   document.querySelector('meta[property="og:title"]')?.setAttribute('content','DigitalMarket – Digital Marketplace');
   document.querySelector('meta[property="og:description"]')?.setAttribute('content','Buy and sell digital products securely on DigitalMarket.');
+  // Restore the homepage canonical when leaving a product (so "/" isn't left
+  // canonicalizing to the last-viewed product).
+  if (typeof dmSetCanonical === 'function') {
+    dmSetCanonical('https://digitalmarketstore.shop/');
+    document.querySelector('meta[property="og:url"]')?.setAttribute('content','https://digitalmarketstore.shop/');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
