@@ -58,6 +58,9 @@
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
   <link rel="dns-prefetch" href="https://api.exchangerate.host">
+  <!-- Kashier payment domains — pre-resolve DNS so the checkout redirect is snappy -->
+  <link rel="dns-prefetch" href="https://payments.kashier.io">
+  <link rel="dns-prefetch" href="https://api.kashier.io">
   <!-- Inter (body) + Manrope (display) + JetBrains Mono (code/numerals) + Cairo (Arabic).
        Manrope is what Vercel uses for headings — generous counters, modern, premium.
        JetBrains Mono renders prices/codes with tabular figures so they don't dance. -->
@@ -165,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v105';
+    window.DM_RELEASE_TAG = 'digitalmarket@v106';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -11603,7 +11606,15 @@ function renderFilePreview(product) {
 
   </div>
   <div style="max-width:1200px;margin:1.5rem auto 0;padding-top:1rem;border-top:1px solid var(--border);text-align:center;color:var(--text-muted);font-size:0.78rem;">
-    <p style="margin:0 0 0.25rem;">Payments processed securely. All prices in Egyptian Pounds (EGP).</p>
+    <!-- Payment-security trust row -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:0.7rem 1.1rem;flex-wrap:wrap;margin-bottom:0.85rem;">
+      <span style="display:inline-flex;align-items:center;gap:0.35rem;"><i class="fa-solid fa-lock" style="color:#10b981;" aria-hidden="true"></i> SSL Secured</span>
+      <i class="fa-brands fa-cc-visa" style="font-size:1.7rem;color:#aab2c0;" title="Visa" aria-label="Visa accepted"></i>
+      <i class="fa-brands fa-cc-mastercard" style="font-size:1.7rem;color:#aab2c0;" title="Mastercard" aria-label="Mastercard accepted"></i>
+      <span style="display:inline-flex;align-items:center;gap:0.35rem;"><i class="fa-solid fa-shield-halved" style="color:var(--primary);" aria-hidden="true"></i> Cards secured by Kashier (PCI-DSS)</span>
+      <span style="display:inline-flex;align-items:center;gap:0.3rem;">📱 InstaPay</span>
+    </div>
+    <p style="margin:0 0 0.25rem;">All prices in Egyptian Pounds (EGP). Your card details are entered on Kashier's secure page — we never see or store them.</p>
     <p style="margin:0;">&copy; <span id="footer-year"></span> DigitalMarket. All rights reserved.</p>
   </div>
 </footer>
@@ -18170,10 +18181,10 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     strip.className = 'dm-trust-strip';
     strip.setAttribute('aria-label', 'Why buyers trust DigitalMarket');
     strip.innerHTML = [
-      ['fa-shield-halved', 'Secure Payments',     'Encrypted checkout'],
-      ['fa-rotate-left',   '30-Day Refund',       'No-questions guarantee'],
-      ['fa-bolt',          'Instant Delivery',    'Download right after purchase'],
-      ['fa-headset',       '24/7 Real Support',   'support@digitalmarketstore.shop']
+      ['fa-shield-halved', 'Secure Card Payments', 'Visa &amp; Mastercard via Kashier'],
+      ['fa-rotate-left',   '7-Day Refund',         'Money-back guarantee'],
+      ['fa-bolt',          'Instant Delivery',     'Download right after payment'],
+      ['fa-headset',       'Real Human Support',   'support@digitalmarketstore.shop']
     ].map(function(t) {
       return '<div class="dm-trust-item">' +
                '<div class="dm-trust-icon" aria-hidden="true"><i class="fa-solid ' + t[0] + '"></i></div>' +
