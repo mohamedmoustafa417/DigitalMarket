@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v113';
+    window.DM_RELEASE_TAG = 'digitalmarket@v114';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -6866,7 +6866,10 @@ async function submitProduct(e, isDraft = false) {
     // At least one visual: an image URL or an emoji. Listings with neither
     // look broken in the product grid.
     if (!imgUrlN && !emoji) fail('prod-img', 'Add a product image OR an emoji so the listing has a visual identity.', 'Image or Emoji');
-    if (imgUrlN && !/^https?:\/\//i.test(imgUrlN)) fail('prod-img', 'Must be a valid https:// URL.', 'Image URL (https://)');
+    // Accept https:// URLs AND the app's own data:image/ thumbnails (the
+    // auto-generated SVG covers are stored as data URIs — rejecting them blocked
+    // editing any product that used a generated thumbnail).
+    if (imgUrlN && !/^https?:\/\//i.test(imgUrlN) && !/^data:image\//i.test(imgUrlN)) fail('prod-img', 'Must be a valid https:// URL or a generated thumbnail.', 'Image URL (https:// or data:image)');
     if (sampleUrlN && !/^https?:\/\//i.test(sampleUrlN)) fail('prod-sample', 'Must be a valid https:// URL.', 'Sample URL (https://)');
     // Tags help search + SEO. Soft requirement: 2+ tags.
     if (tags.length < 2) {
