@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v112';
+    window.DM_RELEASE_TAG = 'digitalmarket@v113';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -1172,6 +1172,23 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .product-card .product-img::after { display: none !important; }
+    }
+
+    /* One-time staggered entrance for the product grid. The .dm-stagger class
+       is added on the FIRST render then removed after ~1.3s — so it never
+       re-fires on filter/search/wishlist re-renders and never lingers to
+       clobber the hover transform. Reduced-motion: skipped entirely. */
+    @keyframes dm-card-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: no-preference) {
+      #products-grid.dm-stagger > .product-card { animation: dm-card-in 0.5s cubic-bezier(.2,.8,.2,1) both; }
+      #products-grid.dm-stagger > .product-card:nth-child(1){ animation-delay: 0s; }
+      #products-grid.dm-stagger > .product-card:nth-child(2){ animation-delay: .05s; }
+      #products-grid.dm-stagger > .product-card:nth-child(3){ animation-delay: .10s; }
+      #products-grid.dm-stagger > .product-card:nth-child(4){ animation-delay: .15s; }
+      #products-grid.dm-stagger > .product-card:nth-child(5){ animation-delay: .20s; }
+      #products-grid.dm-stagger > .product-card:nth-child(6){ animation-delay: .25s; }
+      #products-grid.dm-stagger > .product-card:nth-child(7){ animation-delay: .30s; }
+      #products-grid.dm-stagger > .product-card:nth-child(n+8){ animation-delay: .35s; }
     }
 
     /* (Skeleton .dm-skel + @keyframes already defined at line 772-773 — no duplicate here.) */
@@ -13040,6 +13057,29 @@ function openCompareModal() {
         card.appendChild(btn);
       });
     }, 120);
+  };
+})();
+
+// One-time staggered entrance: cascade the product cards up into place on the
+// FIRST render only (premium "alive" feel). Removes the class after the
+// animation so re-renders (filter/search/wishlist) never re-trigger it and the
+// hover-lift transform is never clobbered. Skipped under reduced-motion.
+(function staggerProductCardsOnce() {
+  try { if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+  const orig = window.renderProducts;
+  if (typeof orig !== 'function') return;
+  let played = false;
+  window.renderProducts = function() {
+    const r = orig.apply(this, arguments);
+    if (!played) {
+      const grid = document.getElementById('products-grid');
+      if (grid && grid.children.length && !grid.querySelector('.skeleton-card')) {
+        played = true;
+        grid.classList.add('dm-stagger');
+        setTimeout(() => grid.classList.remove('dm-stagger'), 1300);
+      }
+    }
+    return r;
   };
 })();
 
