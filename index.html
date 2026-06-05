@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v109';
+    window.DM_RELEASE_TAG = 'digitalmarket@v110';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -14892,34 +14892,17 @@ console.log('[DigitalMarket] All-Tier Pack loaded ✅ (2FA, KYC, Multi-currency,
 
 // ─── 5b. "BUY NOW" mini button injected on each card ──────────────────
 (function injectBuyNowOnCards() {
+  // The ⚡ Buy-Now mini-button on product cards was removed per request — it
+  // cluttered the cards. Buyers still get a "Buy Now" button inside the product
+  // detail page. This wrapper now only cleans up any previously-injected button
+  // (e.g. left over in a stale cache) and preserves the renderProducts chain.
   const orig = window.renderProducts;
   if (typeof orig !== 'function') return;
   window.renderProducts = function() {
     orig.apply(this, arguments);
     setTimeout(() => {
-      document.querySelectorAll('.product-card').forEach(card => {
-        if (card.querySelector('.dm-card-buynow')) return;
-        const m = (card.getAttribute('onclick') || '').match(/'([^']+)'/);
-        if (!m) return;
-        const id = m[1];
-        const btn = document.createElement('button');
-        btn.className = 'dm-card-buynow';
-        btn.title = 'Buy Now';
-        btn.setAttribute('aria-label', 'Buy now — skip cart and checkout immediately');
-        btn.innerHTML = '<i class="fa-solid fa-bolt" aria-hidden="true"></i>';
-        btn.style.cssText = 'position:absolute;top:0.5rem;right:2.6rem;background:linear-gradient(135deg,#10b981,#16a34a);color:#fff;border:none;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.85rem;z-index:2;opacity:0;transition:opacity 0.2s;box-shadow:0 4px 10px rgba(16,185,129,0.4);';
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          if (!curUser) { toast('Please login to buy.', 'info'); navigate('login'); return; }
-          if (typeof cart !== 'undefined' && !cart.includes(id)) addToCart(id);
-          setTimeout(() => openCheckout([id]), 250);
-        };
-        // Reveal on hover (matches the quick-view button behavior)
-        card.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
-        card.addEventListener('mouseleave', () => { btn.style.opacity = '0'; });
-        card.appendChild(btn);
-      });
-    }, 100);
+      document.querySelectorAll('.dm-card-buynow').forEach(b => b.remove());
+    }, 60);
   };
 })();
 
