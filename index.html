@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v111';
+    window.DM_RELEASE_TAG = 'digitalmarket@v112';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -1150,6 +1150,28 @@
       max-height: 2.1rem !important;
       padding: 0 !important; box-sizing: border-box; flex: 0 0 auto;
       aspect-ratio: 1 / 1; border-radius: 50% !important;
+    }
+
+    /* ── Futuristic card polish: light-sweep sheen across the image + a
+       multi-tone gradient glow (indigo→purple→pink) with a thin glowing ring
+       on hover. Desktop pointers only; sheen disabled under reduced-motion. ── */
+    @media (hover: hover) and (pointer: fine) {
+      .product-card .product-img::after {
+        content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+        background: linear-gradient(105deg, transparent 36%, rgba(255,255,255,0.22) 50%, transparent 64%);
+        transform: translateX(-130%);
+        transition: transform 0.75s cubic-bezier(0.2,0.8,0.2,1);
+      }
+      .product-card:hover .product-img::after { transform: translateX(130%); }
+      .product-card:hover {
+        box-shadow:
+          0 0 0 1px rgba(139,92,246,0.45),
+          0 14px 34px -10px rgba(99,102,241,0.50),
+          0 0 38px -8px rgba(236,72,153,0.28) !important;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .product-card .product-img::after { display: none !important; }
     }
 
     /* (Skeleton .dm-skel + @keyframes already defined at line 772-773 — no duplicate here.) */
