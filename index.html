@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v114';
+    window.DM_RELEASE_TAG = 'digitalmarket@v115';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -2451,6 +2451,9 @@
       <button class="filter-btn" data-cat="ebook" onclick="setFilter('ebook')">E-books</button>
       <button class="filter-btn" data-cat="course" onclick="setFilter('course')">Courses</button>
       <button class="filter-btn" data-cat="graphics" onclick="setFilter('graphics')">Graphics</button>
+      <button class="filter-btn" data-cat="templates" onclick="setFilter('templates')">Templates</button>
+      <button class="filter-btn" data-cat="printables" onclick="setFilter('printables')">Printables</button>
+      <button class="filter-btn" data-cat="ai" onclick="setFilter('ai')">AI &amp; Prompts</button>
       <button class="filter-btn" data-cat="other" onclick="setFilter('other')" data-i18n="filterOther">Other</button>
     </div>
 
@@ -3416,6 +3419,9 @@
               <option value="ebook">E-books</option>
               <option value="course">Courses</option>
               <option value="graphics">Graphics</option>
+              <option value="templates">Templates</option>
+              <option value="printables">Printables</option>
+              <option value="ai">AI &amp; Prompts</option>
               <option value="other">Other</option>
             </select>
           </div>
@@ -3681,6 +3687,11 @@
           <div class="invalid-feedback">Name is required.</div>
         </div>
         <div class="form-group">
+          <label class="form-label" for="prod-name-ar">اسم المنتج بالعربية (Arabic Name) <small style="color:var(--text-muted);font-weight:400;">(optional)</small></label>
+          <input class="form-control" type="text" id="prod-name-ar" maxlength="120" style="direction:rtl;font-family:var(--font-ar);" placeholder="اسم المنتج بالعربية…">
+          <small style="color:var(--text-muted);font-size:0.75rem;">Shown to Arabic-language buyers. Leave blank to use the English name for everyone.</small>
+        </div>
+        <div class="form-group">
           <label class="form-label" for="prod-desc">Description (English) <span class="req" aria-hidden="true">*</span></label>
           <textarea class="form-control" id="prod-desc" rows="3" required maxlength="1000" style="resize:vertical;"></textarea>
           <div class="invalid-feedback">Description is required.</div>
@@ -3707,14 +3718,39 @@
               <option value="ebook">E-book</option>
               <option value="course">Course</option>
               <option value="graphics">Graphics</option>
+              <option value="templates">Templates</option>
+              <option value="printables">Printables</option>
+              <option value="ai">AI &amp; Prompts</option>
               <option value="other">Other</option>
             </select>
             <div class="invalid-feedback">Please select a category.</div>
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="prod-img">Main Image URL <small style="color:var(--text-muted);font-weight:400;">(optional)</small></label>
-          <input class="form-control" type="url" id="prod-img" placeholder="https://…">
+          <label class="form-label">Main Image <small style="color:var(--text-muted);font-weight:400;">(optional — upload or paste a URL)</small></label>
+          <label class="upload-zone" id="prod-img-zone" for="prod-img-input" style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;border:2px dashed var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color 0.2s;margin-bottom:0.5rem;"
+            ondragover="event.preventDefault();this.style.borderColor='var(--primary)'"
+            ondragleave="this.style.borderColor='var(--border)'"
+            ondrop="handleProductImageDrop(event)">
+            <i class="fa-solid fa-image" style="font-size:1.4rem;color:var(--primary);" aria-hidden="true"></i>
+            <span id="prod-img-label" style="color:var(--text-muted);font-size:0.88rem;">Click or drag an image (JPG/PNG/WebP, max 5 MB)</span>
+          </label>
+          <input type="file" id="prod-img-input" accept="image/*" style="display:none;" onchange="uploadProductImage(this.files[0])">
+          <div id="prod-img-progress-wrap" style="display:none;margin-bottom:0.5rem;">
+            <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;">
+              <div id="prod-img-bar" style="height:100%;width:0%;background:var(--primary);transition:width 0.2s;"></div>
+            </div>
+            <small id="prod-img-status" style="color:var(--text-muted);font-size:0.75rem;">Uploading…</small>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
+            <hr style="flex:1;border-color:var(--border);">
+            <small style="color:var(--text-muted);white-space:nowrap;">or paste a URL</small>
+            <hr style="flex:1;border-color:var(--border);">
+          </div>
+          <input class="form-control" type="url" id="prod-img" placeholder="https://…" oninput="dmPreviewProdImg()">
+          <div id="prod-img-preview-wrap" style="display:none;margin-top:0.5rem;">
+            <img id="prod-img-preview" alt="Image preview" style="max-height:120px;border-radius:var(--radius);border:1px solid var(--border);">
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Extra Images <small style="color:var(--text-muted);font-weight:400;">(optional – up to 2 more)</small></label>
@@ -5471,8 +5507,11 @@ function getFilteredProducts() {
     if (currentFilter === 'software')  return cat.includes('software');
     if (currentFilter === 'ebook')     return cat.includes('book') || cat === 'ebook';
     if (currentFilter === 'course')    return cat.includes('course');
-    if (currentFilter === 'graphics')  return cat.includes('graphic') || cat.includes('template') || cat.includes('design');
-    if (currentFilter === 'other')     return !['software','book','course','graphic','template','design'].some(k => cat.includes(k));
+    if (currentFilter === 'graphics')  return cat.includes('graphic') || cat.includes('design');
+    if (currentFilter === 'templates') return cat.includes('template');
+    if (currentFilter === 'printables')return cat.includes('printable');
+    if (currentFilter === 'ai')        return cat === 'ai' || cat.includes('prompt');
+    if (currentFilter === 'other')     return !['software','book','course','graphic','design','template','printable','ai','prompt'].some(k => cat.includes(k));
     return cat === currentFilter;
   });
   if (searchQuery) {
@@ -6764,6 +6803,15 @@ async function openProductModal(isAdminContext = false, editId = null) {
   document.getElementById('product-form').reset();
   document.getElementById('prod-modal-alert').style.display = 'none';
   document.getElementById('edit-product-id').value = editId || '';
+  // Reset image-upload UI (the preview/label/progress aren't form fields, so
+  // form.reset() doesn't clear them).
+  (function resetImgUI(){
+    const lbl=document.getElementById('prod-img-label');
+    if (lbl) lbl.textContent='Click or drag an image (JPG/PNG/WebP, max 5 MB)';
+    const pw=document.getElementById('prod-img-progress-wrap'); if (pw) pw.style.display='none';
+    const pv=document.getElementById('prod-img-preview-wrap'); if (pv) pv.style.display='none';
+    const z=document.getElementById('prod-img-zone'); if (z) z.style.borderColor='var(--border)';
+  })();
   document.getElementById('add-product-title').textContent = editId ? t('edit') + ' Product' : t('addProduct');
   document.getElementById('prod-submit-btn').textContent = editId ? 'Update' : (isAdminContext ? 'Add Product' : 'Submit for Review');
   // Show/hide draft button (only for sellers, not admin)
@@ -6781,6 +6829,8 @@ async function openProductModal(isAdminContext = false, editId = null) {
     }
     p = p || {};
     document.getElementById('prod-name').value     = p.name          || '';
+    const _nameArEl = document.getElementById('prod-name-ar');
+    if (_nameArEl) _nameArEl.value = p.nameAr || '';
     document.getElementById('prod-desc').value     = p.description   || '';
     document.getElementById('prod-desc-ar').value  = p.descriptionAr || '';
     document.getElementById('prod-price').value    = p.price         || '';
@@ -6799,6 +6849,7 @@ async function openProductModal(isAdminContext = false, editId = null) {
     pi.value = p.storagePath || '';
     document.getElementById('prod-tags').value     = safeTags(p).join(', ');
     document.getElementById('prod-sample').value   = p.sampleUrl     || '';
+    if (typeof dmPreviewProdImg === 'function') dmPreviewProdImg();
   }
   openModal('add-product-modal');
 }
@@ -6807,6 +6858,7 @@ async function submitProduct(e, isDraft = false) {
   if (e && typeof e.preventDefault === 'function') e.preventDefault();
   const editId  = document.getElementById('edit-product-id').value;
   const name    = document.getElementById('prod-name').value.trim();
+  const nameAr  = (document.getElementById('prod-name-ar')?.value || '').trim();
   const desc    = document.getElementById('prod-desc').value.trim();
   const descAr  = document.getElementById('prod-desc-ar').value.trim();
   const price   = parseFloat(document.getElementById('prod-price').value);
@@ -6894,6 +6946,7 @@ async function submitProduct(e, isDraft = false) {
 
   const data = {
     name:          sanitize(name),
+    nameAr:        sanitize(nameAr),
     description:   sanitize(desc),
     descriptionAr: sanitize(descAr),
     price:         isNaN(price) ? 0 : price,
@@ -10430,6 +10483,85 @@ function handleProductFileDrop(e) {
   if (zone) zone.style.borderColor = 'var(--border)';
   const file = e.dataTransfer?.files?.[0];
   if (file) uploadProductFile(file);
+}
+
+/** Show a preview thumbnail of whatever is in the image URL field. */
+function dmPreviewProdImg() {
+  const url  = (document.getElementById('prod-img')?.value || '').trim();
+  const wrap = document.getElementById('prod-img-preview-wrap');
+  const img  = document.getElementById('prod-img-preview');
+  if (!wrap || !img) return;
+  if (url && /^(https?:\/\/|data:image\/)/i.test(url)) {
+    img.src = url; wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+/** Upload a cover image directly to Storage and set the image URL field. */
+async function uploadProductImage(file) {
+  if (!file) return;
+  const MAX_IMG = 5 * 1024 * 1024; // 5 MB
+  if (!/^image\//.test(file.type)) { showToast('Please choose an image file (JPG, PNG or WebP).', 'danger'); return; }
+  if (file.size > MAX_IMG) { showToast('Image too large – maximum is 5 MB.', 'danger'); return; }
+  if (!curUser) { showToast('You must be signed in to upload images.', 'danger'); return; }
+  if (!storage)  { showToast('Storage not available.', 'danger'); return; }
+
+  const zone        = document.getElementById('prod-img-zone');
+  const labelEl     = document.getElementById('prod-img-label');
+  const progressWrap = document.getElementById('prod-img-progress-wrap');
+  const bar         = document.getElementById('prod-img-bar');
+  const statusEl    = document.getElementById('prod-img-status');
+  const imgInput    = document.getElementById('prod-img');
+
+  if (progressWrap) progressWrap.style.display = 'block';
+  if (bar) { bar.style.width = '0%'; bar.style.background = 'var(--primary)'; }
+  if (statusEl) statusEl.textContent = 'Uploading…';
+  if (zone) zone.style.borderColor = 'var(--primary)';
+
+  const ext      = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Single-segment path to match the storage rule: match /products/{sellerId}/{filename}.
+  // A nested .../images/ subpath would fall through to the deny-all rule.
+  const safeName = `img_${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const storagePath = `products/${curUser.uid}/${safeName}`;
+
+  try {
+    const ref = storage.ref(storagePath);
+    const uploadTask = ref.put(file, {
+      contentType: file.type || 'image/png',
+      customMetadata: { uploadedBy: curUser.uid, kind: 'cover' }
+    });
+    await new Promise((resolve, reject) => {
+      uploadTask.on('state_changed',
+        snap => { const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100); if (bar) bar.style.width = pct + '%'; if (statusEl) statusEl.textContent = `Uploading… ${pct}%`; },
+        err => reject(err),
+        () => resolve());
+    });
+    const downloadURL = await ref.getDownloadURL();
+    if (imgInput) imgInput.value = downloadURL;
+    dmPreviewProdImg();
+    if (typeof dmRecalcListingQuality === 'function') dmRecalcListingQuality();
+    if (labelEl) labelEl.textContent = `✅ ${file.name} – uploaded`;
+    if (statusEl) statusEl.textContent = 'Upload complete!';
+    if (bar) { bar.style.width = '100%'; bar.style.background = 'var(--success)'; }
+    if (zone) zone.style.borderColor = 'var(--success)';
+    showToast('Image uploaded successfully!', 'success');
+  } catch (err) {
+    console.error('Product image upload failed:', err);
+    if (statusEl) statusEl.textContent = 'Upload failed – ' + (err.message || 'unknown error');
+    if (bar) bar.style.background = 'var(--danger)';
+    if (zone) zone.style.borderColor = 'var(--danger)';
+    showToast('Image upload failed: ' + (err.message || 'Try again.'), 'danger');
+  }
+}
+
+/** Handle drag-drop of an image onto the image upload zone */
+function handleProductImageDrop(e) {
+  e.preventDefault();
+  const zone = document.getElementById('prod-img-zone');
+  if (zone) zone.style.borderColor = 'var(--border)';
+  const file = e.dataTransfer?.files?.[0];
+  if (file) uploadProductImage(file);
 }
 
 /** Wire up the hidden file input click from the upload zone label */
