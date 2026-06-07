@@ -89,6 +89,13 @@ const KASHIER_API_BASE    = KASHIER_MODE === 'live'   // Payment Sessions
 const KASHIER_FEP_BASE    = KASHIER_MODE === 'live'   // refunds (FEP)
   ? 'https://fep.kashier.io'
   : 'https://test-fep.kashier.io';
+// Payout (transfers) — kept on its OWN mode flag so we can prove seller
+// disbursements in the Kashier SANDBOX while live payments keep running.
+// Flip to 'live' ONLY after a full test-mode transfer + webhook round-trip.
+const KASHIER_PAYOUT_MODE = 'test';
+const KASHIER_PAYOUT_BASE = KASHIER_PAYOUT_MODE === 'live'
+  ? 'https://fep.kashier.io'
+  : 'https://test-fep.kashier.io';
 
 /**
  * Kashier HPP order hash — HMAC-SHA256 over the canonical
@@ -2265,5 +2272,177 @@ exports.kashierRefund = onCall(
 
     console.log(`[kashierRefund] ${isFull ? 'FULL' : 'PARTIAL'} refund ${amount} EGP order=${orderId} by admin ${uid.slice(0,8)}`);
     return { ok: true, refundAmount: amount, full: isFull };
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────
+// kashierPayout — ADMIN-ONLY automated seller disbursement (Kashier Payout
+// /v3/transfers/single). Pays a seller their NET owed (price × (1−commission))
+// out of the platform's Kashier balance. The platform commission simply never
+// leaves the balance. A payout doc is written FIRST (status 'processing') for
+// idempotency; the kashierPayoutWebhook flips it to 'paid' on TRANSFERRED.
+// Runs in KASHIER_PAYOUT_MODE (test by default) — independent of payments.
+// ─────────────────────────────────────────────────────────────────────
+exports.kashierPayout = onCall(
+  { region: 'us-central1', secrets: KASHIER_FULL_SECRETS },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+    const adminSnap = await db.collection('users').doc(uid).get();
+    if (adminSnap.data()?.role !== 'admin') throw new HttpsError('permission-denied', 'Admin only.');
+
+    const key = KASHIER_SECRET_KEY.value();
+    if (!key) throw new HttpsError('failed-precondition', 'Kashier secret key (KASHIER_SECRET_KEY) is not configured.');
+
+    const sellerId = String(request.data?.sellerId || '').trim();
+    if (!sellerId) throw new HttpsError('invalid-argument', 'sellerId is required.');
+
+    // Platform commission rate (settings/payment.commission, default 5%).
+    let platformRate = 5;
+    try {
+      const sd = await db.collection('settings').doc('payment').get();
+      const r = Number(sd.exists ? sd.data().commission : 5);
+      if (!isNaN(r) && r >= 0 && r <= 100) platformRate = r;
+    } catch {}
+
+    // Compute net owed server-side (never trust a client amount blindly).
+    const [ordSnap, paySnap] = await Promise.all([
+      db.collection('orders').where('sellerIds', 'array-contains', sellerId).where('status', '==', 'approved').get(),
+      db.collection('payouts').where('sellerId', '==', sellerId).get()
+    ]);
+    let netEarned = 0;
+    ordSnap.docs.forEach(d => {
+      const o = d.data();
+      const r = Number(o.commissionRate != null ? o.commissionRate : platformRate);
+      (o.items || []).forEach(it => {
+        if ((it.sellerId || 'admin') === sellerId) netEarned += Number(it.price || 0) * (1 - r / 100);
+      });
+    });
+    // Count 'paid' AND in-flight 'processing' payouts as already-committed → no double-pay.
+    const committed = paySnap.docs
+      .filter(d => ['paid', 'processing'].includes(d.data().status))
+      .reduce((s, d) => s + Number(d.data().amount || 0), 0);
+    const owed = Math.round((netEarned - committed) * 100) / 100;
+
+    let amount = (request.data?.amount != null) ? Number(request.data.amount) : owed;
+    amount = Math.round(amount * 100) / 100;
+    if (!(amount > 0)) throw new HttpsError('failed-precondition', `Nothing owed to this seller (owed: ${owed}).`);
+    if (amount > owed) throw new HttpsError('invalid-argument', `Amount ${amount} exceeds owed balance ${owed}.`);
+    if (amount < 100) throw new HttpsError('failed-precondition', 'Minimum payout is EGP 100.');
+
+    // Resolve the seller's payout destination.
+    const seller = (await db.collection('users').doc(sellerId).get()).data() || {};
+    const method = (seller.payoutMethod || (seller.accountNum && seller.payoutBank ? 'bank' : 'wallet')).toLowerCase();
+    const recipientNumber = String(seller.payoutNumber || seller.phone || seller.instapay || seller.accountNum || '').trim();
+    const recipientName = String(seller.accountHolder || seller.shopName || seller.name || 'Seller').slice(0, 80);
+    const recipientBank = method === 'bank' ? (seller.payoutBank || seller.bank || '') : undefined;
+    if (!recipientNumber) {
+      throw new HttpsError('failed-precondition', 'Seller has no payout destination. Ask them to add a wallet/phone or bank account in their Settings.');
+    }
+    if (method === 'bank' && !recipientBank) {
+      throw new HttpsError('failed-precondition', 'Bank payout needs a recognized Kashier bank code (payoutBank). Use a wallet payout or set the bank code.');
+    }
+
+    const merchantTransferId = `po_${sellerId.slice(0, 12)}_${Date.now()}`;
+    // Write the payout doc FIRST (idempotency + webhook can find it).
+    const payoutRef = await db.collection('payouts').add({
+      sellerId,
+      sellerName: seller.shopName || seller.name || '',
+      sellerEmail: seller.email || '',
+      amount,
+      method,
+      recipientNumber,
+      recipientName,
+      via: 'kashier',
+      merchantTransferId,
+      status: 'processing',
+      mode: KASHIER_PAYOUT_MODE,
+      initiatedBy: uid,
+      requestedAt: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    const body = { amount, method, recipientName, recipientNumber, merchantTransferId };
+    if (recipientBank) body.recipientBank = recipientBank;
+
+    const url = `${KASHIER_PAYOUT_BASE}/v3/transfers/single`;
+    console.log('[kashierPayout]', KASHIER_PAYOUT_MODE, 'transfer', amount, 'EGP →', method, recipientNumber.slice(0, 4) + '***', 'mtid:', merchantTransferId);
+    let kres, kjson;
+    try {
+      kres = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': key, 'accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      kjson = await kres.json().catch(() => ({}));
+    } catch (e) {
+      await payoutRef.set({ status: 'failed', failReason: 'network: ' + e.message, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      throw new HttpsError('unavailable', 'Could not reach Kashier payout service: ' + e.message);
+    }
+
+    const tStatus = String(kjson.status || kjson.transferStatus || '').toUpperCase();
+    const ok = kres.ok && (tStatus === 'INITIATED' || tStatus === 'IN_TRANSIT' || tStatus === 'TRANSFERRED' || tStatus === 'PENDING');
+    if (!ok) {
+      const reason = kjson.message || kjson.transferResponseMessage || `HTTP ${kres.status}`;
+      await payoutRef.set({ status: 'failed', failReason: String(reason).slice(0, 300), kashierResponse: tStatus || null, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      console.error('[kashierPayout] FAILED', kres.status, reason);
+      throw new HttpsError('internal', 'Kashier payout failed: ' + reason);
+    }
+
+    const settled = tStatus === 'TRANSFERRED';
+    await payoutRef.set({
+      transferId: kjson.transferId || null,
+      transferStatus: tStatus,
+      status: settled ? 'paid' : 'processing',
+      ...(settled ? { paidAt: FieldValue.serverTimestamp() } : {}),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    console.log(`[kashierPayout] ${tStatus} ${amount} EGP seller=${sellerId.slice(0, 8)} transferId=${kjson.transferId || '-'}`);
+    return { ok: true, transferId: kjson.transferId || null, status: settled ? 'paid' : 'processing', transferStatus: tStatus, amount, mode: KASHIER_PAYOUT_MODE };
+  }
+);
+
+// ─── kashierPayoutWebhook — confirms transfer final status (TRANSFERRED/FAILED).
+// Signed with the Payment API key (same HMAC-SHA256 scheme as kashierWebhook).
+// Matches the payout by merchantTransferId and flips its status.
+exports.kashierPayoutWebhook = onRequest(
+  { region: 'us-central1', secrets: KASHIER_SECRETS, cors: false },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+      const key = KASHIER_PAYMENT_KEY.value();
+      const body = req.body || {};
+      const data = body.data || body || {};
+      const headerSig = req.get('x-kashier-signature') || req.get('X-Kashier-Signature');
+
+      if (!kashierVerifyWebhook(data, headerSig, key)) {
+        console.error('[kashierPayout] webhook signature INVALID', { mtid: data.merchantTransferId });
+        res.status(401).send('invalid signature');
+        return;
+      }
+
+      const mtid = String(data.merchantTransferId || '').trim();
+      const status = String(data.status || data.transferStatus || '').toUpperCase();
+      if (!mtid) { res.status(200).send('no transfer id'); return; }
+
+      const q = await db.collection('payouts').where('merchantTransferId', '==', mtid).limit(1).get();
+      if (q.empty) { console.warn('[kashierPayout] webhook for unknown transfer', mtid); res.status(200).send('unknown transfer'); return; }
+      const ref = q.docs[0].ref;
+
+      if (status === 'TRANSFERRED') {
+        await ref.set({ status: 'paid', transferStatus: status, transferId: data.transferId || null, paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        console.log('[kashierPayout] webhook → PAID', mtid);
+      } else if (status === 'FAILED' || status === 'REJECTED') {
+        await ref.set({ status: 'failed', transferStatus: status, failReason: String(data.transferResponseMessage || 'Transfer failed').slice(0, 300), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        console.warn('[kashierPayout] webhook → FAILED', mtid);
+      } else {
+        await ref.set({ transferStatus: status, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+      res.status(200).send('ok');
+    } catch (e) {
+      console.error('[kashierPayout] webhook error', e.message);
+      res.status(200).send('error-logged');
+    }
   }
 );

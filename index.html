@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v117';
+    window.DM_RELEASE_TAG = 'digitalmarket@v118';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -3405,8 +3405,8 @@
         </div>
         <div class="table-wrap" style="margin-bottom:1.6rem;">
           <table>
-            <thead><tr><th>Seller</th><th>Gross</th><th>Your commission</th><th>Net earned</th><th>Paid</th><th>Balance owed</th></tr></thead>
-            <tbody id="admin-seller-earnings-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Loading…</td></tr></tbody>
+            <thead><tr><th>Seller</th><th>Gross</th><th>Your commission</th><th>Net earned</th><th>Paid</th><th>Balance owed</th><th>Action</th></tr></thead>
+            <tbody id="admin-seller-earnings-tbody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Loading…</td></tr></tbody>
           </table>
         </div>
         <h4 style="margin:0 0 0.75rem;"><i class="fa-solid fa-hand-holding-dollar" style="color:var(--primary);margin-right:0.4rem;"></i>Payout Requests</h4>
@@ -10172,8 +10172,11 @@ async function loadAdminCommissionSummary() {
       db.collection('orders').where('status','==','approved').get(),
       db.collection('payouts').get()
     ]);
-    const paidBy = {};
-    paySnap.docs.forEach(d => { const p = d.data(); if (p.status === 'paid') paidBy[p.sellerId] = (paidBy[p.sellerId] || 0) + Number(p.amount || 0); });
+    const paidBy = {}, procBy = {};
+    paySnap.docs.forEach(d => { const p = d.data();
+      if (p.status === 'paid') paidBy[p.sellerId] = (paidBy[p.sellerId] || 0) + Number(p.amount || 0);
+      else if (p.status === 'processing') procBy[p.sellerId] = (procBy[p.sellerId] || 0) + Number(p.amount || 0);
+    });
     const sellers = {};
     let totGross = 0, totComm = 0;
     ordSnap.docs.forEach(d => {
@@ -10193,9 +10196,10 @@ async function loadAdminCommissionSummary() {
     paySnap.docs.forEach(d => { const p = d.data(); if (sellers[p.sellerId] && !sellers[p.sellerId].name) sellers[p.sellerId].name = p.sellerName || p.sellerEmail || ''; });
     let totPaid = 0, totOwed = 0;
     const rows = Object.entries(sellers).map(([sid, s]) => {
-      const paid = paidBy[sid] || 0, owed = Math.max(0, s.net - paid);
+      const paid = paidBy[sid] || 0, processing = procBy[sid] || 0;
+      const owed = Math.max(0, s.net - paid - processing);
       totPaid += paid; totOwed += owed;
-      return { sid, name: s.name || sid.slice(0,10), gross: s.gross, commission: s.commission, net: s.net, paid, owed };
+      return { sid, name: s.name || sid.slice(0,10), gross: s.gross, commission: s.commission, net: s.net, paid, processing, owed };
     }).sort((a,b) => b.owed - a.owed);
     _dmCommissionRows = rows;
     const set = (id,v) => { const e = document.getElementById(id); if (e) e.textContent = formatPrice(Math.round(v)); };
@@ -10207,8 +10211,41 @@ async function loadAdminCommissionSummary() {
         <td>${formatPrice(Math.round(r.net))}</td>
         <td>${formatPrice(Math.round(r.paid))}</td>
         <td style="color:var(--warning);font-weight:700;">${formatPrice(Math.round(r.owed))}</td>
-      </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No approved seller sales yet.</td></tr>`;
-  } catch (e) { if (tb) tb.innerHTML = `<tr><td colspan="6" style="color:var(--danger);">${sanitize(e.message)}</td></tr>`; }
+        <td>${
+          r.owed >= 100
+            ? `<button class="btn btn-sm btn-success" onclick="payoutSellerKashier('${r.sid}')" title="Disburse owed balance via Kashier"><i class="fa-solid fa-paper-plane"></i> Pay</button>`
+            : r.processing > 0
+              ? `<span class="badge" style="background:var(--bg3);color:var(--warning);">processing…</span>`
+              : r.owed > 0 ? `<span style="font-size:0.72rem;color:var(--text-muted);">min EGP 100</span>` : '—'
+        }</td>
+      </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No approved seller sales yet.</td></tr>`;
+  } catch (e) { if (tb) tb.innerHTML = `<tr><td colspan="7" style="color:var(--danger);">${sanitize(e.message)}</td></tr>`; }
+}
+
+// Admin-triggered automated payout via the kashierPayout Cloud Function.
+// The server recomputes the owed balance (never trusts the client) and disburses
+// it to the seller's registered destination. Your commission stays in your balance.
+async function payoutSellerKashier(sid) {
+  const row = (_dmCommissionRows || []).find(x => x.sid === sid);
+  const owed = row ? Math.round(row.owed) : 0;
+  const name = row ? row.name : sid;
+  if (owed < 100) { toast('Minimum payout is EGP 100.', 'warning'); return; }
+  if (!confirm(`Pay ${name} their owed balance of EGP ${owed.toLocaleString()} via Kashier?\n\nThis sends money from your Kashier balance to the seller's registered destination. Your platform commission stays with you. This cannot be undone.`)) return;
+  try {
+    toast('Sending payout via Kashier…', 'info', 6000);
+    const fn = firebase.app().functions('us-central1').httpsCallable('kashierPayout');
+    const res = await fn({ sellerId: sid });
+    if (res?.data?.ok) {
+      const st = res.data.status === 'paid' ? 'completed ✓' : 'initiated — confirming…';
+      toast(`Payout EGP ${res.data.amount} ${st}${res.data.mode === 'test' ? ' (TEST mode)' : ''}`, 'success', 8000);
+      loadAdminCommissionSummary();
+      if (typeof loadAdminPayouts === 'function') loadAdminPayouts();
+    } else {
+      toast('Payout did not complete — check the Payouts list.', 'warning', 7000);
+    }
+  } catch (e) {
+    toast('Payout failed: ' + sanitize(e.message || 'Unknown error'), 'danger', 9000);
+  }
 }
 
 function exportCommissionCSV() {
