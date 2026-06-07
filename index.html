@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v121';
+    window.DM_RELEASE_TAG = 'digitalmarket@v122';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -4896,7 +4896,9 @@ function dmEmpty(el, { icon = '📭', title = 'Nothing here yet', text = '', cta
   let lastX = 0, lastY = 0;
   const SELECTOR = '.product-card, .vm-card, .collection-card, .seller-card, .related-card, .rv-card';
   document.addEventListener('mousemove', (e) => {
-    const card = e.target.closest(SELECTOR);
+    // e.target can be a text node (no .closest) — fall back to its parent element.
+    const t = (e.target instanceof Element) ? e.target : (e.target && e.target.parentElement);
+    const card = t && t.closest ? t.closest(SELECTOR) : null;
     if (!card) return;
     const r = card.getBoundingClientRect();
     lastEl = card;
