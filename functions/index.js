@@ -1096,6 +1096,50 @@ exports.abandonedCartReminder = onSchedule(
   }
 );
 
+// ─── reviewRequestEmails — nudge buyers to leave an HONEST review 2–21 days
+// after delivery. Builds real social proof on autopilot; fires once per order
+// (reviewRequestSent flag). No fabricated reviews — just an invitation.
+exports.reviewRequestEmails = onSchedule(
+  { schedule: 'every day 11:00', region: 'us-central1', timeZone: 'Africa/Cairo', secrets: EMAIL_SECRETS },
+  async () => {
+    const now = Date.now();
+    const MIN_AGE = 2  * 24 * 60 * 60 * 1000;   // wait ≥2 days so they've used it
+    const MAX_AGE = 21 * 24 * 60 * 60 * 1000;   // don't pester old orders
+    const snap = await db.collection('orders').where('status', '==', 'approved').limit(300).get();
+    let sent = 0;
+    for (const doc of snap.docs) {
+      const o = doc.data();
+      if (o.reviewRequestSent) continue;
+      if (!o.buyerEmail) continue;
+      const ts = (o.approvedAt && o.approvedAt.toMillis && o.approvedAt.toMillis())
+              || (o.updatedAt && o.updatedAt.toMillis && o.updatedAt.toMillis())
+              || (o.createdAt && o.createdAt.toMillis && o.createdAt.toMillis()) || 0;
+      const age = now - ts;
+      if (age < MIN_AGE || age > MAX_AGE) continue;
+      const items = o.items || [];
+      const first = items[0] || {};
+      const link  = `https://digitalmarketstore.shop/?p=${encodeURIComponent(first.id || '')}&utm_source=review_request`;
+      const names = items.map(i => i.name).filter(Boolean).slice(0, 3).join(', ') || 'your purchase';
+      const firstName = o.buyerName ? String(o.buyerName).split(' ')[0] : 'there';
+      const result = await sendEmail({
+        to: o.buyerEmail,
+        subject: '⭐ How was your purchase? (30 seconds)',
+        body: `<p>Hi ${firstName},</p>
+               <p>Thanks for buying <strong>${names}</strong> from DigitalMarket!</p>
+               <p>If it helped you, a quick honest review would mean a lot — it helps other buyers decide and supports the store.</p>
+               <p><a href="${link}">Leave a review →</a></p>
+               <p>And if anything wasn't perfect, just reply to this email and we'll make it right.</p>
+               <p>— The DigitalMarket team</p>`
+      }).catch(e => ({ ok: false, err: String(e?.message || e) }));
+      if (result && result.ok) {
+        sent++;
+        await doc.ref.update({ reviewRequestSent: true, reviewRequestAt: FieldValue.serverTimestamp() });
+      }
+    }
+    console.log(`[reviewRequestEmails] Sent ${sent} review request(s).`);
+  }
+);
+
 // ─── 7. processEmailCampaigns ─────────────────────────────────────────
 // Picks up queued campaigns and dispatches via SendGrid (or your provider).
 
