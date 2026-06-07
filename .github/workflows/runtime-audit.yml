@@ -5,8 +5,7 @@ on:
     - cron: '15 4 * * 1'   # Mondays 04:15 UTC
   workflow_dispatch:
   push:
-    branches: [main, master]
-    paths: ['index.html']  # rerun audit whenever the main file changes
+    branches: [main, master]   # full sweep (smoke audit + responsive/overlap) on every push
 
 permissions:
   contents: read
@@ -148,6 +147,73 @@ jobs:
         run: node audit.js
         continue-on-error: true
 
+      - name: Responsive + overlap sweep (pushed code, 320/375/414/1440)
+        id: sweep
+        continue-on-error: true
+        run: |
+          # Serve the just-checked-out code so we test THIS push, not the (laggy) live site.
+          python3 -m http.server 8080 --directory "$GITHUB_WORKSPACE" >/dev/null 2>&1 &
+          SRV=$!
+          sleep 2
+          cat > ci-audit/sweep.js << 'SWEEP_EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+          const SITE = 'http://localhost:8080/';
+          const WIDTHS = [320, 375, 414, 1440];
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          (async () => {
+            const out = { widths: {}, failures: [] };
+            const browser = await puppeteer.launch({ headless:'new', args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'] });
+            for (const w of WIDTHS) {
+              const mobile = w < 1024;
+              const page = await browser.newPage();
+              const errs = [];
+              page.on('pageerror', e => errs.push((e.message||'').slice(0,200)));
+              await page.setViewport({ width:w, height:880, isMobile:mobile, hasTouch:mobile, deviceScaleFactor: mobile?2:1 });
+              await page.goto(SITE, { waitUntil:'load', timeout:60000 });
+              await sleep(3500);
+              const probe = await page.evaluate(() => {
+                const de = document.documentElement;
+                const sw = Math.max(de.scrollWidth, document.body.scrollWidth);
+                return { overflowPx: Math.max(0, sw - window.innerWidth), cards: document.querySelectorAll('.product-card').length };
+              });
+              const realErrs = [...new Set(errs)].filter(e => !/Cross-Origin-Opener-Policy|X-Frame-Options.*meta|ResizeObserver loop/.test(e));
+              out.widths[w] = { ...probe, pageErrors: realErrs };
+              if (probe.overflowPx > 4) out.failures.push(`${w}px horizontal overflow ${probe.overflowPx}px`);
+              if (realErrs.length) out.failures.push(`${w}px pageError: ${realErrs[0]}`);
+              await page.screenshot({ path: `ci-audit/sweep-${w}.png` });
+              await page.close();
+            }
+            // Banner-overlap regression at 320px (force install prompt + cookie banner together)
+            const m = await browser.newPage();
+            await m.setViewport({ width:320, height:880, isMobile:true, hasTouch:true, deviceScaleFactor:2 });
+            await m.evaluateOnNewDocument(() => { try { localStorage.setItem('dm_visit_count','5'); localStorage.removeItem('dm_cookie_consent'); } catch(e){} });
+            await m.goto(SITE, { waitUntil:'load', timeout:60000 }); await sleep(2000);
+            await m.evaluate(() => { const e = new Event('beforeinstallprompt'); e.prompt = ()=>{}; e.userChoice = Promise.resolve({outcome:'dismissed'}); window.dispatchEvent(e); });
+            await sleep(9000);
+            out.bannerOverlap = await m.evaluate(() => {
+              const r = el => el ? el.getBoundingClientRect() : null;
+              const ri = r(document.getElementById('dm-pwa-install')), rc = r(document.getElementById('cookie-banner'));
+              if (!ri || !rc) return { tested:false };
+              const ox = Math.max(0, Math.min(ri.right,rc.right)-Math.max(ri.left,rc.left));
+              const oy = Math.max(0, Math.min(ri.bottom,rc.bottom)-Math.max(ri.top,rc.top));
+              return { tested:true, overlapArea: Math.round(ox*oy) };
+            });
+            if (out.bannerOverlap.tested && out.bannerOverlap.overlapArea > 0)
+              out.failures.push(`install/cookie banner overlap ${out.bannerOverlap.overlapArea}px2`);
+            await m.screenshot({ path:'ci-audit/sweep-banners.png' });
+            await browser.close();
+            fs.writeFileSync('ci-audit/sweep.json', JSON.stringify(out, null, 2));
+            console.log(JSON.stringify(out, null, 2));
+            if (out.failures.length) { console.error('SWEEP FAILED: ' + out.failures.join('; ')); process.exit(1); }
+            console.log('SWEEP PASSED');
+          })().catch(e => { console.error(e); process.exit(2); });
+          SWEEP_EOF
+          node ci-audit/sweep.js
+          CODE=$?
+          kill $SRV 2>/dev/null || true
+          exit $CODE
+
       - name: Upload findings + screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -156,16 +222,20 @@ jobs:
           path: |
             ci-audit/findings.json
             ci-audit/home.png
+            ci-audit/sweep.json
+            ci-audit/sweep-*.png
           retention-days: 30
 
       - name: Open issue on failure
-        if: steps.audit.outcome == 'failure'
+        if: steps.audit.outcome == 'failure' || steps.sweep.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             let findings = {};
             try { findings = JSON.parse(fs.readFileSync('ci-audit/findings.json','utf8')); } catch {}
+            let sweep = {};
+            try { sweep = JSON.parse(fs.readFileSync('ci-audit/sweep.json','utf8')); } catch {}
             const body = [
               '## Runtime audit failed',
               `**Site:** https://digitalmarketstore.shop/`,
@@ -189,7 +259,13 @@ jobs:
               JSON.stringify(findings.workflows, null, 2),
               '```',
               '',
-              '_Audit artifacts (screenshot + findings.json) attached to this workflow run._'
+              '### Responsive + overlap sweep',
+              (sweep.failures && sweep.failures.length) ? sweep.failures.map(f => '- ⚠️ `' + f + '`').join('\n') : '_no sweep failures (or sweep did not run)_',
+              '```json',
+              JSON.stringify({ widths: sweep.widths, bannerOverlap: sweep.bannerOverlap }, null, 2),
+              '```',
+              '',
+              '_Audit artifacts (screenshots + findings.json + sweep.json) attached to this workflow run._'
             ].join('\n');
 
             await github.rest.issues.create({
@@ -200,6 +276,6 @@ jobs:
               labels: ['bug', 'runtime-audit']
             });
 
-      - name: Fail step if audit failed
-        if: steps.audit.outcome == 'failure'
+      - name: Fail step if audit or sweep failed
+        if: steps.audit.outcome == 'failure' || steps.sweep.outcome == 'failure'
         run: exit 1
