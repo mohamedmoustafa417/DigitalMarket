@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v122';
+    window.DM_RELEASE_TAG = 'digitalmarket@v123';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -11942,7 +11942,7 @@ function renderFilePreview(product) {
     <input type="email" id="newsletter-email" placeholder="your@email.com" autocomplete="email" aria-label="Email address for newsletter">
     <button class="btn btn-primary" onclick="subscribeNewsletter()" style="background:rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.5);color:#fff;">Subscribe →</button>
   </div>
-  <button class="btn btn-outline" onclick="openLeadMagnet()" style="margin-top:0.7rem;background:transparent;border:1.5px solid rgba(255,255,255,0.55);color:#fff;font-weight:600;">🎁 Free: 20 ChatGPT prompts for business</button>
+  <button class="btn btn-outline" onclick="openLeadMagnet()" style="margin-top:0.7rem;max-width:100%;box-sizing:border-box;white-space:normal;background:transparent;border:1.5px solid rgba(255,255,255,0.55);color:#fff;font-weight:600;">🎁 Free: 20 ChatGPT prompts</button>
 </div>
 
 <!-- Lead-magnet capture modal -->
