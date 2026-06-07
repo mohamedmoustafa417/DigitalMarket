@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v120';
+    window.DM_RELEASE_TAG = 'digitalmarket@v121';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -10117,6 +10117,29 @@ async function subscribeNewsletter() {
   } catch(e) { toast('Subscription failed. Try again.', 'danger'); }
 }
 
+// ─── Lead magnet: capture email → deliver the free "20 ChatGPT prompts" PDF ──
+const DM_LEAD_MAGNET_URL = 'https://drive.google.com/drive/folders/1CP_9pjb5Ovv1se7ObkYmrNxeNNRkS23w?usp=sharing';
+function openLeadMagnet() { openModal('lead-magnet-modal'); }
+async function submitLeadMagnet() {
+  const email = (document.getElementById('lm-email')?.value || '').trim();
+  const fb = document.getElementById('lm-feedback');
+  if (!email || !(typeof validateEmail === 'function' ? validateEmail(email) : /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
+    if (fb) { fb.textContent = 'Enter a valid email.'; fb.style.display = 'block'; }
+    return;
+  }
+  if (fb) fb.style.display = 'none';
+  const btn = document.getElementById('lm-submit');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try { await db.collection('newsletter').add({ email: sanitize(email), source: 'lead_magnet', subscribedAt: FV.serverTimestamp() }); } catch(e) {}
+  try { localStorage.setItem('dm_lead_magnet_done', '1'); } catch(e) {}
+  try { trackEvent('lead_magnet_signup', { email_domain: email.split('@')[1] }); } catch(e) {}
+  const body = document.getElementById('lm-body');
+  if (body) body.innerHTML = `
+    <p style="font-size:0.95rem;font-weight:600;margin-bottom:0.9rem;">✅ You're in — here are your 20 free prompts:</p>
+    <a class="btn btn-primary btn-full" href="${DM_LEAD_MAGNET_URL}" target="_blank" rel="noopener noreferrer">⬇ Download the prompts</a>
+    <p style="font-size:0.82rem;color:var(--text-muted);text-align:center;margin-top:0.9rem;">Want all <strong>200</strong>? Use code <strong>LAUNCH25</strong> for 25% off the full pack.</p>`;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // BREADCRUMB JSON-LD
 // ═══════════════════════════════════════════════════════════════════
@@ -11916,6 +11939,26 @@ function renderFilePreview(product) {
   <div class="newsletter-form">
     <input type="email" id="newsletter-email" placeholder="your@email.com" autocomplete="email" aria-label="Email address for newsletter">
     <button class="btn btn-primary" onclick="subscribeNewsletter()" style="background:rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.5);color:#fff;">Subscribe →</button>
+  </div>
+  <button class="btn btn-outline" onclick="openLeadMagnet()" style="margin-top:0.7rem;background:transparent;border:1.5px solid rgba(255,255,255,0.55);color:#fff;font-weight:600;">🎁 Free: 20 ChatGPT prompts for business</button>
+</div>
+
+<!-- Lead-magnet capture modal -->
+<div class="modal-overlay" id="lead-magnet-modal" role="dialog" aria-modal="true" aria-labelledby="lm-title" onclick="if(event.target===this)closeModal('lead-magnet-modal')">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <h3 id="lm-title">🎁 20 Free ChatGPT Prompts</h3>
+      <button class="btn-icon" onclick="closeModal('lead-magnet-modal')" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="lm-body">
+      <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:1rem;">Run your business with AI. Get 20 ready-to-use ChatGPT prompts for small business — marketing, sales, social and support. Free &amp; instant.</p>
+      <div class="form-group">
+        <input class="form-control" type="email" id="lm-email" placeholder="your@email.com" autocomplete="email" aria-label="Email">
+        <div class="invalid-feedback" id="lm-feedback"></div>
+      </div>
+      <button class="btn btn-primary btn-full" id="lm-submit" onclick="submitLeadMagnet()">Send me the prompts →</button>
+      <p style="font-size:0.72rem;color:var(--text-muted);text-align:center;margin-top:0.6rem;">No spam. Unsubscribe anytime.</p>
+    </div>
   </div>
 </div>
 
