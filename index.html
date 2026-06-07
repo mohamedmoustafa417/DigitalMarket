@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v115';
+    window.DM_RELEASE_TAG = 'digitalmarket@v116';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -1150,6 +1150,19 @@
       max-height: 2.1rem !important;
       padding: 0 !important; box-sizing: border-box; flex: 0 0 auto;
       aspect-ratio: 1 / 1; border-radius: 50% !important;
+    }
+    /* Touch devices: expand the *tap* area to ~44px via an invisible overlay so the
+       circle stays 2.1rem visually (no layout change / no overlap) but is easy to hit. */
+    @media (pointer: coarse) {
+      .product-card .dm-card-buynow,
+      .product-card .dm-cmp-btn,
+      .product-card > button[aria-label="Wishlist"] { position: relative; }
+      .product-card .dm-card-buynow::after,
+      .product-card .dm-cmp-btn::after,
+      .product-card > button[aria-label="Wishlist"]::after {
+        content: ''; position: absolute; top: 50%; left: 50%;
+        width: 44px; height: 44px; transform: translate(-50%, -50%);
+      }
     }
 
     /* ── Futuristic card polish: light-sweep sheen across the image + a
@@ -3749,7 +3762,7 @@
           </div>
           <input class="form-control" type="url" id="prod-img" placeholder="https://…" oninput="dmPreviewProdImg()">
           <div id="prod-img-preview-wrap" style="display:none;margin-top:0.5rem;">
-            <img id="prod-img-preview" alt="Image preview" style="max-height:120px;border-radius:var(--radius);border:1px solid var(--border);">
+            <img id="prod-img-preview" alt="Image preview" style="max-height:120px;border-radius:var(--radius);border:1px solid var(--border);" onerror="this.style.display='none'">
           </div>
         </div>
         <div class="form-group">
@@ -3918,7 +3931,7 @@
           <p style="font-size:0.85rem;color:var(--text-muted);" data-i18n="clickToUpload">Click to upload screenshot</p>
           <p style="font-size:0.75rem;color:var(--text-muted);">JPG, PNG, WEBP – max 5MB</p>
           <input type="file" id="proof-input" accept="image/jpeg,image/png,image/webp" onchange="handleProof(event)" aria-label="Upload payment proof image">
-          <img id="proof-preview" class="file-preview" alt="Payment proof preview">
+          <img id="proof-preview" class="file-preview" alt="Payment proof preview" onerror="this.style.display='none'">
         </div>
         <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.75rem;">After you submit, an admin will review your payment within 24 hours and email you with your download links.</p>
       </div>
@@ -4008,7 +4021,7 @@
   <div class="modal" style="max-width:400px;background:transparent;border:none;box-shadow:none;position:relative;">
     <button onclick="closeModal('proof-modal')" aria-label="Close proof image"
       style="position:absolute;top:-0.75rem;right:-0.75rem;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;z-index:10;line-height:1;">✕</button>
-    <img id="proof-img-view" src="" alt="Payment proof" style="width:100%;border-radius:var(--radius);display:block;">
+    <img id="proof-img-view" alt="Payment proof" style="width:100%;border-radius:var(--radius);display:block;" onerror="this.style.display='none'">
   </div>
 </div>
 
@@ -11351,8 +11364,8 @@ let _currencyIdx  = 0;
 // don't hit the API on every page view. If the fetch fails (CORS, rate
 // limit, network), the static rates stay in use — buyers always see
 // SOMETHING.
-const CURRENCY_RATES = { EGP: 1, USD: 0.021, EUR: 0.019, SAR: 0.079, AED: 0.077 };
-const CURRENCY_SYMS  = { EGP: 'EGP', USD: '$', EUR: '€', SAR: 'SR', AED: 'AED' };
+const CURRENCY_RATES = { EGP: 1, USD: 0.0193, EUR: 0.0179, SAR: 0.0724, AED: 0.0709, GBP: 0.0152 };
+const CURRENCY_SYMS  = { EGP: 'EGP', USD: '$', EUR: '€', SAR: 'SR', AED: 'AED', GBP: '£' };
 
 (function refreshFxRates() {
   const KEY = 'dm_fx_cache_v1';
@@ -11367,7 +11380,7 @@ const CURRENCY_SYMS  = { EGP: 'EGP', USD: '$', EUR: '€', SAR: 'SR', AED: 'AED'
   } catch {}
   // Fetch live. exchangerate.host is free, no key, returns JSON shaped
   // as { rates: { USD: 0.0208, EUR: 0.0193, ... } } from a given base.
-  fetch('https://api.exchangerate.host/latest?base=EGP&symbols=USD,EUR,SAR,AED', { cache: 'no-store' })
+  fetch('https://api.exchangerate.host/latest?base=EGP&symbols=USD,EUR,SAR,AED,GBP', { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
     .then(j => {
       if (!j || !j.rates) return;
@@ -13822,11 +13835,11 @@ function optimizeImageUrl(url, width) {
 // ═════════════════════════════════════════════════════════════════════
 const DM_CURRENCIES = {
   EGP: { symbol: 'EGP', rate: 1,      flag: '🇪🇬' },
-  USD: { symbol: '$',   rate: 0.0205, flag: '🇺🇸' }, // 1 EGP ≈ $0.0205 (May 2026)
-  EUR: { symbol: '€',   rate: 0.0190, flag: '🇪🇺' },
-  SAR: { symbol: 'SAR', rate: 0.0770, flag: '🇸🇦' },
-  AED: { symbol: 'AED', rate: 0.0754, flag: '🇦🇪' },
-  GBP: { symbol: '£',   rate: 0.0163, flag: '🇬🇧' },
+  USD: { symbol: '$',   rate: 0.0193, flag: '🇺🇸' }, // seed; live FX (CURRENCY_RATES) overrides. ~51.8 EGP/$ (Jun 2026)
+  EUR: { symbol: '€',   rate: 0.0179, flag: '🇪🇺' },
+  SAR: { symbol: 'SAR', rate: 0.0724, flag: '🇸🇦' },
+  AED: { symbol: 'AED', rate: 0.0709, flag: '🇦🇪' },
+  GBP: { symbol: '£',   rate: 0.0152, flag: '🇬🇧' },
 };
 
 function getCurrentCurrency() { return localStorage.getItem('dm_currency') || 'EGP'; }
@@ -13854,12 +13867,16 @@ function formatPriceMulti(egpAmount) {
   // Mirror formatPrice() rules: EGP shows decimals only when needed,
   // other currencies always show 2. Eliminates the "EGP 99.5" / "EGP 99"
   // inconsistency between the cart and invoice that buyers saw before.
-  const c = DM_CURRENCIES[getCurrentCurrency()];
+  const code = getCurrentCurrency();
+  const c = DM_CURRENCIES[code];
   const rounded = Math.round(Number(egpAmount || 0) * 100) / 100;
-  if (!c || c.rate === 1) {
+  if (!c || code === 'EGP') {
     return `EGP ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(rounded)}`;
   }
-  const converted = Math.round(rounded * c.rate * 100) / 100;
+  // Prefer the live-refreshed FX rate (CURRENCY_RATES, updated by refreshFxRates);
+  // fall back to the static DM_CURRENCIES seed if the live table lacks this code.
+  const liveRate = (typeof CURRENCY_RATES === 'object' && Number(CURRENCY_RATES[code]) > 0) ? Number(CURRENCY_RATES[code]) : c.rate;
+  const converted = Math.round(rounded * liveRate * 100) / 100;
   return `${c.symbol} ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(converted)}`;
 }
 
@@ -16811,7 +16828,15 @@ console.log('[DigitalMarket] Trendy/Sustainable/Universal pack loaded ✅ (glass
       if (!deferredPrompt) return;
       const banner = document.createElement('div');
       banner.id = 'dm-pwa-install';
-      banner.style.cssText = 'position:fixed;bottom:80px;right:16px;background:var(--bg2);border:1px solid var(--primary);border-radius:var(--r-md,12px);padding:0.85rem 1rem;box-shadow:var(--elev-3,0 12px 30px rgba(0,0,0,0.45));z-index:9000;max-width:320px;display:flex;flex-direction:column;gap:0.5rem;animation:dm-toastin 0.3s ease;';
+      // Stack the install prompt ABOVE the bottom nav AND the cookie-consent
+      // banner so the two bottom-anchored overlays never overlap on mobile.
+      // Width is clamped to the viewport so it fits 320px screens.
+      var _navEl = document.getElementById('mobile-bottom-nav');
+      var _ckEl  = document.getElementById('cookie-banner');
+      var _bottomPx = 16;
+      if (_navEl && getComputedStyle(_navEl).display !== 'none') _bottomPx += (_navEl.offsetHeight || 56) + 8;
+      if (_ckEl  && getComputedStyle(_ckEl).display  !== 'none') _bottomPx += (_ckEl.offsetHeight  || 0)  + 8;
+      banner.style.cssText = 'position:fixed;bottom:'+_bottomPx+'px;right:16px;left:auto;width:320px;max-width:calc(100vw - 32px);background:var(--bg2);border:1px solid var(--primary);border-radius:var(--r-md,12px);padding:0.85rem 1rem;box-shadow:var(--elev-3,0 12px 30px rgba(0,0,0,0.45));z-index:9000;display:flex;flex-direction:column;gap:0.5rem;animation:dm-toastin 0.3s ease;';
       banner.innerHTML = `
         <div style="display:flex;align-items:center;gap:0.5rem;font-weight:600;font-size:0.9rem;">📲 Install DigitalMarket</div>
         <div style="font-size:0.8rem;color:var(--text-muted);">Get instant access from your home screen, even offline.</div>
