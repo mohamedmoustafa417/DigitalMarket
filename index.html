@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v118';
+    window.DM_RELEASE_TAG = 'digitalmarket@v119';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -2969,6 +2969,26 @@
             <div class="form-group">
               <label class="form-label" for="s-accname">Account Holder Name</label>
               <input class="form-control" type="text" id="s-accname" aria-label="Account Holder Name">
+            </div>
+
+            <hr style="border-color:var(--border);margin:1.1rem 0 0.9rem;">
+            <div style="font-size:0.85rem;font-weight:700;margin-bottom:0.25rem;"><i class="fa-solid fa-paper-plane" style="color:var(--primary);margin-right:0.4rem;"></i>Payout Destination</div>
+            <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:0.85rem;">Where your earnings are sent when a payout is processed. Required to receive automatic payouts.</div>
+            <div class="form-group">
+              <label class="form-label" for="s-payout-method">Payout Method</label>
+              <select class="form-control" id="s-payout-method" onchange="dmTogglePayoutBank()" aria-label="Payout method">
+                <option value="wallet">Mobile Wallet</option>
+                <option value="instant wallet">Instant Wallet</option>
+                <option value="bank">Bank Account</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="s-payout-number">Payout Number <small style="color:var(--text-muted);font-weight:400;">(wallet/phone, or bank account no.)</small></label>
+              <input class="form-control" type="text" id="s-payout-number" placeholder="01xxxxxxxxx" aria-label="Payout number">
+            </div>
+            <div class="form-group" id="s-payout-bank-wrap" style="display:none;">
+              <label class="form-label" for="s-payout-bank">Bank Code <small style="color:var(--text-muted);font-weight:400;">(Kashier bank code, e.g. CIB)</small></label>
+              <input class="form-control" type="text" id="s-payout-bank" placeholder="CIB" aria-label="Bank code">
             </div>
             <button type="submit" class="btn btn-primary btn-full" data-i18n="saveSettings">Save Settings</button>
           </form>
@@ -6805,7 +6825,18 @@ async function loadSellerSettings() {
     document.getElementById('s-bank').value     = d.bank     || '';
     document.getElementById('s-accnum').value   = d.accountNum  || '';
     document.getElementById('s-accname').value  = d.accountHolder || '';
+    const pmEl = document.getElementById('s-payout-method'); if (pmEl) pmEl.value = d.payoutMethod || 'wallet';
+    const pnEl = document.getElementById('s-payout-number'); if (pnEl) pnEl.value = d.payoutNumber || '';
+    const pbEl = document.getElementById('s-payout-bank');   if (pbEl) pbEl.value = d.payoutBank || '';
+    dmTogglePayoutBank();
   } catch(err) { showAlert('seller-settings-alert', 'danger', 'Failed to load settings: ' + sanitize(err.message)); }
+}
+
+// Show the bank-code field only when the payout method is a bank transfer.
+function dmTogglePayoutBank() {
+  const m = document.getElementById('s-payout-method')?.value;
+  const w = document.getElementById('s-payout-bank-wrap');
+  if (w) w.style.display = (m === 'bank') ? '' : 'none';
 }
 
 async function saveSellerSettings(e) {
@@ -6819,7 +6850,10 @@ async function saveSellerSettings(e) {
       phone:          document.getElementById('s-phone').value.trim(),
       bank:           document.getElementById('s-bank').value.trim(),
       accountNum:     document.getElementById('s-accnum').value.trim(),
-      accountHolder:  document.getElementById('s-accname').value.trim()
+      accountHolder:  document.getElementById('s-accname').value.trim(),
+      payoutMethod:   document.getElementById('s-payout-method')?.value || 'wallet',
+      payoutNumber:   (document.getElementById('s-payout-number')?.value || '').trim(),
+      payoutBank:     (document.getElementById('s-payout-bank')?.value || '').trim()
     });
     showAlert('seller-settings-alert', 'success', t('settingsSaved'));
   } catch (err) {

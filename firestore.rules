@@ -140,6 +140,7 @@ service cloud.firestore {
                           'avatarUrl', 'photoURL',
                           'instapay', 'phone', 'bank', 'accountNum',
                           'accountHolder', 'tin',
+                          'payoutMethod', 'payoutNumber', 'payoutBank',
                           'twoFactorEnabled',
                           'updatedAt'
                         ]));
