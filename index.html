@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v119';
+    window.DM_RELEASE_TAG = 'digitalmarket@v120';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -5669,7 +5669,7 @@ function renderProducts() {
             : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
       </div>
       <div class="product-body">
-        <div class="product-title">${sanitize(p.name)}${p.hasCommercialLicense ? `<span class="bundle-badge">COM</span>` : ''}${p.pwyw ? `<span class="bundle-badge" style="background:var(--success);">PWYW</span>` : ''}</div>
+        <div class="product-title">${sanitize(p.name)}${dmIsNew(p) ? `<span class="bundle-badge" style="background:var(--primary);">NEW</span>` : ''}${p.hasCommercialLicense ? `<span class="bundle-badge">COM</span>` : ''}${p.pwyw ? `<span class="bundle-badge" style="background:var(--success);">PWYW</span>` : ''}</div>
         <div class="product-desc">${document.documentElement.lang==='ar' && p.descriptionAr ? sanitize(p.descriptionAr) : sanitize(p.description || '')}</div>
       </div>
       <div class="product-footer">
@@ -5847,6 +5847,14 @@ function buyNow() {
 // ═══════════════════════════════════════════════════════════════════
 // REVIEWS
 // ═══════════════════════════════════════════════════════════════════
+// Honest "NEW" flag — product created within the last 30 days. No fabricated data.
+function dmIsNew(p) {
+  try {
+    const t = p && p.createdAt && (p.createdAt.toDate ? p.createdAt.toDate().getTime() : (p.createdAt.seconds ? p.createdAt.seconds * 1000 : 0));
+    return !!t && (Date.now() - t) < 30 * 24 * 60 * 60 * 1000;
+  } catch { return false; }
+}
+
 function starsHtml(avg) {
   let html = '<span class="stars">';
   for (let i = 1; i <= 5; i++) {
