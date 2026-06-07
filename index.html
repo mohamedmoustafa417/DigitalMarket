@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v116';
+    window.DM_RELEASE_TAG = 'digitalmarket@v117';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -2978,7 +2978,7 @@
         <div class="payout-card" id="seller-payout-card">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
             <div>
-              <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.2rem;">Available Balance</div>
+              <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.2rem;">Available Balance <span style="font-size:0.7rem;">(after platform commission)</span></div>
               <div class="payout-balance" id="seller-payout-balance">EGP 0</div>
             </div>
             <button class="btn btn-success" id="request-payout-btn" onclick="requestPayout()">
@@ -3391,7 +3391,25 @@
 
       <!-- Payouts tab -->
       <div id="admin-tab-payouts" class="hidden">
-        <h3 style="margin-bottom:1.2rem;"><i class="fa-solid fa-money-bill-transfer" style="color:var(--primary);margin-right:0.5rem;"></i>Payout Requests</h3>
+        <h3 style="margin-bottom:1.2rem;"><i class="fa-solid fa-money-bill-transfer" style="color:var(--primary);margin-right:0.5rem;"></i>Payouts &amp; Commission</h3>
+        <!-- Commission / earnings summary (computed from approved orders) -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;margin-bottom:1.2rem;">
+          <div class="payout-card" style="margin:0;"><div style="font-size:0.72rem;color:var(--text-muted);">Gross sales (approved)</div><div style="font-size:1.25rem;font-weight:800;" id="cs-gross">—</div></div>
+          <div class="payout-card" style="margin:0;"><div style="font-size:0.72rem;color:var(--text-muted);">Your commission</div><div style="font-size:1.25rem;font-weight:800;color:var(--success);" id="cs-commission">—</div></div>
+          <div class="payout-card" style="margin:0;"><div style="font-size:0.72rem;color:var(--text-muted);">Paid to sellers</div><div style="font-size:1.25rem;font-weight:800;" id="cs-paid">—</div></div>
+          <div class="payout-card" style="margin:0;"><div style="font-size:0.72rem;color:var(--text-muted);">Owed to sellers</div><div style="font-size:1.25rem;font-weight:800;color:var(--warning);" id="cs-owed">—</div></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;gap:0.5rem;">
+          <strong style="font-size:0.92rem;">Per-seller earnings <span id="cs-rate-note" style="font-weight:400;color:var(--text-muted);font-size:0.78rem;"></span></strong>
+          <button class="btn btn-sm btn-outline" onclick="exportCommissionCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+        </div>
+        <div class="table-wrap" style="margin-bottom:1.6rem;">
+          <table>
+            <thead><tr><th>Seller</th><th>Gross</th><th>Your commission</th><th>Net earned</th><th>Paid</th><th>Balance owed</th></tr></thead>
+            <tbody id="admin-seller-earnings-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <h4 style="margin:0 0 0.75rem;"><i class="fa-solid fa-hand-holding-dollar" style="color:var(--primary);margin-right:0.4rem;"></i>Payout Requests</h4>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Seller</th><th>Amount</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead>
@@ -6281,6 +6299,7 @@ async function submitOrder() {
       subtotal,
       discount,
       total,
+      commissionRate: await dmGetCommissionRate(),  // platform % at time of sale (for payout/ledger accuracy)
       pointsRedeemed,
       // Opt-in social-proof attribution. If true, the CF writes a
       // first-name-only entry to /publicPurchases on approval.
@@ -9931,9 +9950,13 @@ async function loadPayoutData() {
       db.collection('orders').where('sellerIds','array-contains',curUser.uid).where('status','==','approved').get(),
       db.collection('payouts').where('sellerId','==',curUser.uid).get()
     ]);
+    // Net of the platform commission — the seller can only withdraw their share
+    // (price × (1 − rate)). Uses the order's stored commissionRate when present.
+    const _rate = await dmGetCommissionRate();
     const totalEarned = ordSnap.docs.reduce((s,d) => {
+      const r = Number(d.data().commissionRate != null ? d.data().commissionRate : _rate);
       const myItems = (d.data().items||[]).filter(i => i.sellerId === curUser.uid);
-      return s + myItems.reduce((a,i) => a + Number(i.price||0), 0);
+      return s + myItems.reduce((a,i) => a + Number(i.price||0) * (1 - r/100), 0);
     }, 0);
     const totalPaid = paySnap.docs.filter(d => d.data().status === 'paid').reduce((s,d) => s + Number(d.data().amount||0), 0);
     const balance = Math.max(0, totalEarned - totalPaid);
@@ -10123,9 +10146,88 @@ async function resolveDispute(disputeId, orderId, resolution) {
 // ═══════════════════════════════════════════════════════════════════
 // ADMIN PAYOUTS
 // ═══════════════════════════════════════════════════════════════════
+// Platform commission rate (cached). Default 5%. Set in Admin → Settings.
+async function dmGetCommissionRate() {
+  if (window._dmCommRate != null) return window._dmCommRate;
+  try {
+    const sd = await db.collection('settings').doc('payment').get();
+    const r = Number(sd.exists ? sd.data().commission : 5);
+    window._dmCommRate = (isNaN(r) || r < 0 || r > 100) ? 5 : r;
+  } catch { window._dmCommRate = 5; }
+  return window._dmCommRate;
+}
+
+// Admin: per-seller earnings ledger computed from approved orders.
+// Seller "net earned" = item price × (1 − commissionRate). Your commission is
+// what's retained. Uses the order's stored commissionRate when present, else
+// the current platform rate. Paid = sum of that seller's 'paid' payout records.
+let _dmCommissionRows = [];
+async function loadAdminCommissionSummary() {
+  const tb = document.getElementById('admin-seller-earnings-tbody');
+  try {
+    const rate = await dmGetCommissionRate();
+    const noteEl = document.getElementById('cs-rate-note');
+    if (noteEl) noteEl.textContent = `(platform commission: ${rate}%)`;
+    const [ordSnap, paySnap] = await Promise.all([
+      db.collection('orders').where('status','==','approved').get(),
+      db.collection('payouts').get()
+    ]);
+    const paidBy = {};
+    paySnap.docs.forEach(d => { const p = d.data(); if (p.status === 'paid') paidBy[p.sellerId] = (paidBy[p.sellerId] || 0) + Number(p.amount || 0); });
+    const sellers = {};
+    let totGross = 0, totComm = 0;
+    ordSnap.docs.forEach(d => {
+      const o = d.data();
+      const r = Number(o.commissionRate != null ? o.commissionRate : rate);
+      (o.items || []).forEach(it => {
+        const sid = it.sellerId || 'admin';
+        const price = Number(it.price || 0);
+        totGross += price;
+        if (sid === 'admin') { totComm += price; return; } // admin-owned items: 100% platform
+        const comm = price * r / 100, net = price - comm;
+        totComm += comm;
+        if (!sellers[sid]) sellers[sid] = { name:'', gross:0, commission:0, net:0 };
+        sellers[sid].gross += price; sellers[sid].commission += comm; sellers[sid].net += net;
+      });
+    });
+    paySnap.docs.forEach(d => { const p = d.data(); if (sellers[p.sellerId] && !sellers[p.sellerId].name) sellers[p.sellerId].name = p.sellerName || p.sellerEmail || ''; });
+    let totPaid = 0, totOwed = 0;
+    const rows = Object.entries(sellers).map(([sid, s]) => {
+      const paid = paidBy[sid] || 0, owed = Math.max(0, s.net - paid);
+      totPaid += paid; totOwed += owed;
+      return { sid, name: s.name || sid.slice(0,10), gross: s.gross, commission: s.commission, net: s.net, paid, owed };
+    }).sort((a,b) => b.owed - a.owed);
+    _dmCommissionRows = rows;
+    const set = (id,v) => { const e = document.getElementById(id); if (e) e.textContent = formatPrice(Math.round(v)); };
+    set('cs-gross', totGross); set('cs-commission', totComm); set('cs-paid', totPaid); set('cs-owed', totOwed);
+    if (tb) tb.innerHTML = rows.length ? rows.map(r => `<tr>
+        <td>${sanitize(r.name)}</td>
+        <td>${formatPrice(Math.round(r.gross))}</td>
+        <td style="color:var(--success);font-weight:600;">${formatPrice(Math.round(r.commission))}</td>
+        <td>${formatPrice(Math.round(r.net))}</td>
+        <td>${formatPrice(Math.round(r.paid))}</td>
+        <td style="color:var(--warning);font-weight:700;">${formatPrice(Math.round(r.owed))}</td>
+      </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No approved seller sales yet.</td></tr>`;
+  } catch (e) { if (tb) tb.innerHTML = `<tr><td colspan="6" style="color:var(--danger);">${sanitize(e.message)}</td></tr>`; }
+}
+
+function exportCommissionCSV() {
+  const rows = _dmCommissionRows || [];
+  if (!rows.length) { toast('Nothing to export yet.', 'info'); return; }
+  const head = ['Seller','SellerId','Gross','YourCommission','NetEarned','Paid','BalanceOwed'];
+  const csv = [head.join(',')].concat(rows.map(r =>
+    [`"${(r.name||'').replace(/"/g,'""')}"`, r.sid, r.gross.toFixed(2), r.commission.toFixed(2), r.net.toFixed(2), r.paid.toFixed(2), r.owed.toFixed(2)].join(',')
+  )).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'seller-earnings.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 async function loadAdminPayouts() {
   const tbody = document.getElementById('admin-payouts-tbody');
   if (!tbody) return;
+  loadAdminCommissionSummary();
   try {
     const snap = await db.collection('payouts').orderBy('requestedAt','desc').limit(50).get();
     const pending = snap.docs.filter(d => d.data().status === 'pending').length;
