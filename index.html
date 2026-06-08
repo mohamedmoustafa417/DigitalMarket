@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v125';
+    window.DM_RELEASE_TAG = 'digitalmarket@v126';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -17083,7 +17083,7 @@ console.log('[DigitalMarket] Trendy/Sustainable/Universal pack loaded ✅ (glass
       var _bottomPx = 16;
       if (_navEl && getComputedStyle(_navEl).display !== 'none') _bottomPx += (_navEl.offsetHeight || 56) + 8;
       if (_ckEl  && getComputedStyle(_ckEl).display  !== 'none') _bottomPx += (_ckEl.offsetHeight  || 0)  + 8;
-      banner.style.cssText = 'position:fixed;bottom:'+_bottomPx+'px;right:16px;left:auto;width:320px;max-width:calc(100vw - 32px);background:var(--bg2);border:1px solid var(--primary);border-radius:var(--r-md,12px);padding:0.85rem 1rem;box-shadow:var(--elev-3,0 12px 30px rgba(0,0,0,0.45));z-index:9000;display:flex;flex-direction:column;gap:0.5rem;animation:dm-toastin 0.3s ease;';
+      banner.style.cssText = 'position:fixed;bottom:'+_bottomPx+'px;right:16px;left:auto;width:320px;max-width:calc(100vw - 32px);background:var(--bg2);border:1px solid var(--primary);border-radius:var(--r-md,12px);padding:0.85rem 1rem;box-shadow:var(--elev-3,0 12px 30px rgba(0,0,0,0.45));z-index:950;display:flex;flex-direction:column;gap:0.5rem;animation:dm-toastin 0.3s ease;';
       banner.innerHTML = `
         <div style="display:flex;align-items:center;gap:0.5rem;font-weight:600;font-size:0.9rem;">📲 Install DigitalMarket</div>
         <div style="font-size:0.8rem;color:var(--text-muted);">Get instant access from your home screen, even offline.</div>
