@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v124';
+    window.DM_RELEASE_TAG = 'digitalmarket@v125';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -2034,18 +2034,26 @@
     body[dir="rtl"] .product-card .rating-pill {
       right: auto; left: 0.6rem;
     }
-    /* Bundle/COM/PWYW micro-badges next to title */
+    /* Bundle/COM/PWYW micro-badges — own flex-wrap row below title so they
+       never get clipped by the title's -webkit-line-clamp/overflow:hidden. */
+    .product-card .product-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin: 0.1rem 0 0.3rem;
+    }
     .product-card .bundle-badge {
       display: inline-block;
       font-size: 0.55rem;
       font-weight: 800;
       padding: 0.1rem 0.4rem;
       border-radius: 4px;
-      margin-inline-start: 0.35rem;
+      margin-inline-start: 0;
       vertical-align: middle;
       background: var(--info, #3b82f6);
       color: #fff;
       letter-spacing: 0.05em;
+      white-space: nowrap;
     }
     /* Image placeholder when no image — mesh-gradient backdrop */
     .product-card .product-img {
@@ -5683,7 +5691,8 @@ function renderProducts() {
             : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
       </div>
       <div class="product-body">
-        <div class="product-title">${sanitize(p.name)}${dmIsNew(p) ? `<span class="bundle-badge" style="background:var(--primary);">NEW</span>` : ''}${p.hasCommercialLicense ? `<span class="bundle-badge">COM</span>` : ''}${p.pwyw ? `<span class="bundle-badge" style="background:var(--success);">PWYW</span>` : ''}</div>
+        <div class="product-title">${sanitize(p.name)}</div>
+        ${(dmIsNew(p) || p.hasCommercialLicense || p.pwyw) ? `<div class="product-badges">${dmIsNew(p) ? `<span class="bundle-badge" style="background:var(--primary);">NEW</span>` : ''}${p.hasCommercialLicense ? `<span class="bundle-badge">COM</span>` : ''}${p.pwyw ? `<span class="bundle-badge" style="background:var(--success);">PWYW</span>` : ''}</div>` : ''}
         <div class="product-desc">${document.documentElement.lang==='ar' && p.descriptionAr ? sanitize(p.descriptionAr) : sanitize(p.description || '')}</div>
       </div>
       <div class="product-footer">
