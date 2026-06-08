@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v123';
+    window.DM_RELEASE_TAG = 'digitalmarket@v124';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -5542,6 +5542,18 @@ function doSearch() {
   const homeView = document.getElementById('view-home');
   if (homeView && !homeView.classList.contains('active')) navigate('home');
   else renderProducts();
+  // On mobile the product grid sits BELOW the hero, so a search updated the
+  // results off-screen and looked like nothing happened. Scroll the results
+  // into view (just under the sticky header) whenever there's a query.
+  if (searchQuery) {
+    setTimeout(() => {
+      const anchor = document.getElementById('filters-bar') || document.getElementById('products-grid');
+      if (!anchor) return;
+      const headerH = (document.querySelector('header')?.offsetHeight) || 64;
+      const y = anchor.getBoundingClientRect().top + window.pageYOffset - headerH - 8;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    }, 80);
+  }
 }
 
 let _searchTimer = null;
