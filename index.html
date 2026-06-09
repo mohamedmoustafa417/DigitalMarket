@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v126';
+    window.DM_RELEASE_TAG = 'digitalmarket@v127';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -3013,7 +3013,7 @@
               <i class="fa-solid fa-money-bill-transfer"></i> Request Payout
             </button>
           </div>
-          <div style="font-size:0.78rem;color:var(--text-muted);">Payouts are processed within 3–5 business days after admin approval. Minimum payout: EGP 100.</div>
+          <div id="payout-helper-note" style="font-size:0.78rem;color:var(--text-muted);">Payouts are processed within 3–5 business days after admin approval. Minimum payout: EGP 100.</div>
           <h5 style="font-size:0.82rem;font-weight:700;margin-top:1rem;margin-bottom:0.5rem;">Payout History</h5>
           <div id="payout-history-list" style="font-size:0.82rem;color:var(--text-muted);">Loading…</div>
         </div>
@@ -10009,6 +10009,19 @@ async function loadPayoutData() {
   if (!curUser) return;
   const balEl = document.getElementById('seller-payout-balance');
   const histEl = document.getElementById('payout-history-list');
+  // Store owner / admin: own-product sales are first-party — buyers' payments
+  // settle to the owner's own payment account, so there is no platform-held
+  // balance to withdraw. Showing one here would mean "request a payout to
+  // yourself" and would wrongly deduct a commission from your own revenue.
+  if (typeof isAdmin === 'function' && isAdmin()) {
+    if (balEl) balEl.textContent = '—';
+    const btn = document.getElementById('request-payout-btn');
+    if (btn) btn.style.display = 'none';
+    const note = document.getElementById('payout-helper-note');
+    if (note) note.textContent = "You're the store owner — your own product sales settle directly to your account, so there's no payout to request here. Use the admin Payouts & Commission panel to pay other sellers.";
+    if (histEl) histEl.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);">Not applicable for the owner account.</div>';
+    return;
+  }
   try {
     // Calculate available balance: approved order revenue minus paid payouts
     const [ordSnap, paySnap] = await Promise.all([
@@ -10260,6 +10273,17 @@ async function loadAdminCommissionSummary() {
       db.collection('orders').where('status','==','approved').get(),
       db.collection('payouts').get()
     ]);
+    // First-party seller identities — their sales are 100% owner revenue, NOT a
+    // commission owed to a third party. Covers the literal 'admin' sentinel, the
+    // signed-in owner's own UID, and any account with an 'admin' role. This is
+    // why an owner who also lists products doesn't get shown as "owed" money
+    // they'd be paying to themselves.
+    const adminUids = new Set(['admin']);
+    if (curUser?.uid) adminUids.add(curUser.uid);
+    try {
+      const aSnap = await db.collection('users').where('role','==','admin').get();
+      aSnap.docs.forEach(d => adminUids.add(d.id));
+    } catch (_) {}
     const paidBy = {}, procBy = {};
     paySnap.docs.forEach(d => { const p = d.data();
       if (p.status === 'paid') paidBy[p.sellerId] = (paidBy[p.sellerId] || 0) + Number(p.amount || 0);
@@ -10274,7 +10298,7 @@ async function loadAdminCommissionSummary() {
         const sid = it.sellerId || 'admin';
         const price = Number(it.price || 0);
         totGross += price;
-        if (sid === 'admin') { totComm += price; return; } // admin-owned items: 100% platform
+        if (adminUids.has(sid)) { totComm += price; return; } // first-party (owner/admin) items: 100% owner revenue, nothing owed
         const comm = price * r / 100, net = price - comm;
         totComm += comm;
         if (!sellers[sid]) sellers[sid] = { name:'', gross:0, commission:0, net:0 };
