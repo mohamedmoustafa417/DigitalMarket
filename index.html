@@ -11,7 +11,7 @@
   <meta property="og:description" content="Buy and sell digital products securely on DigitalMarket.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://digitalmarketstore.shop/">
-  <meta property="og:image" content="https://digitalmarketstore.shop/social_media_thumbnail.svg">
+  <meta property="og:image" content="https://digitalmarketstore.shop/social_media_thumbnail.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:locale" content="en_US">
@@ -22,7 +22,7 @@
   <meta name="twitter:site" content="@DigitalMarketEG">
   <meta name="twitter:title" content="DigitalMarket – Digital Marketplace">
   <meta name="twitter:description" content="Buy and sell digital products securely on DigitalMarket.">
-  <meta name="twitter:image" content="https://digitalmarketstore.shop/social_media_thumbnail.svg">
+  <meta name="twitter:image" content="https://digitalmarketstore.shop/social_media_thumbnail.png">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v127';
+    window.DM_RELEASE_TAG = 'digitalmarket@v128';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -497,7 +497,7 @@
     .vm-card-emoji { font-size: 2rem; margin-bottom: 0.7rem; display: block; }
     .vm-card-label { font-size: 0.72rem; font-weight: 700; color: #818cf8; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 0.4rem; }
     .vm-card-divider { width: 34px; height: 3px; background: linear-gradient(90deg, #6366f1, #a855f7); border-radius: 2px; margin-bottom: 0.75rem; }
-    .vm-card h3 { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 0.45rem; }
+    .vm-card h2, .vm-card h3 { font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 0.45rem; }
     .vm-card p { font-size: 0.875rem; color: rgba(255,255,255,0.52); line-height: 1.65; }
     .hero-btns { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
     .hero-3d .btn-outline { border-color: rgba(255,255,255,0.18); color: rgba(255,255,255,0.75); }
@@ -762,7 +762,7 @@
 
     /* ── Trending section ── */
     .trending-section { margin-bottom:2rem; }
-    .trending-section h3 { font-size:1rem; font-weight:700; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem; }
+    .trending-section h2, .trending-section h3 { font-size:1rem; font-weight:700; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem; }
     .trending-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:0.75rem; }
     .trending-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; cursor:pointer; transition:all var(--transition); position:relative; }
     .trending-card:hover { border-color:var(--primary); transform:translateY(-3px); box-shadow:0 8px 24px rgba(99,102,241,0.2); }
@@ -887,7 +887,7 @@
 
     /* ── Newsletter ── */
     .newsletter-bar { background:linear-gradient(135deg,var(--primary-dark),var(--secondary)); padding:1.5rem 1.25rem; text-align:center; margin-top:2rem; }
-    .newsletter-bar h4 { font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:0.35rem; }
+    .newsletter-bar h3, .newsletter-bar h4 { font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:0.35rem; }
     .newsletter-bar p { font-size:0.82rem; color:rgba(255,255,255,0.8); margin-bottom:0.75rem; }
     .newsletter-form { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; max-width:440px; margin:0 auto; }
     .newsletter-form input { flex:1; min-width:180px; padding:0.55rem 0.9rem; border-radius:var(--radius); border:none; background:rgba(255,255,255,0.15); color:#fff; font-size:0.85rem; outline:none; }
@@ -1428,6 +1428,16 @@
       .auth-card { max-width: 420px; }
       .modal-overlay > .modal { max-width: 620px; }
       .dashboard-grid { grid-template-columns: 200px 1fr; }
+    }
+    /* Tablet band 641-900px: logo + search + 6 header actions don't fit on one
+       row (the search input's intrinsic min-width can't shrink enough, pushing
+       Login/Sign Up past the right edge). Reuse the proven ≤640px treatment:
+       wrap the search bar onto its own full-width second row. */
+    @media (min-width: 641px) and (max-width: 900px) {
+      .header-inner { flex-wrap: wrap; row-gap: 0.5rem; }
+      .search-bar { order: 3; flex-basis: 100%; max-width: 100%; min-width: 0; }
+      .search-bar input { min-width: 0; }
+      .header-actions { gap: 0.4rem; }
     }
     /* Large desktop — better use of wide screens */
     @media (min-width: 1440px) {
@@ -2399,14 +2409,14 @@
           <span class="vm-card-emoji">🎯</span>
           <div class="vm-card-label">Our Vision</div>
           <div class="vm-card-divider"></div>
-          <h3>Leading Digital Commerce</h3>
+          <h2>Leading Digital Commerce</h2>
           <p>To become the world's most trusted digital marketplace — empowering creators and connecting them with buyers across the globe.</p>
         </div>
         <div class="vm-card">
           <span class="vm-card-emoji">🚀</span>
           <div class="vm-card-label">Our Mission</div>
           <div class="vm-card-divider"></div>
-          <h3>Empowering Every Creator</h3>
+          <h2>Empowering Every Creator</h2>
           <p>To provide a seamless, secure platform where digital creators monetize their work and buyers discover exceptional digital products.</p>
         </div>
       </div>
@@ -2441,7 +2451,7 @@
 
   <!-- Trending products section -->
   <div class="trending-section hidden" id="trending-section">
-    <h3><span aria-hidden="true">🔥</span> Trending This Week</h3>
+    <h2><span aria-hidden="true">🔥</span> Trending This Week</h2>
     <div class="trending-grid" id="trending-grid"></div>
   </div>
 
@@ -11981,7 +11991,7 @@ function renderFilePreview(product) {
 
 <!-- Newsletter bar -->
 <div class="newsletter-bar" id="newsletter-bar">
-  <h4>📬 Stay in the loop</h4>
+  <h3>📬 Stay in the loop</h3>
   <p>Get notified about new products, flash sales, and exclusive deals.</p>
   <div class="newsletter-form">
     <input type="email" id="newsletter-email" placeholder="your@email.com" autocomplete="email" aria-label="Email address for newsletter">
