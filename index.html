@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v130';
+    window.DM_RELEASE_TAG = 'digitalmarket@v131';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -1987,12 +1987,16 @@
       pointer-events: none;
       border-radius: var(--radius) var(--radius) 0 0;
     }
-    /* Badge stacking — top-left column. featured > fomo > countdown */
+    /* Badge stacking — top-left column. featured > fomo > countdown.
+       bottom:auto is REQUIRED: the base .fomo-badge rule sets bottom:0.4rem,
+       and with both top+bottom set an absolute element stretches into a
+       giant pill spanning the card (visible once a product hits 5+ sold). */
     .product-card .featured-badge,
     .product-card .fomo-badge,
     .product-card .card-countdown {
       position: absolute;
       left: 0.6rem;
+      bottom: auto;
       z-index: 2;
       font-size: 0.65rem;
       font-weight: 700;
