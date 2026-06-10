@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v129';
+    window.DM_RELEASE_TAG = 'digitalmarket@v130';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -7989,6 +7989,10 @@ function showOrderReceipt(orderId, items, total) {
     <div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius);padding:0.85rem 1rem;font-size:0.83rem;color:var(--text-muted);">
       <i class="fa-solid fa-circle-info" style="color:var(--primary);margin-right:0.4rem;"></i>
       Your payment proof is being reviewed. You'll receive an email when your order is approved and download links are ready.
+    </div>
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);border-radius:var(--radius);padding:0.85rem 1rem;font-size:0.83rem;color:var(--text-muted);margin-top:0.75rem;">
+      📧 <strong>Can't find our email?</strong> Check your <strong>Spam/Junk</strong> folder and tap <strong>"Not Spam"</strong> so the next one lands in your inbox.
+      <span style="display:block;direction:rtl;text-align:right;margin-top:0.3rem;">📧 <strong>مش لاقي الإيميل؟</strong> بص في فولدر السبام ودوس على زر <strong>Not Spam</strong> عشان الجاي يوصلك في الإنبوكس.</span>
     </div>`;
   openModal('order-receipt-modal');
 }
