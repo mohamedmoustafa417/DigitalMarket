@@ -168,7 +168,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v128';
+    window.DM_RELEASE_TAG = 'digitalmarket@v129';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -6049,26 +6049,18 @@ async function submitReview(productId) {
   const btn = document.querySelector('#review-write-box .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
   try {
-    // Atomic transaction: add review doc + update aggregate in one operation
-    const reviewRef  = db.collection('reviews').doc();
-    const productRef = db.collection('products').doc(productId);
-    await db.runTransaction(async tx => {
-      const prodSnap = await tx.get(productRef);
-      const d = prodSnap.data() || {};
-      const prevCount = d.ratingCount || 0;
-      const prevAvg   = d.ratingAvg   || 0;
-      const newCount  = prevCount + 1;
-      // Incremental average: avoids re-reading all reviews
-      const newAvg    = Math.round(((prevAvg * prevCount) + rating) / newCount * 10) / 10;
-      tx.set(reviewRef, {
-        productId,
-        buyerId:    curUser.uid,
-        buyerEmail: curUser.email,
-        rating,
-        comment,
-        createdAt:  firebase.firestore.FieldValue.serverTimestamp()
-      });
-      tx.update(productRef, { ratingAvg: newAvg, ratingCount: newCount });
+    // Create the review doc only. Rules verify the buyer purchased the
+    // product (via /purchases/{uid_productId}); the onNewReview Cloud
+    // Function recalculates the product's ratingAvg/ratingCount. The old
+    // transaction also updated /products here, which buyers can't write —
+    // it made every submission fail with permission-denied.
+    await db.collection('reviews').add({
+      productId,
+      buyerId:    curUser.uid,
+      buyerEmail: curUser.email,
+      rating,
+      comment,
+      createdAt:  firebase.firestore.FieldValue.serverTimestamp()
     });
     _reviewRating = 0;
     _reviewSubmitting = false;
@@ -6077,7 +6069,10 @@ async function submitReview(productId) {
   } catch (e) {
     console.error('submitReview error', e);
     _reviewSubmitting = false;
-    toast('Failed to submit review. Try again.', 'danger');
+    const denied = (e && (e.code === 'permission-denied' || /permission/i.test(e.message || '')));
+    toast(denied
+      ? 'Reviews are for verified buyers — your order must be approved first.'
+      : 'Failed to submit review. Try again.', 'danger', 6000);
     if (btn) { btn.disabled = false; btn.textContent = 'Submit Review'; }
   }
 }

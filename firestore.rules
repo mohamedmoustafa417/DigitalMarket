@@ -24,10 +24,20 @@ service cloud.firestore {
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
-    // Buyer must have at least one approved order containing this productId.
+    // Buyer must have an approved purchase of this productId. Orders use
+    // auto-IDs, so onOrderStatusChange writes a deterministic marker doc
+    // /purchases/{uid_productId} on approval — that's what we check here.
+    // (The old check against orders/{uid_productId} could never match.)
     function hasPurchased(productId) {
       return isSignedIn() &&
-        exists(/databases/$(database)/documents/orders/$(request.auth.uid + '_' + productId));
+        exists(/databases/$(database)/documents/purchases/$(request.auth.uid + '_' + productId));
+    }
+
+    // ── Purchases (server-written markers for verified-purchase checks) ─
+    match /purchases/{purchaseId} {
+      allow read: if isAdmin()
+                  || (isSignedIn() && resource.data.buyerId == request.auth.uid);
+      allow write: if false;   // only Cloud Functions (Admin SDK bypasses rules)
     }
 
     // ── Products ─────────────────────────────────────────────────────

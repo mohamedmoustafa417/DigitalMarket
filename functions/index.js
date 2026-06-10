@@ -507,6 +507,26 @@ exports.onOrderStatusChange = onDocumentWritten(
         approvalProcessedAt: FieldValue.serverTimestamp()
       });
 
+      // PURCHASE MARKERS — deterministic /purchases/{uid_productId} docs that
+      // firestore.rules' hasPurchased() checks for review eligibility. Orders
+      // use auto-IDs, so without these markers no buyer could ever pass the
+      // verified-purchase rule and every review was rejected.
+      try {
+        const pbatch = db.batch();
+        for (const item of (after.items || [])) {
+          if (!item.id || !after.buyerId) continue;
+          pbatch.set(db.collection('purchases').doc(`${after.buyerId}_${item.id}`), {
+            buyerId: after.buyerId,
+            productId: item.id,
+            orderId,
+            createdAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+        await pbatch.commit();
+      } catch (e) {
+        console.warn(`[onOrderStatusChange] purchase markers failed for ${orderId}:`, e.message);
+      }
+
       // SELLER TIER — fix read-modify-write race. Two concurrent approvals
       // were both reading the same `totalSales`, computing the same tier,
       // and missing the boundary promotion (199→200 stuck at Gold). Wrap
