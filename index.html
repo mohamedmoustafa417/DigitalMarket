@@ -162,13 +162,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"
     integrity="sha512-H+rglffZ6f5gF7UJgvH4Naa+fGCgjrHKMgoFOGmcPTRwR6oILo5R+gtzNrpDp7iMV3udbymBVjkeZGNz1Em4rQ=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <!-- Chart.js for analytics charts -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+  <!-- Chart.js: loaded ON DEMAND (see dmEnsureChart) — it's only used by the
+       admin/seller dashboards, so buyers shouldn't pay its ~113KB on every
+       visit. The loader injects it when those views open. -->
   <!-- Sentry error tracking — DEFERRED 2s post-load so it doesn't compete with critical path -->
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v131';
+    window.DM_RELEASE_TAG = 'digitalmarket@v132';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -264,7 +265,26 @@
     } catch(e) {}
   </script>
   <!-- Google reCAPTCHA v3 -->
-  <script src="https://www.google.com/recaptcha/api.js?render=6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz" async defer></script>
+  <!-- PERF: reCAPTCHA v3 (~250KB across api.js + gstatic runtime + iframe)
+       is only consumed at form-submit time, and verifyRecaptcha() already
+       degrades to null when grecaptcha is absent. Load it on the FIRST user
+       interaction (a human must interact long before they can submit) with a
+       3.5s idle fallback — keeps it off the critical path on every visit. -->
+  <script>
+  (function dmLazyRecaptcha() {
+    var loaded = false;
+    function load() {
+      if (loaded) return; loaded = true;
+      var s = document.createElement('script');
+      s.src = 'https://www.google.com/recaptcha/api.js?render=6Lco4NMsAAAAHaisFKUYFIDvzCWtcljhY46v1Vz';
+      s.async = true;
+      document.head.appendChild(s);
+      ['pointerdown','keydown','touchstart'].forEach(function(ev){ removeEventListener(ev, load); });
+    }
+    ['pointerdown','keydown','touchstart'].forEach(function(ev){ addEventListener(ev, load, { once:true, passive:true }); });
+    setTimeout(load, 3500);
+  })();
+  </script>
   <!-- Firebase 10 (compat layer – same API as v8, no code changes needed) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -887,6 +907,12 @@
 
     /* ── Newsletter ── */
     .newsletter-bar { background:linear-gradient(135deg,var(--primary-dark),var(--secondary)); padding:1.5rem 1.25rem; text-align:center; margin-top:2rem; }
+    /* PERF: skip layout/paint of below-fold chrome until scrolled near.
+       contain-intrinsic-size reserves approximate space so the scrollbar
+       doesn't jump. Saves main-thread time on first render (mobile). */
+    body > footer, .newsletter-bar { content-visibility: auto; }
+    body > footer { contain-intrinsic-size: auto 520px; }
+    .newsletter-bar { contain-intrinsic-size: auto 150px; }
     .newsletter-bar h3, .newsletter-bar h4 { font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:0.35rem; }
     .newsletter-bar p { font-size:0.82rem; color:rgba(255,255,255,0.8); margin-bottom:0.75rem; }
     .newsletter-form { display:flex; gap:0.5rem; justify-content:center; flex-wrap:wrap; max-width:440px; margin:0 auto; }
@@ -18286,6 +18312,38 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
  * Falls back silently if the Twemoji CDN is blocked — emoji stays as
  * native text, identical to today's behavior.
  */
+// ─── Chart.js on-demand loader ────────────────────────────────────────
+// Chart.js is only used by admin/seller dashboards. Inject it when those
+// views open (the Firestore data fetch that precedes any chart draw gives
+// the script time to load — and jsdelivr is SW cache-first after visit 1).
+(function dmChartOnDemand() {
+  var loading = null;
+  window.dmEnsureChart = function() {
+    if (window.Chart) return Promise.resolve();
+    if (loading) return loading;
+    loading = new Promise(function(res) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+      s.onload = res; s.onerror = res;   // never block a dashboard on chart failure
+      document.head.appendChild(s);
+    });
+    return loading;
+  };
+  // Hook view navigation — patch-chain style (ALWAYS call orig).
+  var orig = window.navigate;
+  if (typeof orig === 'function') {
+    window.navigate = function(view) {
+      if (view === 'admin' || view === 'seller') window.dmEnsureChart();
+      return orig.apply(this, arguments);
+    };
+  }
+  // If the page is restored straight into a dashboard, load immediately.
+  setTimeout(function() {
+    var v = document.querySelector('#view-admin.active, #view-seller.active');
+    if (v) window.dmEnsureChart();
+  }, 800);
+})();
+
 (function dmTwemojiBootstrap() {
   var parsed = false;
   var pending = false;
@@ -18299,14 +18357,22 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     } catch (_) { /* never block UI on emoji parse */ }
   }
 
+  // PERF: parse only the subtrees that were ADDED, never the whole body.
+  // The old version re-parsed document.body on every mutation burst — on a
+  // 4x-throttled phone that was a recurring 100-300ms long task (every
+  // product render, toast, or modal triggered a full-DOM scan).
+  var queue = [];
   function flushParse() {
     if (pending) return;
     pending = true;
-    // Microtask + rAF batch: coalesce bursts of DOM writes into one parse.
     Promise.resolve().then(function() {
       requestAnimationFrame(function() {
-        parse(document.body);
+        var nodes = queue.splice(0, 60);   // cap per frame; rest re-queues
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].isConnected) parse(nodes[i]);
+        }
         pending = false;
+        if (queue.length) flushParse();
       });
     });
   }
@@ -18314,23 +18380,33 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   function init() {
     if (parsed) return;
     parsed = true;
-    parse(document.body);
+    parse(document.body);   // one full pass, on idle
 
     if ('MutationObserver' in window) {
       var obs = new MutationObserver(function(records) {
-        // Cheap heuristic: if any added node could contain text, queue a re-parse.
         for (var i = 0; i < records.length; i++) {
-          if (records[i].addedNodes && records[i].addedNodes.length) { flushParse(); return; }
+          var added = records[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            if (added[j].nodeType === 1) {  // elements only
+              if (queue.length < 400) queue.push(added[j]);
+            }
+          }
         }
+        if (queue.length) flushParse();
       });
       obs.observe(document.body, { childList: true, subtree: true, characterData: false });
     }
   }
 
-  // Twemoji loads with defer; wait until it actually attaches to window.
+  // Twemoji loads with defer; start the first full parse on IDLE so it never
+  // competes with the critical render/startup path.
   var deadline = Date.now() + 8000;
   var iv = setInterval(function() {
-    if (window.twemoji) { init(); clearInterval(iv); }
+    if (window.twemoji) {
+      clearInterval(iv);
+      if ('requestIdleCallback' in window) requestIdleCallback(init, { timeout: 4000 });
+      else setTimeout(init, 1200);
+    }
     else if (Date.now() > deadline) { clearInterval(iv); } // give up silently
   }, 100);
 })();

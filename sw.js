@@ -1,4 +1,4 @@
-const CACHE_NAME = 'digitalmarket-v131';
+const CACHE_NAME = 'digitalmarket-v132';
 const STATIC_ASSETS = [
   '/',
   '/favicon.svg',
@@ -12,13 +12,16 @@ const STATIC_ASSETS = [
 // NOTE: '/index.html' deliberately excluded — it resolves to '/' on GitHub
 // Pages and pre-caching both doubles storage + risks revalidation divergence.
 
-const CDN_CACHE = 'digitalmarket-cdn-v5';
+const CDN_CACHE = 'digitalmarket-cdn-v6';
 const CDN_ORIGINS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
   'cdnjs.cloudflare.com',
   'cdn.jsdelivr.net',
-  'browser.sentry-cdn.com'
+  'browser.sentry-cdn.com',
+  // Firebase SDKs + reCAPTCHA runtime — version-hashed URLs, safe to
+  // cache-first; saves ~5 network roundtrips on every repeat visit.
+  'www.gstatic.com'
 ];
 
 // Hosts that MUST always be network-only — never cached. Signed download
