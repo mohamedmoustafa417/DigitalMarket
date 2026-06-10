@@ -1,4 +1,4 @@
-const CACHE_NAME = 'digitalmarket-v127';
+const CACHE_NAME = 'digitalmarket-v128';
 const STATIC_ASSETS = [
   '/',
   '/favicon.svg',
