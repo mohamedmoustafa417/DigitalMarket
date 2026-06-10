@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>DigitalMarket — Account Action</title>
+<style>
+:root { --p:#6366F1; --p2:#8B5CF6; --g:#10B981; --d:#EF4444; --bg:#0F1222; --bg2:#181C30; --bg3:#222741; --tx:#EDEEF7; --mut:#9CA3C0; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,Tahoma,Arial,sans-serif; background:var(--bg); color:var(--tx); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+.card { background:var(--bg2); border:1px solid var(--bg3); border-radius:18px; padding:32px 26px; max-width:430px; width:100%; text-align:center; box-shadow:0 18px 50px rgba(0,0,0,.45); }
+.logo { font-size:1.15rem; font-weight:800; color:var(--p); margin-bottom:20px; letter-spacing:.5px; }
+.icon { font-size:3rem; margin-bottom:12px; }
+h1 { font-size:1.2rem; margin-bottom:8px; }
+p { font-size:.9rem; color:var(--mut); line-height:1.6; margin-bottom:8px; }
+.btn { display:inline-block; width:100%; padding:13px 18px; border:none; border-radius:12px; background:linear-gradient(135deg,var(--p),var(--p2)); color:#fff; font-size:.95rem; font-weight:700; cursor:pointer; margin-top:14px; text-decoration:none; }
+.btn.secondary { background:var(--bg3); }
+.btn:disabled { opacity:.6; cursor:wait; }
+input { width:100%; padding:12px 14px; margin-top:12px; border-radius:10px; border:1.5px solid var(--bg3); background:var(--bg); color:var(--tx); font-size:.95rem; outline:none; }
+input:focus { border-color:var(--p); }
+.ar { display:block; margin-top:4px; direction:rtl; }
+.hide { display:none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🛍️ DigitalMarket</div>
+  <div id="view-loading">
+    <div class="icon">⏳</div>
+    <h1>One moment…</h1>
+    <p>Checking your link.<span class="ar">جاري التحقق من الرابط…</span></p>
+  </div>
+
+  <div id="view-verify" class="hide">
+    <div class="icon">📧</div>
+    <h1>Confirm your email</h1>
+    <p>Tap the button below to verify your email address.<span class="ar">اضغط الزر لتأكيد بريدك الإلكتروني.</span></p>
+    <button class="btn" id="btn-verify" onclick="doVerify()">Verify my email · تأكيد البريد</button>
+  </div>
+
+  <div id="view-success" class="hide">
+    <div class="icon">✅</div>
+    <h1>Email verified!</h1>
+    <p>Your email is confirmed — you're all set.<span class="ar">تم تأكيد بريدك الإلكتروني بنجاح — كل شيء جاهز.</span></p>
+    <a class="btn" href="https://digitalmarketstore.shop/">Back to DigitalMarket · العودة للمتجر</a>
+  </div>
+
+  <div id="view-already" class="hide">
+    <div class="icon">✅</div>
+    <h1>You're already verified</h1>
+    <p>This link was already used — but no worries: your account is verified and ready.<span class="ar">الرابط مستخدم من قبل — لكن لا تقلق: حسابك مؤكد وجاهز.</span></p>
+    <a class="btn" href="https://digitalmarketstore.shop/">Back to DigitalMarket · العودة للمتجر</a>
+  </div>
+
+  <div id="view-expired" class="hide">
+    <div class="icon">🔄</div>
+    <h1>Link expired or already used</h1>
+    <p>Email links can only be used once, and some mail apps "pre-open" them. Log in on the site and tap <b>Resend verification</b> to get a fresh link.<span class="ar">روابط البريد تُستخدم مرة واحدة فقط. سجّل دخولك في الموقع واضغط «إعادة إرسال التأكيد» للحصول على رابط جديد.</span></p>
+    <a class="btn" href="https://digitalmarketstore.shop/#login">Log in &amp; resend · تسجيل الدخول</a>
+  </div>
+
+  <div id="view-reset" class="hide">
+    <div class="icon">🔑</div>
+    <h1>Set a new password</h1>
+    <p id="reset-email-note">Choose a new password for your account.<span class="ar">اختر كلمة مرور جديدة لحسابك.</span></p>
+    <input type="password" id="new-pass" placeholder="New password (min 6 chars)" minlength="6">
+    <button class="btn" id="btn-reset" onclick="doReset()">Save new password · حفظ</button>
+  </div>
+
+  <div id="view-reset-done" class="hide">
+    <div class="icon">✅</div>
+    <h1>Password updated</h1>
+    <p>You can now log in with your new password.<span class="ar">يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.</span></p>
+    <a class="btn" href="https://digitalmarketstore.shop/#login">Log in · تسجيل الدخول</a>
+  </div>
+
+  <div id="view-error" class="hide">
+    <div class="icon">⚠️</div>
+    <h1>Something went wrong</h1>
+    <p id="err-msg">This link isn't valid.<span class="ar">هذا الرابط غير صالح.</span></p>
+    <a class="btn secondary" href="https://digitalmarketstore.shop/">Back to DigitalMarket · العودة للمتجر</a>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyBlz4mh7Aw0juMQPemqRUysxVVDhGaU8Rw",
+  authDomain: "digitalmarket-38db5.firebaseapp.com",
+  projectId: "digitalmarket-38db5"
+});
+const auth = firebase.auth();
+const qs = new URLSearchParams(location.search);
+const mode = qs.get('mode'), oob = qs.get('oobCode');
+
+function show(id) {
+  document.querySelectorAll('.card > div[id^="view-"]').forEach(d => d.classList.add('hide'));
+  document.getElementById(id).classList.remove('hide');
+}
+
+async function expiredOrAlready() {
+  // If the visitor is signed in and already verified, the "used" link is
+  // harmless — tell them they're fine instead of showing a scary error.
+  try {
+    await new Promise(res => { const u = auth.onAuthStateChanged(x => { u(); res(x); }); });
+    const u = auth.currentUser;
+    if (u) { await u.reload(); if (u.emailVerified) return show('view-already'); }
+  } catch (_) {}
+  show('view-expired');
+}
+
+async function doVerify() {
+  const btn = document.getElementById('btn-verify');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  try {
+    await auth.applyActionCode(oob);
+    try { if (auth.currentUser) await auth.currentUser.reload(); } catch (_) {}
+    show('view-success');
+  } catch (e) {
+    if (e.code === 'auth/invalid-action-code' || e.code === 'auth/expired-action-code') expiredOrAlready();
+    else { document.getElementById('err-msg').textContent = e.message || 'Unknown error.'; show('view-error'); }
+  }
+}
+
+async function doReset() {
+  const pass = document.getElementById('new-pass').value;
+  if (!pass || pass.length < 6) { alert('Password must be at least 6 characters.'); return; }
+  const btn = document.getElementById('btn-reset');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await auth.confirmPasswordReset(oob, pass);
+    show('view-reset-done');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Save new password · حفظ';
+    if (e.code === 'auth/invalid-action-code' || e.code === 'auth/expired-action-code') {
+      document.getElementById('err-msg').innerHTML = 'This reset link expired or was already used — request a new one from the login page.<span class="ar">انتهت صلاحية رابط إعادة التعيين — اطلب رابطاً جديداً من صفحة تسجيل الدخول.</span>';
+      show('view-error');
+    } else alert(e.message);
+  }
+}
+
+(async () => {
+  if (!mode || !oob) { show('view-error'); return; }
+  if (mode === 'verifyEmail') {
+    // Verify the code is still valid BEFORE showing the button. We do NOT
+    // auto-apply on load: requiring a click means mail-scanner prefetches
+    // can't consume the one-time code.
+    try { await auth.checkActionCode(oob); show('view-verify'); }
+    catch (e) { expiredOrAlready(); }
+  } else if (mode === 'resetPassword') {
+    try {
+      const info = await auth.verifyPasswordResetCode(oob);
+      document.getElementById('reset-email-note').innerHTML =
+        'Choose a new password for <b>' + info.replace(/</g,'&lt;') + '</b>.<span class="ar">اختر كلمة مرور جديدة لحسابك.</span>';
+      show('view-reset');
+    } catch (e) {
+      document.getElementById('err-msg').innerHTML = 'This reset link expired or was already used — request a new one from the login page.<span class="ar">انتهت صلاحية الرابط — اطلب رابطاً جديداً من صفحة تسجيل الدخول.</span>';
+      show('view-error');
+    }
+  } else if (mode === 'recoverEmail') {
+    try { await auth.applyActionCode(oob); show('view-success'); }
+    catch (e) { expiredOrAlready(); }
+  } else show('view-error');
+})();
+</script>
+</body>
+</html>
