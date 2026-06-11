@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v134';
+    window.DM_RELEASE_TAG = 'digitalmarket@v135';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -2518,6 +2518,7 @@
       <button class="filter-btn" data-cat="templates" onclick="setFilter('templates')">Templates</button>
       <button class="filter-btn" data-cat="printables" onclick="setFilter('printables')">Printables</button>
       <button class="filter-btn" data-cat="ai" onclick="setFilter('ai')">AI &amp; Prompts</button>
+      <button class="filter-btn" data-cat="bundles" onclick="setFilter('bundles')">💎 Bundles</button>
       <button class="filter-btn" data-cat="other" onclick="setFilter('other')" data-i18n="filterOther">Other</button>
     </div>
 
@@ -5627,6 +5628,11 @@ function getFilteredProducts() {
     if (currentFilter === 'templates') return cat.includes('template');
     if (currentFilter === 'printables')return cat.includes('printable');
     if (currentFilter === 'ai')        return cat === 'ai' || cat.includes('prompt');
+    if (currentFilter === 'bundles') {
+      // Bundles carry category 'other' — identify by tags/name instead.
+      const tagstr = (p.tags || []).join(' ').toLowerCase();
+      return tagstr.includes('bundle') || tagstr.includes('value pack') || /\bbundle\b/i.test(p.name || '');
+    }
     if (currentFilter === 'other')     return !['software','book','course','graphic','design','template','printable','ai','prompt'].some(k => cat.includes(k));
     return cat === currentFilter;
   });
@@ -9943,10 +9949,10 @@ function onPwywChange(val, minPrice) {
 // SOCIAL SHARE
 // ═══════════════════════════════════════════════════════════════════
 function getProductDeepLink(productId) {
-  const u = new URL(window.location.href);
-  u.searchParams.set('p', productId);
-  u.hash = '';
-  return u.toString();
+  // Static share page with per-product OG meta + Product schema — WhatsApp/
+  // Facebook show a rich card (cover, title, price) instead of the generic
+  // site preview. The page instantly redirects into the SPA (/?p=<id>).
+  return `https://digitalmarketstore.shop/p/${encodeURIComponent(productId)}.html`;
 }
 function shareWhatsApp(name, productId) {
   const url = encodeURIComponent(getProductDeepLink(productId));
@@ -12106,6 +12112,7 @@ function renderFilePreview(product) {
         <li><a href="#" onclick="navigate('register');return false;" style="color:var(--text-muted);text-decoration:none;">Become a Seller</a></li>
         <li><a href="#" onclick="navigate('cart');return false;" style="color:var(--text-muted);text-decoration:none;">My Cart</a></li>
         <li><a href="help.html" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Help &amp; FAQ</a></li>
+        <li><a href="blog/index.html" target="_blank" rel="noopener" style="color:var(--text-muted);text-decoration:none;">Blog &amp; Guides</a></li>
       </ul>
     </div>
 
