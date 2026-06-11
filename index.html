@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v133';
+    window.DM_RELEASE_TAG = 'digitalmarket@v134';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -2055,7 +2055,10 @@
       left: 0.5rem;
       right: auto !important;
     }
-    /* Rating pill — bottom-right of card */
+    /* Rating pill — bottom-right OF THE COVER IMAGE (.product-img is the
+       position:relative host). It used to anchor to the card itself, which
+       put it on top of the price/category footer the moment a product got
+       its first review. */
     .product-card .rating-pill {
       position: absolute;
       bottom: 0.55rem;
@@ -5729,6 +5732,7 @@ function renderProducts() {
           : p.emoji
             ? `<span style="font-size:3rem;line-height:1;" aria-hidden="true">${sanitize(p.emoji)}</span>`
             : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
+        ${p.ratingCount ? `<div class="rating-pill">${starsHtml(p.ratingAvg||0)}<span>${(+(p.ratingAvg||0)).toFixed(1)} (${p.ratingCount})</span></div>` : ''}
       </div>
       <div class="product-body">
         <div class="product-title">${sanitize(p.name)}</div>
@@ -5739,7 +5743,6 @@ function renderProducts() {
         <span class="product-price">${formatPrice(p.price)}${p.pwyw ? '+' : ''}</span>
         <span class="badge badge-primary">${sanitize(p.category || 'other')}</span>
       </div>
-      ${p.ratingCount ? `<div class="rating-pill">${starsHtml(p.ratingAvg||0)}<span>${(+(p.ratingAvg||0)).toFixed(1)} (${p.ratingCount})</span></div>` : ''}
     </div>
   `).join('');
 }
@@ -8341,6 +8344,7 @@ function renderWishlist() {
           : p.emoji
             ? `<span style="font-size:3rem;line-height:1;" aria-hidden="true">${sanitize(p.emoji)}</span>`
             : `<i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>`}
+        ${p.ratingCount ? `<div class="rating-pill">${starsHtml(p.ratingAvg||0)}<span>${(+(p.ratingAvg||0)).toFixed(1)} (${p.ratingCount})</span></div>` : ''}
       </div>
       <div class="product-body">
         <div class="product-title">${sanitize(p.name)}</div>
@@ -8356,7 +8360,6 @@ function renderWishlist() {
         <i class="fa-solid fa-${inCart ? 'check' : 'cart-plus'}" aria-hidden="true"></i>
         ${inCart ? 'In Cart' : 'Move to Cart'}
       </button>
-      ${p.ratingCount ? `<div class="rating-pill">${starsHtml(p.ratingAvg||0)}<span>${(+(p.ratingAvg||0)).toFixed(1)} (${p.ratingCount})</span></div>` : ''}
     </div>`;
   }).join('');
 }
@@ -16412,7 +16415,13 @@ function dmConfetti() {
       // Scroll runs AFTER the transition's render so it doesn't fight it
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
     };
-    if (document.startViewTransition && currentView !== view) {
+    // PERF (iOS): startViewTransition snapshots the ENTIRE page before the
+    // cross-fade — on iPhone Safari that made every tab switch feel slow.
+    // Phones get an instant switch; desktop keeps the smooth transition.
+    const vtOK = document.startViewTransition && currentView !== view
+      && window.matchMedia('(min-width: 768px) and (hover: hover)').matches
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (vtOK) {
       try {
         const vt = document.startViewTransition(doNav);
         // When a navigation interrupts an in-flight transition the browser
@@ -17405,6 +17414,31 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
     }
+  }
+  /* iOS/mobile GPU diet: backdrop-filter is one of the most expensive
+     effects on iPhone Safari, and we had it on EVERY card pill/badge —
+     dozens of live blur layers while scrolling the grid. Their rgba
+     backgrounds are opaque enough to read without the blur. */
+  @media (max-width: 768px) {
+    .product-card .rating-pill,
+    .rating-pill,
+    .fomo-badge,
+    .card-countdown,
+    .product-card .featured-badge,
+    .product-card .fomo-badge,
+    .product-card .card-countdown,
+    .vm-card {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    .vm-card { background: rgba(255,255,255,0.06); }
+  }
+  /* Skip layout/paint of off-screen product cards (big win for long grids
+     on phones). `auto` keeps the last rendered size so scrollbars stay
+     stable; 340px approximates an unrendered card. */
+  .products-grid .product-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 340px;
   }
 
   /* 2. PREMIUM FOCUS RINGS
