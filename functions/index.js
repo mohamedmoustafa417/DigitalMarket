@@ -2589,3 +2589,95 @@ exports.sendVerifyEmail = onCall(
     return { ok: true };
   }
 );
+
+// ─── sendResetEmail ──────────────────────────────────────────────────────────
+// Branded, bilingual PASSWORD RESET email (same Admin-SDK bypass as
+// sendVerifyEmail). Called by LOGGED-OUT users from the forgot-password form,
+// so it carries its own abuse protection:
+//   - never reveals whether an account exists (always returns ok)
+//   - 60s throttle per email + 10/hour per IP (mail_throttle collection)
+exports.sendResetEmail = onCall(
+  { region: 'us-central1', secrets: EMAIL_SECRETS, cors: ['https://digitalmarketstore.shop'] },
+  async req => {
+    const email = String(req.data?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 254) {
+      throw new HttpsError('invalid-argument', 'Valid email required.');
+    }
+    const crypto = require('crypto');
+    const emailKey = 'reset_' + crypto.createHash('sha256').update(email).digest('hex').slice(0, 32);
+    const ip = req.rawRequest?.ip || req.rawRequest?.headers?.['x-forwarded-for']?.split(',')[0] || 'unknown';
+    const ipKey = 'rstip_' + crypto.createHash('sha256').update(ip).digest('hex').slice(0, 32);
+
+    // Per-email: 1/min. Per-IP: 10/hour.
+    const now = Date.now();
+    const [eSnap, iSnap] = await Promise.all([
+      db.collection('mail_throttle').doc(emailKey).get(),
+      db.collection('mail_throttle').doc(ipKey).get()
+    ]);
+    if (now - (eSnap.data()?.sentAt?.toMillis?.() || 0) < 60000) {
+      return { ok: true };  // silently absorb rapid repeats
+    }
+    const hourHits = (iSnap.data()?.hits || []).filter(t => now - t < 3600000);
+    if (hourHits.length >= 10) {
+      throw new HttpsError('resource-exhausted', 'Too many requests — try again later.');
+    }
+
+    // Generate the link; if the account doesn't exist, pretend success
+    // (anti-enumeration — same behavior the client already shows).
+    let link = null;
+    try {
+      const rawLink = await getAuth().generatePasswordResetLink(email);
+      const oob = new URL(rawLink).searchParams.get('oobCode');
+      if (oob) link = `https://digitalmarketstore.shop/auth-action.html?mode=resetPassword&oobCode=${encodeURIComponent(oob)}`;
+    } catch (e) {
+      console.log(`[sendResetEmail] no-account or generate fail (absorbed): ${e.code || e.message}`);
+    }
+
+    if (link) {
+      const html = `
+<div style="font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#0F1222;padding:32px 16px;">
+  <div style="max-width:480px;margin:0 auto;background:#181C30;border:1px solid #222741;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#6366F1,#8B5CF6);padding:22px;text-align:center;">
+      <div style="font-size:1.3rem;font-weight:800;color:#fff;">🛍️ DigitalMarket</div>
+    </div>
+    <div style="padding:28px 24px;color:#EDEEF7;">
+      <h2 style="margin:0 0 10px;font-size:1.15rem;">Reset your password 🔑</h2>
+      <p style="margin:0 0 18px;font-size:0.92rem;color:#9CA3C0;line-height:1.6;">
+        We received a request to reset your DigitalMarket password. Tap the button to choose a new one. This link can be used once.
+      </p>
+      <p style="margin:0 0 22px;font-size:0.92rem;color:#9CA3C0;direction:rtl;text-align:right;line-height:1.8;">
+        استلمنا طلباً لإعادة تعيين كلمة المرور لحسابك في DigitalMarket. اضغط الزر لاختيار كلمة مرور جديدة. الرابط صالح لمرة واحدة.
+      </p>
+      <div style="text-align:center;margin:26px 0;">
+        <a href="${link}" style="display:inline-block;background:linear-gradient(135deg,#6366F1,#8B5CF6);color:#fff;text-decoration:none;padding:13px 34px;border-radius:12px;font-weight:700;font-size:0.95rem;">
+          Set new password · تعيين كلمة مرور جديدة
+        </a>
+      </div>
+      <p style="margin:0;font-size:0.78rem;color:#6B7390;line-height:1.6;">
+        If the button doesn't work, copy this link:<br>
+        <a href="${link}" style="color:#8B5CF6;word-break:break-all;">${link}</a><br><br>
+        Didn't request this? Ignore this email — your password stays unchanged.<br>
+        <span dir="rtl">لم تطلب إعادة التعيين؟ تجاهل هذه الرسالة — كلمة مرورك لن تتغير.</span>
+      </p>
+    </div>
+    <div style="padding:14px;text-align:center;border-top:1px solid #222741;font-size:0.75rem;color:#6B7390;">
+      © DigitalMarket · <a href="https://digitalmarketstore.shop" style="color:#8B5CF6;text-decoration:none;">digitalmarketstore.shop</a>
+    </div>
+  </div>
+</div>`;
+      const sent = await sendEmail({
+        to: email,
+        subject: 'Reset your password · إعادة تعيين كلمة المرور — DigitalMarket',
+        body: html
+      });
+      if (!sent.ok) throw new HttpsError('internal', 'Email delivery failed — please try again.');
+    }
+
+    // Record throttle marks regardless of account existence (uniform timing).
+    await Promise.all([
+      db.collection('mail_throttle').doc(emailKey).set({ sentAt: FieldValue.serverTimestamp() }, { merge: true }),
+      db.collection('mail_throttle').doc(ipKey).set({ hits: [...hourHits, now] }, { merge: true })
+    ]);
+    return { ok: true };
+  }
+);
