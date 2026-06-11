@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v132';
+    window.DM_RELEASE_TAG = 'digitalmarket@v133';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -17380,7 +17380,11 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
      scrolls under it elegantly. Fall back gracefully on Safari ≤ 13
      and Firefox without backdrop-filter (just stays opaque). */
   header[role="banner"] {
-    background: color-mix(in srgb, var(--bg2) 78%, transparent) !important;
+    /* 90% (not 78%): devices with GPU-blocklisted backdrop-filter render the
+       translucency WITHOUT the blur — at 78% the footer/page text read
+       crisply through the header. At 90% the glass look survives where blur
+       works, and the bleed-through is imperceptible where it doesn't. */
+    background: color-mix(in srgb, var(--bg2) 90%, transparent) !important;
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -17388,6 +17392,19 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   }
   @supports not (backdrop-filter: blur(1px)) {
     header[role="banner"] { background: var(--bg2) !important; }
+  }
+  /* Phones: SOLID header, no glass. The blur is barely perceptible in a
+     thin band over a scrolling list, but the failure mode is severe — on
+     GPU-blocklisted low-end Androids (common in our market) the compositor
+     renders the translucency WITHOUT the blur, so footer/page text reads
+     crisply through the header. Desktop keeps the premium glass. */
+  @media (max-width: 640px) {
+    header[role="banner"],
+    header[role="banner"].dm-scrolled {
+      background: var(--bg2) !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
   }
 
   /* 2. PREMIUM FOCUS RINGS
@@ -17850,7 +17867,7 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
     padding-top: 0.5rem; padding-bottom: 0.5rem;
     border-bottom-color: color-mix(in srgb, var(--border) 100%, transparent);
     box-shadow: 0 1px 0 rgba(0,0,0,0.2), 0 6px 24px -12px rgba(0,0,0,0.25);
-    background: color-mix(in srgb, var(--bg2) 85%, transparent);
+    background: color-mix(in srgb, var(--bg2) 92%, transparent);
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
   }
