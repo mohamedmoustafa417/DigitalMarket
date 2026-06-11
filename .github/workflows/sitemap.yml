@@ -38,6 +38,12 @@ jobs:
             <url><loc>${BASE}/privacy.html</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
           EOF
 
+          # Blog articles (static, committed under blog/)
+          for f in blog/*.html; do
+            [ -e "$f" ] || continue
+            echo "  <url><loc>${BASE}/${f}</loc><lastmod>${DATE}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>" >> sitemap.xml
+          done
+
           # Fetch up to 1000 approved products via runQuery (paginates via pageToken if needed)
           QUERY='{"structuredQuery":{"from":[{"collectionId":"products"}],"where":{"fieldFilter":{"field":{"fieldPath":"status"},"op":"EQUAL","value":{"stringValue":"approved"}}},"limit":1000}}'
 
@@ -59,7 +65,9 @@ jobs:
                   fields = doc.get('fields', {})
                   ts = fields.get('updatedAt', {}).get('timestampValue', '')[:10] or fields.get('createdAt', {}).get('timestampValue', '')[:10]
                   lastmod = f'<lastmod>{ts}</lastmod>' if ts else ''
-                  print(f'  <url><loc>https://digitalmarketstore.shop/?p={doc_id}</loc>{lastmod}<changefreq>weekly</changefreq><priority>0.8</priority></url>')
+                  # /p/<id>.html = static share page with per-product OG meta +
+                  # Product schema (crawlable); it redirects users into the SPA.
+                  print(f'  <url><loc>https://digitalmarketstore.shop/p/{doc_id}.html</loc>{lastmod}<changefreq>weekly</changefreq><priority>0.8</priority></url>')
           except Exception as e:
               print(f'<!-- failed to parse Firestore response: {e} -->', file=sys.stderr)
           " >> sitemap.xml

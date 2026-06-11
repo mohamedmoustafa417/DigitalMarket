@@ -214,6 +214,63 @@ jobs:
           kill $SRV 2>/dev/null || true
           exit $CODE
 
+      - name: Performance budget (FCP/DCL on pushed code)
+        id: perfbudget
+        continue-on-error: true
+        run: |
+          python3 -m http.server 8081 --directory "$GITHUB_WORKSPACE" >/dev/null 2>&1 &
+          SRV=$!
+          sleep 2
+          cat > ci-audit/perf.js << 'PERF_EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+          // Budgets are deliberately loose (CI runners are slow + shared):
+          // they exist to catch CATASTROPHIC regressions — e.g. a new
+          // synchronous blocking script — not to chase milliseconds.
+          const BUDGET = { fcp: 3000, dcl: 3500, mobileLongTaskSum: 5000 };
+          (async () => {
+            const browser = await puppeteer.launch({ headless:'new', args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'] });
+            const fails = [];
+            // desktop cold
+            const d = await browser.newPage();
+            await d.setViewport({ width:1440, height:900 });
+            await d.goto('http://localhost:8081/', { waitUntil:'load', timeout:90000 });
+            await new Promise(r => setTimeout(r, 2000));
+            const dm = await d.evaluate(() => {
+              const nav = performance.getEntriesByType('navigation')[0];
+              const p = {}; performance.getEntriesByType('paint').forEach(x => p[x.name] = Math.round(x.startTime));
+              return { fcp: p['first-contentful-paint'] || 0, dcl: Math.round(nav.domContentLoadedEventEnd) };
+            });
+            if (dm.fcp > BUDGET.fcp) fails.push(`desktop FCP ${dm.fcp}ms > ${BUDGET.fcp}ms`);
+            if (dm.dcl > BUDGET.dcl) fails.push(`desktop DCL ${dm.dcl}ms > ${BUDGET.dcl}ms`);
+            await d.close();
+            // mobile 4x throttle: long-task sum
+            const m = await browser.newPage();
+            await m.setViewport({ width:375, height:800, isMobile:true, hasTouch:true, deviceScaleFactor:2 });
+            const cdp = await m.target().createCDPSession();
+            await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+            await m.evaluateOnNewDocument(() => {
+              window.__lt = 0;
+              new PerformanceObserver(l => { for (const e of l.getEntries()) window.__lt += e.duration; })
+                .observe({ entryTypes: ['longtask'] });
+            });
+            await m.goto('http://localhost:8081/', { waitUntil:'load', timeout:120000 });
+            await new Promise(r => setTimeout(r, 4000));
+            const lt = await m.evaluate(() => Math.round(window.__lt || 0));
+            if (lt > BUDGET.mobileLongTaskSum) fails.push(`mobile(4x) long-task sum ${lt}ms > ${BUDGET.mobileLongTaskSum}ms`);
+            await browser.close();
+            const out = { desktop: dm, mobileLongTaskSum: lt, budget: BUDGET, fails };
+            fs.writeFileSync('ci-audit/perf.json', JSON.stringify(out, null, 2));
+            console.log(JSON.stringify(out));
+            if (fails.length) { console.error('PERF BUDGET FAILED: ' + fails.join('; ')); process.exit(1); }
+            console.log('PERF BUDGET PASSED');
+          })().catch(e => { console.error(e); process.exit(2); });
+          PERF_EOF
+          node ci-audit/perf.js
+          CODE=$?
+          kill $SRV 2>/dev/null || true
+          exit $CODE
+
       - name: Upload findings + screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -223,11 +280,12 @@ jobs:
             ci-audit/findings.json
             ci-audit/home.png
             ci-audit/sweep.json
+            ci-audit/perf.json
             ci-audit/sweep-*.png
           retention-days: 30
 
       - name: Open issue on failure
-        if: steps.audit.outcome == 'failure' || steps.sweep.outcome == 'failure'
+        if: steps.audit.outcome == 'failure' || steps.sweep.outcome == 'failure' || steps.perfbudget.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
@@ -235,7 +293,8 @@ jobs:
             let findings = {};
             try { findings = JSON.parse(fs.readFileSync('ci-audit/findings.json','utf8')); } catch {}
             let sweep = {};
-            try { sweep = JSON.parse(fs.readFileSync('ci-audit/sweep.json','utf8')); } catch {}
+            try { sweep = JSON.parse(fs.readFileSync('ci-audit/sweep.json
+            ci-audit/perf.json','utf8')); } catch {}
             const body = [
               '## Runtime audit failed',
               `**Site:** https://digitalmarketstore.shop/`,
@@ -277,5 +336,5 @@ jobs:
             });
 
       - name: Fail step if audit or sweep failed
-        if: steps.audit.outcome == 'failure' || steps.sweep.outcome == 'failure'
+        if: steps.audit.outcome == 'failure' || steps.sweep.outcome == 'failure' || steps.perfbudget.outcome == 'failure'
         run: exit 1
