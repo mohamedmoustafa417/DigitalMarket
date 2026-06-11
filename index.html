@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v136';
+    window.DM_RELEASE_TAG = 'digitalmarket@v137';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -5338,12 +5338,26 @@ function updateHeaderForGuest() {
   stopNotifListener();
 }
 
+// Branded verification email via the sendVerifyEmail Cloud Function (our own
+// HTML + Resend + custom handler page) — Firebase's native templates are
+// permanently locked (EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED, support case
+// 10410264). Falls back to the native Google email if the function errors.
+async function dmSendVerifyEmail() {
+  try {
+    const fn = firebase.app().functions('us-central1').httpsCallable('sendVerifyEmail');
+    const res = await fn({});
+    return res?.data?.ok === true;
+  } catch (e) {
+    console.warn('sendVerifyEmail callable failed, falling back to native:', e?.message);
+    try { await curUser.sendEmailVerification(); return true; } catch (_) { return false; }
+  }
+}
+
 async function resendVerificationEmail() {
   if (!curUser) return;
-  try {
-    await curUser.sendEmailVerification();
-    toast('Verification email sent! Check your inbox.', 'success');
-  } catch(e) { toast('Could not send email: ' + e.message, 'danger'); }
+  const ok = await dmSendVerifyEmail();
+  if (ok) toast('Verification email sent! Check your inbox (and spam).', 'success');
+  else toast('Could not send email — please try again in a minute.', 'danger');
 }
 
 function toggleUserMenu() {
@@ -5494,7 +5508,7 @@ async function doRegister(e) {
       disabled:  false
     });
 
-    try { await cred.user.sendEmailVerification(); } catch(ev) { console.warn('Verification email failed:', ev); }
+    try { await dmSendVerifyEmail(); } catch(ev) { console.warn('Verification email failed:', ev); }
     toast(t('registerOk') + ' Please check your email to verify your account.', 'success');
     trackEvent('sign_up', { method: 'email', role: assignedRole });
     navigate('home');

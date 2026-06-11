@@ -37,6 +37,7 @@ const { defineSecret }           = require('firebase-functions/params');
 const { initializeApp }          = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage }             = require('firebase-admin/storage');
+const { getAuth }                = require('firebase-admin/auth');
 
 initializeApp();
 const db      = getFirestore();
@@ -2508,5 +2509,83 @@ exports.kashierPayoutWebhook = onRequest(
       console.error('[kashierPayout] webhook error', e.message);
       res.status(200).send('error-logged');
     }
+  }
+);
+
+// ─── sendVerifyEmail ─────────────────────────────────────────────────────────
+// Branded, bilingual email-verification sender that BYPASSES Firebase's locked
+// native templates (EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED — confirmed intended
+// behavior by Firebase Support, case 10410264). Admin SDK generates the action
+// link, we extract the one-time oobCode and point the button at OUR handler
+// page (auth-action.html), then deliver via Resend from our own domain.
+// Client calls this instead of firebase.auth().currentUser.sendEmailVerification()
+// (with the native call kept as a fallback if this function errors).
+exports.sendVerifyEmail = onCall(
+  { region: 'us-central1', secrets: EMAIL_SECRETS, cors: ['https://digitalmarketstore.shop'] },
+  async req => {
+    const uid   = req.auth?.uid;
+    const email = req.auth?.token?.email;
+    if (!uid || !email) throw new HttpsError('unauthenticated', 'Sign in required.');
+    if (req.auth.token.email_verified) {
+      return { ok: true, already: true };
+    }
+
+    // Throttle: max 1 email per 60s per user (Firestore marker).
+    const throttleRef = db.collection('mail_throttle').doc(uid);
+    const tSnap = await throttleRef.get();
+    const last = tSnap.data()?.verifySentAt?.toMillis?.() || 0;
+    if (Date.now() - last < 60000) {
+      throw new HttpsError('resource-exhausted', 'Please wait a minute before requesting another email.');
+    }
+
+    // Generate the action link, then re-point it at our branded handler.
+    const rawLink = await getAuth().generateEmailVerificationLink(email);
+    const oob = new URL(rawLink).searchParams.get('oobCode');
+    if (!oob) throw new HttpsError('internal', 'Could not generate verification code.');
+    const link = `https://digitalmarketstore.shop/auth-action.html?mode=verifyEmail&oobCode=${encodeURIComponent(oob)}`;
+
+    const name = (req.auth.token.name || '').split(' ')[0] || '';
+    const html = `
+<div style="font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#0F1222;padding:32px 16px;">
+  <div style="max-width:480px;margin:0 auto;background:#181C30;border:1px solid #222741;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#6366F1,#8B5CF6);padding:22px;text-align:center;">
+      <div style="font-size:1.3rem;font-weight:800;color:#fff;">🛍️ DigitalMarket</div>
+    </div>
+    <div style="padding:28px 24px;color:#EDEEF7;">
+      <h2 style="margin:0 0 10px;font-size:1.15rem;">Verify your email${name ? ', ' + name : ''} ✉️</h2>
+      <p style="margin:0 0 18px;font-size:0.92rem;color:#9CA3C0;line-height:1.6;">
+        Tap the button below to confirm your email address and unlock your DigitalMarket account.
+      </p>
+      <p style="margin:0 0 22px;font-size:0.92rem;color:#9CA3C0;direction:rtl;text-align:right;line-height:1.8;">
+        اضغط على الزر بالأسفل لتأكيد بريدك الإلكتروني وتفعيل حسابك في DigitalMarket.
+      </p>
+      <div style="text-align:center;margin:26px 0;">
+        <a href="${link}" style="display:inline-block;background:linear-gradient(135deg,#6366F1,#8B5CF6);color:#fff;text-decoration:none;padding:13px 34px;border-radius:12px;font-weight:700;font-size:0.95rem;">
+          Verify my email · تأكيد البريد
+        </a>
+      </div>
+      <p style="margin:0;font-size:0.78rem;color:#6B7390;line-height:1.6;">
+        If the button doesn't work, copy this link:<br>
+        <a href="${link}" style="color:#8B5CF6;word-break:break-all;">${link}</a><br><br>
+        Didn't create an account? You can safely ignore this email.<br>
+        <span dir="rtl">لم تنشئ حساباً؟ تجاهل هذه الرسالة بأمان.</span>
+      </p>
+    </div>
+    <div style="padding:14px;text-align:center;border-top:1px solid #222741;font-size:0.75rem;color:#6B7390;">
+      © DigitalMarket · <a href="https://digitalmarketstore.shop" style="color:#8B5CF6;text-decoration:none;">digitalmarketstore.shop</a>
+    </div>
+  </div>
+</div>`;
+
+    const sent = await sendEmail({
+      to: email,
+      subject: 'Verify your email · تأكيد بريدك الإلكتروني — DigitalMarket',
+      body: html
+    });
+    if (!sent.ok) throw new HttpsError('internal', 'Email delivery failed — please try again.');
+
+    await throttleRef.set({ verifySentAt: FieldValue.serverTimestamp() }, { merge: true });
+    console.log(`[sendVerifyEmail] sent to uid=${uid}`);
+    return { ok: true };
   }
 );
