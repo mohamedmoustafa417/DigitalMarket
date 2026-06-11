@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v137';
+    window.DM_RELEASE_TAG = 'digitalmarket@v138';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -5544,10 +5544,14 @@ async function doForgot(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>';
   try {
-    await auth.sendPasswordResetEmail(email);
+    // Branded reset email via Cloud Function (Admin SDK + Resend + our
+    // handler page) — falls back to the native Google email if it errors.
+    const fn = firebase.app().functions('us-central1').httpsCallable('sendResetEmail');
+    await fn({ email });
     showAlert('forgot-alert', 'success', t('resetSent'));
   } catch (err) {
-    // Return generic message to not enumerate accounts
+    try { await auth.sendPasswordResetEmail(email); } catch (_) {}
+    // Generic message either way — never enumerate accounts
     showAlert('forgot-alert', 'success', t('resetSent'));
   }
   btn.disabled = false;
