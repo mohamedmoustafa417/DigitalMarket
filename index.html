@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v135';
+    window.DM_RELEASE_TAG = 'digitalmarket@v136';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -17446,6 +17446,27 @@ console.log('[DigitalMarket] Onboarding tour loaded ✅ (4-step spotlight for fi
   .products-grid .product-card {
     content-visibility: auto;
     contain-intrinsic-size: auto 340px;
+  }
+  /* iOS ANIMATION DIET — decorative infinite animations stutter iPhones:
+     · nameGlow animates filter:drop-shadow (one of the most expensive
+       properties in CSS) forever on the hero title
+     · dm-mesh moves a full-hero gradient layer for 18s on repeat
+     · gradient-drift repaints background-clipped text every frame
+     The gradients stay (static); only the perpetual motion stops. Desktop
+     keeps the full show. */
+  @media (max-width: 768px) {
+    .hero-3d::before { animation: none !important; }
+    .brand-name, .gradient-text { animation: none !important; }
+    .brand-icon-3d { animation: none !important; }
+  }
+  /* iOS Safari only: its content-visibility implementation can visibly
+     pop/stutter cards during scroll — disable just there (Chrome/Android
+     keep the rendering win). -webkit-touch-callout only exists on iOS. */
+  @supports (-webkit-touch-callout: none) {
+    .products-grid .product-card {
+      content-visibility: visible;
+      contain-intrinsic-size: none;
+    }
   }
 
   /* 2. PREMIUM FOCUS RINGS
