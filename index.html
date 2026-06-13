@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v141';
+    window.DM_RELEASE_TAG = 'digitalmarket@v142';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -291,21 +291,29 @@
           else { tellManual(); }
         }
         openBtn.onclick=function(){
-          var clean=url.replace(/^https?:\/\//,''), jumped=false;
-          var mark=function(){ if(document.hidden) jumped=true; };
-          document.addEventListener('visibilitychange',mark);
+          var clean=url.replace(/^https?:\/\//,''), enc=encodeURIComponent(url), jumped=false;
+          var win=function(){ jumped=true; };
+          document.addEventListener('visibilitychange',function(){ if(document.hidden) win(); });
+          window.addEventListener('pagehide',win);
+          openBtn.textContent='Opening…';
           if(isAndroid){
-            // Chrome intent opens the real browser directly. browser_fallback_url
-            // covers the rare device without Chrome (opens default browser).
-            try{ location.href='intent://'+clean+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(url)+';end'; }catch(e){}
-          } else {
-            // iOS can't be forced to Safari (Apple), but Chrome registers the
-            // googlechromes:// scheme — jump straight to it if installed.
-            try{ location.href='googlechromes://'+clean; }catch(e){}
+            // Chrome intent escapes the webview straight into Chrome; the
+            // fallback URL covers the rare Chrome-less device (default browser).
+            try{ location.href='intent://'+clean+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+enc+';end'; }catch(e){}
+            setTimeout(function(){ if(!jumped && !document.hidden) copyThenTip(); },1600);
+            return;
           }
-          // Still here after the jump window? It was blocked (e.g. iOS w/o Chrome)
-          // — copy the link and show the one-tap manual escape.
-          setTimeout(function(){ document.removeEventListener('visibilitychange',mark); if(!jumped && !document.hidden) copyThenTip(); },1500);
+          // iOS exposes no scheme for Safari (Apple restriction), so try every
+          // installable browser that DOES register one — Chrome → Firefox → Edge
+          // — each firing only if the previous didn't switch apps. If none are
+          // installed, fall back to the one-tap manual escape.
+          var tries=['googlechromes://'+clean,'firefox://open-url?url='+enc,'microsoft-edge-https://'+clean], i=0;
+          (function next(){
+            if(jumped||document.hidden) return;
+            if(i>=tries.length){ copyThenTip(); return; }
+            try{ location.href=tries[i++]; }catch(e){}
+            setTimeout(next,700);
+          })();
         };
         document.getElementById('dm-iab-x').onclick=function(){
           try{ localStorage.setItem('dm_iab_dismiss','1'); }catch(e){}
