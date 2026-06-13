@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v138';
+    window.DM_RELEASE_TAG = 'digitalmarket@v139';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -204,7 +204,18 @@
                   /Failed to fetch.*\bfont\b/i,       // font CDN occasional 4xx — non-blocking
                   /NotAllowedError.*Notification/i,   // user denied notifications, fine
                   /play\(\) request was interrupted/i,// video autoplay interrupted
-                  /The operation was aborted/i        // generic AbortSignal noise
+                  /The operation was aborted/i,       // generic AbortSignal noise
+                  // Firebase Auth's internal IndexedDB store (firebaseLocalStorageDb)
+                  // breaks mid-transaction inside the Facebook/Instagram in-app
+                  // browser (traffic arrives with ?fbclid=…). Firebase recovers to
+                  // in-memory persistence and the page works — these DOMExceptions
+                  // are unfixable from our side and pure quota noise.
+                  /in-progress transaction/i,
+                  /Attempt to get records from database/i,
+                  /A mutation operation was attempted on a database/i,
+                  /connection to Indexed Database server lost/i,
+                  /The user denied permission to access the database/i,
+                  /IDBDatabase|IDBTransaction|UnknownError.*transaction/i
                 ];
                 if (NOISE.some(re => re.test(msg))) return null;
                 // Scrub breadcrumbs: clear data on input/click for sensitive fields
