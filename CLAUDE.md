@@ -6,7 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build / run / test
 
-There is **no build step**. `index.html` is the entire SPA — edit and commit.
+There **is** a build step as of v145: `deploy/index.html` is a **minified** build
+of the canonical source `..\index_improved.html` (JS+CSS minified, HTML spacing
+preserved). Do NOT edit `deploy/index.html` directly and do NOT `cp`/`Copy-Item`
+the source over it — that ships the unminified 1 MB version. See "Local edit
+workflow" below.
 
 ### Deploy (in this order)
 ```powershell
@@ -27,25 +31,36 @@ To deploy ONLY rules (fastest):
 firebase deploy --only firestore:rules,storage --project digitalmarket-38db5
 ```
 
-### Test (runtime audit via Puppeteer)
-There is no unit test framework. Functional verification is via **headless
-browser**:
+### Test
+
+**E2E smoke suite (Playwright)** — `tests/` — runs on desktop + Android + iOS on
+every push via `.github/workflows/e2e.yml`. Covers load/render, Firebase init,
+product detail, add-to-cart, search, Arabic RTL, no-overflow, checkout login-gate.
+```
+cd tests && npm install && npx playwright install chromium webkit
+npm test
+```
+Keep assertions on user-observable invariants so they stay engine-stable.
+
+**Runtime audit (Puppeteer)** — `..\runtime-audit\` — perf-budget + checklist:
 ```
 cd C:\Users\LapTop\Downloads\Claude\runtime-audit
 node check-12.js   # 12-item manual checklist with screenshots
 node pre-launch.js # comprehensive pre-launch audit
 ```
-GitHub Action `.github/workflows/runtime-audit.yml` runs the same audit
-every Monday + on every push to `index.html`. Auto-opens a GitHub Issue
-labelled `bug/runtime-audit` if any check fails.
+GitHub Action `.github/workflows/runtime-audit.yml` runs the audit every Monday +
+on every push to `index.html`; opens a GitHub Issue labelled `bug/runtime-audit`
+on failure.
 
 ### Local edit workflow
 The canonical source is `C:\Users\LapTop\Downloads\Claude\index_improved.html`.
-Every commit copies it to `deploy/index.html`:
+Edit it, bump `DM_RELEASE_TAG` (source) + `CACHE_NAME` (`sw.js`), then **build**
+the minified deploy artifact (do NOT `Copy-Item` — that ships unminified):
 ```powershell
-Copy-Item "..\index_improved.html" "index.html" -Force
+node ..\product-content\build_deploy.js   # minifies -> deploy\index.html
 ```
-Always edit `index_improved.html`, never `deploy/index.html` directly.
+Always edit `index_improved.html`, never `deploy/index.html` directly (it's a
+generated, minified file).
 
 ---
 
