@@ -172,7 +172,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v143';
+    window.DM_RELEASE_TAG = 'digitalmarket@v144';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -371,13 +371,15 @@
     setTimeout(load, 3500);
   })();
   </script>
-  <!-- Firebase 10 (compat layer – same API as v8, no code changes needed) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
-  <!-- Functions compat — required for httpsCallable() (Kashier payments + emailHealthCheck) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+  <!-- Firebase 10 (compat) — PRELOADED here so the browser downloads all 5 SDKs
+       in parallel WITHOUT blocking, but they're EXECUTED just before the app code
+       that needs them (~line 4200). Result: the whole page paints first instead of
+       waiting on 163 KB of SDK in the <head>. Execution order is unchanged. -->
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js">
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js">
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js">
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js">
+  <link rel="preload" as="script" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js">
   <!-- EmailJS removed: all transactional email is sent server-side by the
        Cloud Functions (Resend) pipeline. The client sendOrderEmail() is a
        disabled no-op, so this render-blocking script was pure dead weight. -->
@@ -4201,6 +4203,14 @@
   </div>
 </div>
 
+<!-- Firebase SDKs EXECUTE here (already preloaded in <head>, so this is cache-fast).
+     The page above has fully painted before this point. Order: app→auth→firestore
+     →storage→functions, matching the init below. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // CONFIGURATION
