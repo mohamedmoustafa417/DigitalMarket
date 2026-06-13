@@ -169,7 +169,7 @@
   <script>
     // Release tag is read by Sentry.init below + by the SW update banner.
     // Bump in lockstep with CACHE_NAME on every meaningful change.
-    window.DM_RELEASE_TAG = 'digitalmarket@v140';
+    window.DM_RELEASE_TAG = 'digitalmarket@v141';
     window.addEventListener('load', () => setTimeout(() => {
       const s = document.createElement('script');
       s.src = 'https://browser.sentry-cdn.com/7.99.0/bundle.min.js';
@@ -291,14 +291,21 @@
           else { tellManual(); }
         }
         openBtn.onclick=function(){
+          var clean=url.replace(/^https?:\/\//,''), jumped=false;
+          var mark=function(){ if(document.hidden) jumped=true; };
+          document.addEventListener('visibilitychange',mark);
           if(isAndroid){
-            // Chrome intent reliably escapes most Android in-app webviews.
-            try{ location.href='intent://'+url.replace(/^https?:\/\//,'')+'#Intent;scheme=https;package=com.android.chrome;end'; }catch(e){}
-            setTimeout(copyThenTip,1200);
+            // Chrome intent opens the real browser directly. browser_fallback_url
+            // covers the rare device without Chrome (opens default browser).
+            try{ location.href='intent://'+clean+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(url)+';end'; }catch(e){}
           } else {
-            // iOS webviews can't be forced to Safari — copy + instruct.
-            copyThenTip();
+            // iOS can't be forced to Safari (Apple), but Chrome registers the
+            // googlechromes:// scheme — jump straight to it if installed.
+            try{ location.href='googlechromes://'+clean; }catch(e){}
           }
+          // Still here after the jump window? It was blocked (e.g. iOS w/o Chrome)
+          // — copy the link and show the one-tap manual escape.
+          setTimeout(function(){ document.removeEventListener('visibilitychange',mark); if(!jumped && !document.hidden) copyThenTip(); },1500);
         };
         document.getElementById('dm-iab-x').onclick=function(){
           try{ localStorage.setItem('dm_iab_dismiss','1'); }catch(e){}
